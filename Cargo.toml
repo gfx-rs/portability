@@ -1,0 +1,12 @@
+[package]
+name = "portability"
+version = "0.1.0"
+authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
+
+[lib]
+name = "vulkan"
+crate-type = ["dylib"]
+
+[dependencies]
+gfx_core = { path = "../gfx/src/core" }
+gfx_backend_vulkan = { path = "../gfx/src/backend/vulkan" }
