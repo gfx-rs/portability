@@ -1,31 +1,33 @@
 #include "vulkan/vulkan.h"
+#include <assert.h>
 #include <stdio.h>
-#include <stdlib.h>
 
 int main() {
+    printf("starting the portability test\n");
+
     VkInstanceCreateInfo inst_info = {};
     inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    inst_info.pNext = NULL;
-    inst_info.flags = 0;
-    inst_info.pApplicationInfo = NULL;
-    inst_info.enabledExtensionCount = 0;
-    inst_info.ppEnabledExtensionNames = NULL;
-    inst_info.enabledLayerCount = 0;
-    inst_info.ppEnabledLayerNames = NULL;
 
-    VkInstance inst;
+    VkInstance instance;
     VkResult res;
 
-    res = vkCreateInstance(&inst_info, NULL, &inst);
+    res = vkCreateInstance(&inst_info, NULL, &instance);
     if (res == VK_ERROR_INCOMPATIBLE_DRIVER) {
         printf("cannot find a compatible Vulkan ICD\n");
-        exit(-1);
+        return -1;
     } else if (res) {
         printf("unknown error\n");
-        exit(-1);
+        return -1;
     }
 
-    vkDestroyInstance(inst, NULL);
+    uint32_t gpu_count = 1;
+    VkPhysicalDevice physical_devices[1] = {};
+    res = vkEnumeratePhysicalDevices(instance, &gpu_count, physical_devices);
+    printf("\tvkEnumeratePhysicalDevices: res=%d count=%d\n", res, gpu_count);
+    assert(!res && gpu_count);
 
+    vkDestroyInstance(instance, NULL);
+
+    printf("done.\n");
     return 0;
 }

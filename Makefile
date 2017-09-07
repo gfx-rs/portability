@@ -1,23 +1,33 @@
+CC=gcc
+CFLAGS=
+DEPS=
+LDFLAGS=-lpthread -ldl -lm
+
 HEADER=native/vulkan/vulkan.h
-BINDING=src/original.rs
-TARGET=native/test
-OBJECTS=native/test.o
-OUTPUT_DIR=target/debug
-OUTPUT=${OUTPUT_DIR}/libvulkan.a
+BINDING=target/vulkan.rs
+NATIVE_DIR=target/native
+TARGET=$(NATIVE_DIR)/test
+OBJECTS=$(NATIVE_DIR)/test.o
+LIBRARY=target/debug/libportability.a
 
-all: ${TARGET}
+all: $(TARGET)
 
-${BINDING}: ${HEADER}
-	bindgen --no-layout-tests --rustfmt-bindings ${HEADER} -o ${BINDING}
+$(BINDING): $(HEADER)
+	bindgen --no-layout-tests --rustfmt-bindings $(HEADER) -o $(BINDING)
 
-portability: ${BINDING}
+$(LIBRARY): $(BINDING) src/*.rs
 	cargo build
+	mkdir -p target/native
 
-${TARGET}: portability ${OBJECTS}
-	gcc -o ${TARGET} -L${OUTPUT_DIR} -lvulkan ${OBJECTS}
+$(NATIVE_DIR)/%.o: native/%.c $(DEPS)
+	$(CC) -c -o $@ $< $(CFLAGS)
 
-run: ${TARGET}
-	${TARGET}
+$(TARGET): $(LIBRARY) $(OBJECTS)
+	$(CC) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LIBRARY)
+
+run: $(TARGET)
+	$(TARGET)
 
 clean:
-	rm -f ${OBJECTS} ${TARGET} ${BINDING}
+	rm -f $(OBJECTS) $(TARGET) $(BINDING)
+	cargo clean
