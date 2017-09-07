@@ -1,0 +1,10 @@
+sudo: false
+
+rust:
+  - stable
+  - nightly
+os:
+  - linux
+
+script:
+  - make
