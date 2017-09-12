@@ -10,12 +10,16 @@ CFLAGS=-I$(VULKAN_DIR)
 DEPS=
 LDFLAGS=-lpthread -ldl -lm
 
+.PHONY: all binding run
+
 all: $(TARGET)
+
+binding: $(BINDING)
 
 $(BINDING): $(VULKAN_DIR)/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
 
-$(LIBRARY): $(BINDING) src/*.rs
+$(LIBRARY): src/*.rs
 	cargo build
 	mkdir -p target/native
 

@@ -8,7 +8,7 @@ extern crate gfx_backend_vulkan as back;
 mod handle;
 
 use std::{cmp, slice};
-use core::Instance;
+use core::{Adapter, Instance, QueueFamily}; // traits only
 use back::Backend as B;
 use handle::Handle;
 
@@ -460,13 +460,8 @@ pub type VkSampleMask = u32;
 
 pub type VkInstance = Handle<back::Instance>;
 pub type VkPhysicalDevice = Handle<<B as core::Backend>::Adapter>;
+pub type VkDevice = Handle<core::Gpu<B>>;
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkDevice_T {
-    _unused: [u8; 0],
-}
-pub type VkDevice = *mut VkDevice_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkQueue_T {
@@ -4372,14 +4367,35 @@ extern "C" {
                                          pProperties:
                                              *mut VkPhysicalDeviceProperties);
 }
-extern "C" {
-    pub fn vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice:
-                                                        VkPhysicalDevice,
-                                                    pQueueFamilyPropertyCount:
-                                                        *mut u32,
-                                                    pQueueFamilyProperties:
-                                                        *mut VkQueueFamilyProperties);
+
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceQueueFamilyProperties(
+    physicalDevice: VkPhysicalDevice,
+    pQueueFamilyPropertyCount: *mut u32,
+    pQueueFamilyProperties: *mut VkQueueFamilyProperties,
+) {
+    let output = unsafe {
+        slice::from_raw_parts_mut(pQueueFamilyProperties, *pQueueFamilyPropertyCount as _)
+    };
+    let families = physicalDevice.get_queue_families();
+    if output.len() > families.len() {
+        unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
+    }
+    for (ref mut out, &(ref family, ty)) in output.iter_mut().zip(families.iter()) {
+        **out = VkQueueFamilyProperties {
+            queueFlags: match ty {
+                core::QueueType::General => VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32 | VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32,
+                core::QueueType::Graphics => VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32,
+                core::QueueType::Compute => VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32,
+                core::QueueType::Transfer => VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
+            },
+            queueCount: family.num_queues(),
+            timestampValidBits: 0, //TODO
+            minImageTransferGranularity: VkExtent3D { width: 0, height: 0, depth: 0 }, //TODO
+        }
+    }
 }
+
 extern "C" {
     pub fn vkGetPhysicalDeviceMemoryProperties(physicalDevice:
                                                    VkPhysicalDevice,
@@ -4396,16 +4412,38 @@ extern "C" {
                                pName: *const ::std::os::raw::c_char)
      -> PFN_vkVoidFunction;
 }
-extern "C" {
-    pub fn vkCreateDevice(physicalDevice: VkPhysicalDevice,
-                          pCreateInfo: *const VkDeviceCreateInfo,
-                          pAllocator: *const VkAllocationCallbacks,
-                          pDevice: *mut VkDevice) -> VkResult;
+
+#[no_mangle]
+pub extern fn vkCreateDevice(
+    physicalDevice: VkPhysicalDevice,
+    pCreateInfo: *const VkDeviceCreateInfo,
+    _pAllocator: *const VkAllocationCallbacks,
+    pDevice: *mut VkDevice,
+) -> VkResult {
+    let dev_info = unsafe { &*pCreateInfo };
+    let queue_infos = unsafe {
+        slice::from_raw_parts(dev_info.pQueueCreateInfos, dev_info.queueCreateInfoCount as _)
+    };
+    let families = physicalDevice.get_queue_families();
+    let request_infos = queue_infos.iter().map(|info| {
+        let (ref family, ty) = families[info.queueFamilyIndex as usize];
+        (family, ty, info.queueCount)
+    }).collect::<Vec<_>>();
+
+    let gpu = physicalDevice.open(&request_infos);
+    unsafe { *pDevice = Handle::new(gpu) };
+
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkDestroyDevice(device: VkDevice,
-                           pAllocator: *const VkAllocationCallbacks);
+
+#[no_mangle]
+pub extern fn vkDestroyDevice(
+    device: VkDevice,
+    _pAllocator: *const VkAllocationCallbacks,
+) {
+    let _ = device.unwrap(); //TODO?
 }
+
 extern "C" {
     pub fn vkEnumerateInstanceExtensionProperties(pLayerName:
                                                       *const ::std::os::raw::c_char,

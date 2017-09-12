@@ -16,4 +16,4 @@ branch = "portability"
 #path = "../gfx/src/backend/vulkan"
 git = "https://github.com/kvark/gfx-rs"
 branch = "portability"
-features = ["portable"]
+#features = ["portable"]

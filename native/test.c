@@ -20,12 +20,48 @@ int main() {
         return -1;
     }
 
-    uint32_t gpu_count = 1;
+    uint32_t adapter_count = 1;
     VkPhysicalDevice physical_devices[1] = {};
-    res = vkEnumeratePhysicalDevices(instance, &gpu_count, physical_devices);
-    printf("\tvkEnumeratePhysicalDevices: res=%d count=%d\n", res, gpu_count);
-    assert(!res && gpu_count);
+    res = vkEnumeratePhysicalDevices(instance, &adapter_count, physical_devices);
+    printf("\tvkEnumeratePhysicalDevices: res=%d count=%d\n", res, adapter_count);
+    assert(!res && adapter_count);
 
+    VkQueueFamilyProperties queue_family_properties[5];
+    uint32_t queue_family_count = sizeof(queue_family_properties) / sizeof(VkQueueFamilyProperties);
+
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_devices[0], &queue_family_count, queue_family_properties);
+    printf("\tvkGetPhysicalDeviceQueueFamilyProperties: count=%d\n", queue_family_count);
+    assert(queue_family_count);
+
+    int queue_family_index = -1;
+    for (unsigned int i = 0; i < queue_family_count; i++) {
+        if (queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            queue_family_index = i;
+            break;
+        }
+    }
+    printf("\tusing queue family index %d\n", queue_family_index);
+    assert(queue_family_index >= 0);
+
+    VkDeviceQueueCreateInfo queue_info = {};
+    float queue_priorities[1] = {0.0};
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_info.queueCount = 1;
+    queue_info.pQueuePriorities = queue_priorities;
+
+    VkDeviceCreateInfo device_info = {};
+    device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_info.queueCreateInfoCount = 1;
+    device_info.pQueueCreateInfos = &queue_info;
+
+    VkDevice device = 0;
+    res = vkCreateDevice(physical_devices[0], &device_info, NULL, &device);
+    printf("\tvkCreateDevice: res=%d\n", res);
+    assert(!res);
+
+    //TODO
+
+    vkDestroyDevice(device, NULL);
     vkDestroyInstance(instance, NULL);
 
     printf("done.\n");
