@@ -8,7 +8,7 @@ extern crate gfx_backend_vulkan as back;
 mod handle;
 
 use std::{cmp, slice};
-use hal::{Instance, PhysicalDevice, QueueFamily}; // traits only
+use hal::{Device, Instance, PhysicalDevice, QueueFamily}; // traits only
 use back::Backend as B;
 use handle::Handle;
 
@@ -461,6 +461,7 @@ pub type VkSampleMask = u32;
 pub type VkInstance = Handle<back::Instance>;
 pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
 pub type VkDevice = Handle<hal::Gpu<B>>;
+pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -588,12 +589,7 @@ pub struct VkFramebuffer_T {
     _unused: [u8; 0],
 }
 pub type VkFramebuffer = *mut VkFramebuffer_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkCommandPool_T {
-    _unused: [u8; 0],
-}
-pub type VkCommandPool = *mut VkCommandPool_T;
+
 pub const VkPipelineCacheHeaderVersion_VK_PIPELINE_CACHE_HEADER_VERSION_BEGIN_RANGE:
           VkPipelineCacheHeaderVersion =
     VkPipelineCacheHeaderVersion::VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
@@ -4370,14 +4366,14 @@ extern "C" {
 
 #[no_mangle]
 pub extern fn vkGetPhysicalDeviceQueueFamilyProperties(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     pQueueFamilyPropertyCount: *mut u32,
     pQueueFamilyProperties: *mut VkQueueFamilyProperties,
 ) {
     let output = unsafe {
         slice::from_raw_parts_mut(pQueueFamilyProperties, *pQueueFamilyPropertyCount as _)
     };
-    let families = &physicalDevice.queue_families;
+    let families = &adapter.queue_families;
     if output.len() > families.len() {
         unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
     }
@@ -4415,7 +4411,7 @@ extern "C" {
 
 #[no_mangle]
 pub extern fn vkCreateDevice(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     pCreateInfo: *const VkDeviceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pDevice: *mut VkDevice,
@@ -4425,13 +4421,13 @@ pub extern fn vkCreateDevice(
         slice::from_raw_parts(dev_info.pQueueCreateInfos, dev_info.queueCreateInfoCount as _)
     };
     let request_infos = queue_infos.iter().map(|info| {
-        let family = physicalDevice
-          .queue_families[info.queueFamilyIndex as usize]
-          .clone();
+        let family = adapter
+            .queue_families[info.queueFamilyIndex as usize]
+            .clone();
         (family, vec![1.0; info.queueCount as usize])
     }).collect::<Vec<_>>();
 
-    let gpu = physicalDevice.physical_device.clone().open(request_infos);
+    let gpu = adapter.physical_device.clone().open(request_infos);
     unsafe { *pDevice = Handle::new(gpu) };
 
     VkResult::VK_SUCCESS
@@ -4858,16 +4854,42 @@ extern "C" {
                                       renderPass: VkRenderPass,
                                       pGranularity: *mut VkExtent2D);
 }
-extern "C" {
-    pub fn vkCreateCommandPool(device: VkDevice,
-                               pCreateInfo: *const VkCommandPoolCreateInfo,
-                               pAllocator: *const VkAllocationCallbacks,
-                               pCommandPool: *mut VkCommandPool) -> VkResult;
+
+#[no_mangle]
+pub extern fn vkCreateCommandPool(
+    gpu: VkDevice,
+    pCreateInfo: *const VkCommandPoolCreateInfo,
+    _pAllocator: *const VkAllocationCallbacks,
+    pCommandPool: *mut VkCommandPool,
+) -> VkResult {
+    use hal::pool::CommandPoolCreateFlags;
+
+    let info = unsafe { &*pCreateInfo };
+    assert_eq!(info.queueFamilyIndex, 0); //TODO
+    let family = gpu.queue_groups[0].family();
+
+    let mut flags = CommandPoolCreateFlags::empty();
+    if info.flags & VkCommandPoolCreateFlagBits::VK_COMMAND_POOL_CREATE_TRANSIENT_BIT as u32 != 0 {
+        flags |= CommandPoolCreateFlags::TRANSIENT;
+    }
+    if info.flags & VkCommandPoolCreateFlagBits::VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT as u32 != 0 {
+        flags |= CommandPoolCreateFlags::RESET_INDIVIDUAL;
+    }
+
+    let pool = gpu.device.create_command_pool(family, flags);
+    unsafe { *pCommandPool = Handle::new(pool) };
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkDestroyCommandPool(device: VkDevice, commandPool: VkCommandPool,
-                                pAllocator: *const VkAllocationCallbacks);
+
+#[no_mangle]
+pub extern fn vkDestroyCommandPool(
+    gpu: VkDevice,
+    commandPool: VkCommandPool,
+    _pAllocator: *const VkAllocationCallbacks,
+) {
+    gpu.device.destroy_command_pool(*commandPool.unwrap());
 }
+
 extern "C" {
     pub fn vkResetCommandPool(device: VkDevice, commandPool: VkCommandPool,
                               flags: VkCommandPoolResetFlags) -> VkResult;

@@ -1,3 +1,5 @@
+/// Sample code adopted from https://github.com/LunarG/VulkanSamples
+
 #include <vulkan/vulkan.h>
 #include <assert.h>
 #include <stdio.h>
@@ -61,6 +63,33 @@ int main() {
 
     //TODO
 
+    VkCommandPool cmd_pool = 0;
+    VkCommandPoolCreateInfo cmd_pool_info = {};
+    cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmd_pool_info.pNext = NULL;
+    cmd_pool_info.queueFamilyIndex = queue_family_index;
+    cmd_pool_info.flags = 0;
+
+    res = vkCreateCommandPool(device, &cmd_pool_info, NULL, &cmd_pool);
+    printf("\tvkCreateCommandPool: res=%d\n", res);
+    assert(!res);
+
+    VkCommandBuffer cmd_buffer = 0;
+    VkCommandBufferAllocateInfo cmd_alloc_info;
+    cmd_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    cmd_alloc_info.pNext = NULL;
+    cmd_alloc_info.commandPool = cmd_pool;
+    cmd_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    cmd_alloc_info.commandBufferCount = 1;
+
+    res = vkAllocateCommandBuffers(device, &cmd_alloc_info, &cmd_buffer);
+    printf("\tvkAllocateCommandBuffers: res=%d\n", res);
+    assert(!res);
+
+    // Some work...
+
+    vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
+    vkDestroyCommandPool(device, cmd_pool, NULL);
     vkDestroyDevice(device, NULL);
     vkDestroyInstance(instance, NULL);
 
