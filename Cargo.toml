@@ -7,13 +7,13 @@ authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
 name = "portability"
 crate-type = ["staticlib"]
 
-[dependencies.gfx_core]
-#path = "../gfx/src/core"
+[dependencies.gfx-hal]
+#path = "../gfx/src/hal"
 git = "https://github.com/kvark/gfx-rs"
-branch = "portability"
+branch = "portable"
 
-[dependencies.gfx_backend_vulkan]
+[dependencies.gfx-backend-vulkan]
 #path = "../gfx/src/backend/vulkan"
 git = "https://github.com/kvark/gfx-rs"
-branch = "portability"
-#features = ["portable"]
+branch = "portable"
+features = ["portable"]

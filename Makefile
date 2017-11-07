@@ -8,7 +8,7 @@ LIBRARY=target/debug/libportability.a
 CC=gcc
 CFLAGS=-I$(VULKAN_DIR)
 DEPS=
-LDFLAGS=-lpthread -ldl -lm
+LDFLAGS=-lpthread -ldl -lm -lX11
 
 .PHONY: all binding run
 
@@ -19,14 +19,14 @@ binding: $(BINDING)
 $(BINDING): $(VULKAN_DIR)/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
 
-$(LIBRARY): src/*.rs
+$(LIBRARY): src/*.rs Cargo.toml
 	cargo build
 	mkdir -p target/native
 
 $(NATIVE_DIR)/%.o: native/%.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-$(TARGET): $(LIBRARY) $(OBJECTS)
+$(TARGET): $(LIBRARY) $(OBJECTS) Makefile
 	$(CC) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LIBRARY)
 
 run: $(TARGET)
