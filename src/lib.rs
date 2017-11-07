@@ -9,6 +9,7 @@ mod handle;
 
 use std::{cmp, slice};
 use hal::{Device, Instance, PhysicalDevice, QueueFamily}; // traits only
+use hal::pool::RawCommandPool;
 use back::Backend as B;
 use handle::Handle;
 
@@ -462,6 +463,7 @@ pub type VkInstance = Handle<back::Instance>;
 pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
 pub type VkDevice = Handle<hal::Gpu<B>>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
+pub type VkCommandBuffer = <B as hal::Backend>::CommandBuffer;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -475,12 +477,6 @@ pub struct VkSemaphore_T {
     _unused: [u8; 0],
 }
 pub type VkSemaphore = *mut VkSemaphore_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkCommandBuffer_T {
-    _unused: [u8; 0],
-}
-pub type VkCommandBuffer = *mut VkCommandBuffer_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkFence_T {
@@ -4890,22 +4886,53 @@ pub extern fn vkDestroyCommandPool(
     gpu.device.destroy_command_pool(*commandPool.unwrap());
 }
 
-extern "C" {
-    pub fn vkResetCommandPool(device: VkDevice, commandPool: VkCommandPool,
-                              flags: VkCommandPoolResetFlags) -> VkResult;
+#[no_mangle]
+pub extern fn vkResetCommandPool(
+    _gpu: VkDevice,
+    mut commandPool: VkCommandPool,
+    _flags: VkCommandPoolResetFlags,
+) -> VkResult {
+    commandPool.reset();
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkAllocateCommandBuffers(device: VkDevice,
-                                    pAllocateInfo:
-                                        *const VkCommandBufferAllocateInfo,
-                                    pCommandBuffers: *mut VkCommandBuffer)
-     -> VkResult;
+
+#[no_mangle]
+pub extern fn vkAllocateCommandBuffers(
+    _gpu: VkDevice,
+    pAllocateInfo: *const VkCommandBufferAllocateInfo,
+    pCommandBuffers: *mut VkCommandBuffer,
+) -> VkResult {
+    let info = unsafe { &mut *(pAllocateInfo as *mut VkCommandBufferAllocateInfo) };
+    assert_eq!(info.level, VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY); //TODO
+    let count = info.commandBufferCount as usize;
+
+    let cmd_bufs = info.commandPool.allocate(count);
+
+    let output = unsafe {
+        slice::from_raw_parts_mut(pCommandBuffers, count)
+    };
+    for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
+        *out = cmd_buf;
+    }
+
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkFreeCommandBuffers(device: VkDevice, commandPool: VkCommandPool,
-                                commandBufferCount: u32,
-                                pCommandBuffers: *const VkCommandBuffer);
+
+#[no_mangle]
+pub extern fn vkFreeCommandBuffers(
+    _gpu: VkDevice,
+    mut commandPool: VkCommandPool,
+    commandBufferCount: u32,
+    pCommandBuffers: *const VkCommandBuffer,
+) {
+    let buffer_slice = unsafe {
+        slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
+    };
+    let buffers = buffer_slice.to_vec();
+
+    unsafe { commandPool.free(buffers) };
 }
+
 extern "C" {
     pub fn vkBeginCommandBuffer(commandBuffer: VkCommandBuffer,
                                 pBeginInfo: *const VkCommandBufferBeginInfo)

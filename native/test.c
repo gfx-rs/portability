@@ -12,6 +12,7 @@ int main() {
 
     VkInstance instance;
     VkResult res;
+    unsigned int i;
 
     res = vkCreateInstance(&inst_info, NULL, &instance);
     if (res == VK_ERROR_INCOMPATIBLE_DRIVER) {
@@ -36,7 +37,7 @@ int main() {
     assert(queue_family_count);
 
     int queue_family_index = -1;
-    for (unsigned int i = 0; i < queue_family_count; i++) {
+    for (i = 0; i < queue_family_count; i++) {
         if (queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             queue_family_index = i;
             break;
