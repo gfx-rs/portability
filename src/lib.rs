@@ -7,10 +7,11 @@ extern crate gfx_hal as hal;
 extern crate gfx_backend_vulkan as back;
 extern crate winit;
 
+mod conv;
 mod handle;
 
 use std::{cmp, slice};
-use hal::{Device, Instance, PhysicalDevice, QueueFamily}; // traits only
+use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface}; // traits only
 use hal::pool::RawCommandPool;
 use back::Backend as B;
 use handle::Handle;
@@ -5331,40 +5332,91 @@ pub extern fn vkDestroySurfaceKHR(
     let _ = surface.unwrap(); //TODO
 }
 
-extern "C" {
-    pub fn vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice:
-                                                    VkPhysicalDevice,
-                                                queueFamilyIndex: u32,
-                                                surface: VkSurfaceKHR,
-                                                pSupported: *mut VkBool32)
-     -> VkResult;
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceSurfaceSupportKHR(
+    adapter: VkPhysicalDevice,
+    queueFamilyIndex: u32,
+    surface: VkSurfaceKHR,
+    pSupported: *mut VkBool32,
+) -> VkResult {
+    let family = &adapter.queue_families[queueFamilyIndex as usize];
+    let supports = surface.raw.supports_queue_family(family);
+    unsafe { *pSupported = supports as _ };
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice:
-                                                         VkPhysicalDevice,
-                                                     surface: VkSurfaceKHR,
-                                                     pSurfaceCapabilities:
-                                                         *mut VkSurfaceCapabilitiesKHR)
-     -> VkResult;
+
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+    adapter: VkPhysicalDevice,
+    surface: VkSurfaceKHR,
+    pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
+) -> VkResult {
+    let (caps, _) = surface.raw.capabilities_and_formats(&adapter.physical_device);
+
+    let output = VkSurfaceCapabilitiesKHR {
+        minImageCount: caps.image_count.start,
+        maxImageCount: caps.image_count.end,
+        currentExtent: match caps.current_extent {
+            Some(extent) => conv::extent2d_from_hal(extent),
+            None => VkExtent2D {
+                width: !0,
+                height: !0,
+            },
+        },
+        minImageExtent: conv::extent2d_from_hal(caps.extents.start),
+        maxImageExtent: conv::extent2d_from_hal(caps.extents.end),
+        maxImageArrayLayers: caps.max_image_layers,
+        supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR as _,
+        currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
+        supportedCompositeAlpha: VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR as _,
+        supportedUsageFlags: 0,
+    };
+
+    unsafe { *pSurfaceCapabilities = output };
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice:
-                                                    VkPhysicalDevice,
-                                                surface: VkSurfaceKHR,
-                                                pSurfaceFormatCount: *mut u32,
-                                                pSurfaceFormats:
-                                                    *mut VkSurfaceFormatKHR)
-     -> VkResult;
+
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceSurfaceFormatsKHR(
+    adapter: VkPhysicalDevice,
+    surface: VkSurfaceKHR,
+    pSurfaceFormatCount: *mut u32,
+    pSurfaceFormats: *mut VkSurfaceFormatKHR,
+) -> VkResult {
+    let (_, formats) = surface.raw.capabilities_and_formats(&adapter.physical_device);
+    let output = unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
+
+    if output.len() > formats.len() {
+        unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+    }
+    for (out, format) in output.iter_mut().zip(formats) {
+        *out = VkSurfaceFormatKHR {
+            format: conv::format_from_hal(format),
+            colorSpace: VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, //TODO
+        };
+    }
+
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice:
-                                                         VkPhysicalDevice,
-                                                     surface: VkSurfaceKHR,
-                                                     pPresentModeCount:
-                                                         *mut u32,
-                                                     pPresentModes:
-                                                         *mut VkPresentModeKHR)
-     -> VkResult;
+
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceSurfacePresentModesKHR(
+    _adapter: VkPhysicalDevice,
+    _surface: VkSurfaceKHR,
+    pPresentModeCount: *mut u32,
+    pPresentModes: *mut VkPresentModeKHR,
+) -> VkResult {
+    let modes = vec![VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR]; //TODO
+    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as usize) };
+
+    if output.len() > modes.len() {
+        unsafe { *pPresentModeCount = modes.len() as u32 };
+    }
+    for (out, mode) in output.iter_mut().zip(modes) {
+        *out = mode;
+    }
+
+    VkResult::VK_SUCCESS
 }
 
 /// This is an EXTRA function not in original vulkan.h

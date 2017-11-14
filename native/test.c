@@ -42,13 +42,67 @@ int main() {
 
     int queue_family_index = -1;
     for (i = 0; i < queue_family_count; i++) {
-        if (queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+        VkBool32 supports_present = 0;
+        vkGetPhysicalDeviceSurfaceSupportKHR(physical_devices[0], i, surface, &supports_present);
+        if ((queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && supports_present) {
             queue_family_index = i;
             break;
         }
     }
     printf("\tusing queue family index %d\n", queue_family_index);
     assert(queue_family_index >= 0);
+
+    VkSurfaceFormatKHR surfFormats[20];
+    uint32_t formatCount = sizeof(surfFormats) / sizeof(surfFormats[0]);
+    res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[0], surface, &formatCount, surfFormats);
+    printf("\tvkGetPhysicalDeviceSurfaceFormatsKHR: res=%d, count=%d\n", res, formatCount);
+    assert(!res);
+
+    VkSurfaceCapabilitiesKHR surfCapabilities;
+    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[0], surface, &surfCapabilities);
+    assert(!res);
+
+    VkPresentModeKHR presentModes[10];
+    uint32_t presentModeCount = sizeof(presentModes) / sizeof(presentModes[0]);
+    res = vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[0], surface, &presentModeCount, presentModes);
+    printf("\tvkGetPhysicalDeviceSurfacePresentModesKHR: res=%d, count=%d\n", res, presentModeCount);
+    assert(!res);
+
+    VkExtent2D swapchainExtent = surfCapabilities.currentExtent;
+    VkPresentModeKHR swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+    // Determine the number of VkImage's to use in the swap chain.
+    // We need to acquire only 1 presentable image at at time.
+    // Asking for minImageCount images ensures that we can acquire
+    // 1 presentable image as long as we present it before attempting
+    // to acquire another.
+    uint32_t desiredNumberOfSwapChainImages = surfCapabilities.minImageCount;
+
+    VkSurfaceTransformFlagBitsKHR preTransform;
+    if (surfCapabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+        preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+    } else {
+        preTransform = surfCapabilities.currentTransform;
+    }
+
+    VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+    /*VkSwapchainCreateInfoKHR swapchain_ci = {0};
+    swapchain_ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swapchain_ci.surface = info.surface;
+    swapchain_ci.minImageCount = desiredNumberOfSwapChainImages;
+    swapchain_ci.imageFormat = info.format;
+    swapchain_ci.imageExtent.width = swapchainExtent.width;
+    swapchain_ci.imageExtent.height = swapchainExtent.height;
+    swapchain_ci.preTransform = preTransform;
+    swapchain_ci.compositeAlpha = compositeAlpha;
+    swapchain_ci.imageArrayLayers = 1;
+    swapchain_ci.presentMode = swapchainPresentMode;
+    swapchain_ci.oldSwapchain = VK_NULL_HANDLE;
+    swapchain_ci.clipped = true;
+    swapchain_ci.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
+    swapchain_ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchain_ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;*/
 
     VkDeviceQueueCreateInfo queue_info = {};
     float queue_priorities[1] = {0.0};
@@ -65,8 +119,6 @@ int main() {
     res = vkCreateDevice(physical_devices[0], &device_info, NULL, &device);
     printf("\tvkCreateDevice: res=%d\n", res);
     assert(!res);
-
-    //TODO
 
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
