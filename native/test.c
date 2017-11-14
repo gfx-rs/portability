@@ -4,16 +4,17 @@
 #include <assert.h>
 #include <stdio.h>
 
+VkSurfaceKHR vkCreateSurfaceGFX(VkInstance);
+
 int main() {
     printf("starting the portability test\n");
 
-    VkInstanceCreateInfo inst_info = {};
-    inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-
     VkInstance instance;
-    VkResult res;
+    VkResult res = 0;
     unsigned int i;
 
+    VkInstanceCreateInfo inst_info = {};
+    inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     res = vkCreateInstance(&inst_info, NULL, &instance);
     if (res == VK_ERROR_INCOMPATIBLE_DRIVER) {
         printf("cannot find a compatible Vulkan ICD\n");
@@ -22,6 +23,9 @@ int main() {
         printf("unknown error\n");
         return -1;
     }
+
+    VkSurfaceKHR surface = vkCreateSurfaceGFX(instance);
+    printf("\tvkCreateSurfaceGFX\n");
 
     uint32_t adapter_count = 1;
     VkPhysicalDevice physical_devices[1] = {};
@@ -91,6 +95,7 @@ int main() {
 
     vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
     vkDestroyCommandPool(device, cmd_pool, NULL);
+    vkDestroySurfaceKHR(instance, surface, NULL);
     vkDestroyDevice(device, NULL);
     vkDestroyInstance(instance, NULL);
 

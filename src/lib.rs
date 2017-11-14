@@ -1,9 +1,11 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
+#![allow(improper_ctypes)] //TEMP: buggy Rustc FFI analysis
 
 extern crate gfx_hal as hal;
 extern crate gfx_backend_vulkan as back;
+extern crate winit;
 
 mod handle;
 
@@ -5197,12 +5199,17 @@ extern "C" {
                                 commandBufferCount: u32,
                                 pCommandBuffers: *const VkCommandBuffer);
 }
+
+//NOTE: all *KHR types have to be pure `Handle` things for compatibility with
+//`VK_DEFINE_NON_DISPATCHABLE_HANDLE` used in `vulkan.h`
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkSurfaceKHR_T {
-    _unused: [u8; 0],
+pub struct VkSurfaceInner<Backend: hal::Backend> {
+    raw: Backend::Surface,
+    window: winit::Window,
+    events_loop: winit::EventsLoop,
 }
-pub type VkSurfaceKHR = *mut VkSurfaceKHR_T;
+pub type VkSurfaceKHR = Handle<VkSurfaceInner<B>>;
+
 pub const VkColorSpaceKHR_VK_COLOR_SPACE_BEGIN_RANGE_KHR: VkColorSpaceKHR =
     VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 pub const VkColorSpaceKHR_VK_COLOR_SPACE_END_RANGE_KHR: VkColorSpaceKHR =
@@ -5314,10 +5321,16 @@ pub type PFN_vkGetPhysicalDeviceSurfacePresentModesKHR =
                                                pPresentModes:
                                                    *mut VkPresentModeKHR)
                               -> VkResult>;
-extern "C" {
-    pub fn vkDestroySurfaceKHR(instance: VkInstance, surface: VkSurfaceKHR,
-                               pAllocator: *const VkAllocationCallbacks);
+
+#[no_mangle]
+pub extern fn vkDestroySurfaceKHR(
+    _instance: VkInstance,
+    surface: VkSurfaceKHR,
+    _: *const VkAllocationCallbacks,
+) {
+    let _ = surface.unwrap(); //TODO
 }
+
 extern "C" {
     pub fn vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice:
                                                     VkPhysicalDevice,
@@ -5353,6 +5366,22 @@ extern "C" {
                                                          *mut VkPresentModeKHR)
      -> VkResult;
 }
+
+/// This is an EXTRA function not in original vulkan.h
+#[no_mangle]
+pub extern fn vkCreateSurfaceGFX(instance: VkInstance) -> VkSurfaceKHR {
+    let events_loop = winit::EventsLoop::new();
+    let window = winit::Window::new(&events_loop).unwrap();
+
+    let inner = VkSurfaceInner {
+        raw: instance.create_surface(&window),
+        window: window,
+        events_loop: events_loop,
+    };
+
+    Handle::new(inner)
+}
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkSwapchainKHR_T {

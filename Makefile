@@ -6,7 +6,7 @@ OBJECTS=$(NATIVE_DIR)/test.o
 LIBRARY=target/debug/libportability.a
 
 CC=gcc
-CFLAGS=-I$(VULKAN_DIR)
+CFLAGS=-ggdb -O0 -I$(VULKAN_DIR)
 DEPS=
 LDFLAGS=-lpthread -ldl -lm -lX11
 
@@ -23,7 +23,7 @@ $(LIBRARY): src/*.rs Cargo.toml Cargo.lock
 	cargo build
 	mkdir -p target/native
 
-$(NATIVE_DIR)/%.o: native/%.c $(DEPS)
+$(NATIVE_DIR)/%.o: native/%.c $(DEPS) Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(TARGET): $(LIBRARY) $(OBJECTS) Makefile

@@ -7,6 +7,9 @@ authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
 name = "portability"
 crate-type = ["staticlib"]
 
+[dependencies]
+winit = "0.7"
+
 [dependencies.gfx-hal]
 #path = "../gfx/src/hal"
 git = "https://github.com/kvark/gfx-rs"
