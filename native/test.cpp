@@ -4,13 +4,13 @@
 #include <assert.h>
 #include <stdio.h>
 
-VkSurfaceKHR vkCreateSurfaceGFX(VkInstance);
+extern "C" VkSurfaceKHR vkCreateSurfaceGFX(VkInstance);
 
 int main() {
     printf("starting the portability test\n");
 
     VkInstance instance;
-    VkResult res = 0;
+    VkResult res = (VkResult)0;
     unsigned int i;
 
     VkInstanceCreateInfo inst_info = {};
