@@ -466,7 +466,7 @@ pub type VkInstance = Handle<back::Instance>;
 pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
 pub type VkDevice = Handle<hal::Gpu<B>>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
-pub type VkCommandBuffer = <B as hal::Backend>::CommandBuffer;
+pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -4915,7 +4915,7 @@ pub extern fn vkAllocateCommandBuffers(
         slice::from_raw_parts_mut(pCommandBuffers, count)
     };
     for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
-        *out = cmd_buf;
+        *out = Handle::new(cmd_buf);
     }
 
     VkResult::VK_SUCCESS
@@ -4931,7 +4931,10 @@ pub extern fn vkFreeCommandBuffers(
     let buffer_slice = unsafe {
         slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
     };
-    let buffers = buffer_slice.to_vec();
+    let buffers = buffer_slice
+      .iter()
+      .map(|buffer| *buffer.unwrap())
+      .collect();
 
     unsafe { commandPool.free(buffers) };
 }
