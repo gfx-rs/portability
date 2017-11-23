@@ -1,8 +1,13 @@
 /// Sample code adopted from https://github.com/LunarG/VulkanSamples
 
+#if defined(_WIN32)
+#define VK_USE_PLATFORM_WIN32_KHR
+#endif
+
 #include <vulkan/vulkan.h>
 #include <assert.h>
 #include <stdio.h>
+#include "window.hpp"
 
 extern "C" VkSurfaceKHR vkCreateSurfaceGFX(VkInstance);
 
@@ -24,8 +29,19 @@ int main() {
         return -1;
     }
 
-    VkSurfaceKHR surface = vkCreateSurfaceGFX(instance);
-    printf("\tvkCreateSurfaceGFX\n");
+    // Window initialization
+    Config config = { 10, 10, 800, 600 };
+    Window window = new_window(config);
+
+#if defined(_WIN32)
+    VkSurfaceKHR surface;
+    VkWin32SurfaceCreateInfoKHR surface_info = {};
+    surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surface_info.hinstance = window.instance;
+    surface_info.hwnd = window.window;
+    vkCreateWin32SurfaceKHR(instance, &surface_info, NULL, &surface);
+#endif
+    printf("\tvkCreateSurfaceKHR\n");
 
     uint32_t adapter_count = 1;
     VkPhysicalDevice physical_devices[1] = {};
@@ -144,6 +160,9 @@ int main() {
     assert(!res);
 
     // Some work...
+    while(poll_events()) {
+
+    }
 
     vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
     vkDestroyCommandPool(device, cmd_pool, NULL);

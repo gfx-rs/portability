@@ -5206,16 +5206,7 @@ extern "C" {
 
 //NOTE: all *KHR types have to be pure `Handle` things for compatibility with
 //`VK_DEFINE_NON_DISPATCHABLE_HANDLE` used in `vulkan.h`
-#[repr(C)]
-pub struct VkSurfaceInner<Backend: hal::Backend> {
-    raw: Backend::Surface,
-    window: winit::Window,
-    events_loop: winit::EventsLoop,
-}
-pub type VkSurfaceKHR = Handle<VkSurfaceInner<B>>;
-
-// TODO: temporary surface type, should be replacing `VkSurfaceKHR` in the future.
-pub type VkSurfaceRawKHR = Handle<<B as hal::Backend>::Surface>;
+pub type VkSurfaceKHR = Handle<<B as hal::Backend>::Surface>;
 
 pub const VkColorSpaceKHR_VK_COLOR_SPACE_BEGIN_RANGE_KHR: VkColorSpaceKHR =
     VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
@@ -5346,7 +5337,7 @@ pub extern fn vkGetPhysicalDeviceSurfaceSupportKHR(
     pSupported: *mut VkBool32,
 ) -> VkResult {
     let family = &adapter.queue_families[queueFamilyIndex as usize];
-    let supports = surface.raw.supports_queue_family(family);
+    let supports = surface.supports_queue_family(family);
     unsafe { *pSupported = supports as _ };
     VkResult::VK_SUCCESS
 }
@@ -5357,7 +5348,7 @@ pub extern fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _) = surface.raw.capabilities_and_formats(&adapter.physical_device);
+    let (caps, _) = surface.capabilities_and_formats(&adapter.physical_device);
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
@@ -5389,7 +5380,7 @@ pub extern fn vkGetPhysicalDeviceSurfaceFormatsKHR(
     pSurfaceFormatCount: *mut u32,
     pSurfaceFormats: *mut VkSurfaceFormatKHR,
 ) -> VkResult {
-    let (_, formats) = surface.raw.capabilities_and_formats(&adapter.physical_device);
+    let (_, formats) = surface.capabilities_and_formats(&adapter.physical_device);
     let output = unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
 
     if output.len() > formats.len() {
@@ -5423,21 +5414,6 @@ pub extern fn vkGetPhysicalDeviceSurfacePresentModesKHR(
     }
 
     VkResult::VK_SUCCESS
-}
-
-/// This is an EXTRA function not in original vulkan.h
-#[no_mangle]
-pub extern fn vkCreateSurfaceGFX(instance: VkInstance) -> VkSurfaceKHR {
-    let events_loop = winit::EventsLoop::new();
-    let window = winit::Window::new(&events_loop).unwrap();
-
-    let inner = VkSurfaceInner {
-        raw: instance.create_surface(&window),
-        window: window,
-        events_loop: events_loop,
-    };
-
-    Handle::new(inner)
 }
 
 #[repr(C)]
@@ -5825,7 +5801,7 @@ pub fn vkCreateWin32SurfaceKHR(
     instance: VkInstance,
     pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
-    pSurface: *mut VkSurfaceRawKHR,
+    pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     #[cfg(target_os = "windows")]
     {
