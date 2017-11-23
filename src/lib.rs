@@ -5214,6 +5214,9 @@ pub struct VkSurfaceInner<Backend: hal::Backend> {
 }
 pub type VkSurfaceKHR = Handle<VkSurfaceInner<B>>;
 
+// TODO: temporary surface type, should be replacing `VkSurfaceKHR` in the future.
+pub type VkSurfaceRawKHR = Handle<<B as hal::Backend>::Surface>;
+
 pub const VkColorSpaceKHR_VK_COLOR_SPACE_BEGIN_RANGE_KHR: VkColorSpaceKHR =
     VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
 pub const VkColorSpaceKHR_VK_COLOR_SPACE_END_RANGE_KHR: VkColorSpaceKHR =
@@ -5803,6 +5806,38 @@ extern "C" {
                                            *const VkAllocationCallbacks,
                                        pSwapchains: *mut VkSwapchainKHR)
      -> VkResult;
+}
+pub type VkWin32SurfaceCreateFlagsKHR = VkFlags;
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkWin32SurfaceCreateInfoKHR {
+    pub sType: VkStructureType,
+    pub pNext: *mut ::std::os::raw::c_void,
+    pub flags: VkWin32SurfaceCreateFlagsKHR,
+    pub hinstance: *mut ::std::os::raw::c_void,
+    pub hwnd: *mut ::std::os::raw::c_void,
+}
+impl Clone for VkWin32SurfaceCreateInfoKHR {
+    fn clone(&self) -> Self { *self }
+}
+#[no_mangle]
+pub fn vkCreateWin32SurfaceKHR(
+    instance: VkInstance,
+    pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceRawKHR,
+) -> VkResult {
+    if cfg!(target_os = "windows") {
+        unsafe {
+            assert_eq!((*pCreateInfos).flags, 0);
+            assert!(pAllocator.is_null());
+            // TODO: handle HINSTANCE
+            *pSurface = Handle::new(instance.create_surface_from_hwnd((*pCreateInfos).hwnd));
+            VkResult::VK_SUCCESS
+        }
+    } else {
+        unreachable!()
+    }
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
