@@ -5,7 +5,7 @@ TARGET=$(NATIVE_DIR)/test
 OBJECTS=$(NATIVE_DIR)/test.o
 LIBRARY=target/debug/libportability.a
 
-CC=gcc
+CC=g++
 CFLAGS=-ggdb -O0 -I$(VULKAN_DIR)
 DEPS=
 LDFLAGS=-lpthread -ldl -lm -lX11
@@ -19,15 +19,15 @@ binding: $(BINDING)
 $(BINDING): $(VULKAN_DIR)/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
 
-$(LIBRARY): src/*.rs Cargo.toml Cargo.lock
+$(LIBRARY): src/*.rs Cargo.toml $(wildcard Cargo.lock)
 	cargo build
 	mkdir -p target/native
 
-$(NATIVE_DIR)/%.o: native/%.c $(DEPS) Makefile
+$(NATIVE_DIR)/%.o: native/%.cpp $(DEPS) Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(TARGET): $(LIBRARY) $(OBJECTS) Makefile
-	$(CC) -o $(TARGET) $(LDFLAGS) $(OBJECTS) $(LIBRARY)
+	$(CC) -o $(TARGET) $(OBJECTS) $(LIBRARY) $(LDFLAGS)
 
 run: $(TARGET)
 	$(TARGET)

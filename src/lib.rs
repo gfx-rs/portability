@@ -5827,7 +5827,8 @@ pub fn vkCreateWin32SurfaceKHR(
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceRawKHR,
 ) -> VkResult {
-    if cfg!(target_os = "windows") {
+    #[cfg(target_os = "windows")]
+    {
         unsafe {
             assert_eq!((*pCreateInfos).flags, 0);
             assert!(pAllocator.is_null());
@@ -5835,9 +5836,9 @@ pub fn vkCreateWin32SurfaceKHR(
             *pSurface = Handle::new(instance.create_surface_from_hwnd((*pCreateInfos).hwnd));
             VkResult::VK_SUCCESS
         }
-    } else {
-        unreachable!()
     }
+    #[cfg(not(target_os = "windows"))]
+    unreachable!()
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
