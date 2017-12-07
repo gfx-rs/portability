@@ -4,12 +4,17 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#else
+#include <xcb/xcb.h>
 #endif
 
 struct Window {
 #if defined(_WIN32)
     HINSTANCE instance;
     HWND window;
+#else
+    xcb_connection_t *connection;
+    xcb_drawable_t window;
 #endif
 };
 

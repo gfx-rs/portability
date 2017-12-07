@@ -78,4 +78,39 @@ auto poll_events() -> bool {
     return true;
 }
 
+#else
+auto new_window(Config config) -> Window {
+    auto connection = xcb_connect(NULL, NULL);
+
+    auto setup = xcb_get_setup(connection);
+    auto screen_iterator = xcb_setup_roots_iterator(setup);
+    auto screen = screen_iterator.data;
+
+    auto hwnd = xcb_generate_id(connection);
+    xcb_create_window(
+        connection,
+        XCB_COPY_FROM_PARENT,
+        hwnd,
+        screen->root,
+        config.x,
+        config.y,
+        config.width,
+        config.height,
+        0,
+        XCB_WINDOW_CLASS_INPUT_OUTPUT,
+        screen->root_visual,
+        0,
+        NULL);
+
+    xcb_map_window(connection, hwnd);
+    xcb_flush(connection);
+
+    Window window = Window { connection, hwnd };
+    return window;
+}
+
+auto poll_events() -> bool {
+    return true;
+}
+
 #endif

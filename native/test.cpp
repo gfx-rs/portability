@@ -9,8 +9,6 @@
 #include <stdio.h>
 #include "window.hpp"
 
-extern "C" VkSurfaceKHR vkCreateSurfaceGFX(VkInstance);
-
 int main() {
     printf("starting the portability test\n");
 
@@ -33,8 +31,9 @@ int main() {
     Config config = { 10, 10, 800, 600 };
     Window window = new_window(config);
 
-#if defined(_WIN32)
     VkSurfaceKHR surface;
+
+#if defined(_WIN32)
     VkWin32SurfaceCreateInfoKHR surface_info = {};
     surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surface_info.hinstance = window.instance;
@@ -67,6 +66,22 @@ int main() {
     }
     printf("\tusing queue family index %d\n", queue_family_index);
     assert(queue_family_index >= 0);
+
+    VkDeviceQueueCreateInfo queue_info = {};
+    float queue_priorities[1] = {0.0};
+    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_info.queueCount = 1;
+    queue_info.pQueuePriorities = queue_priorities;
+
+    VkDeviceCreateInfo device_info = {};
+    device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    device_info.queueCreateInfoCount = 1;
+    device_info.pQueueCreateInfos = &queue_info;
+
+    VkDevice device = 0;
+    res = vkCreateDevice(physical_devices[0], &device_info, NULL, &device);
+    printf("\tvkCreateDevice: res=%d\n", res);
+    assert(!res);
 
     VkSurfaceFormatKHR surfFormats[20];
     uint32_t formatCount = sizeof(surfFormats) / sizeof(surfFormats[0]);
@@ -103,11 +118,11 @@ int main() {
 
     VkCompositeAlphaFlagBitsKHR compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 
-    /*VkSwapchainCreateInfoKHR swapchain_ci = {0};
+    VkSwapchainCreateInfoKHR swapchain_ci = {};
     swapchain_ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchain_ci.surface = info.surface;
+    swapchain_ci.surface = surface;
     swapchain_ci.minImageCount = desiredNumberOfSwapChainImages;
-    swapchain_ci.imageFormat = info.format;
+    swapchain_ci.imageFormat = surfFormats[0].format;
     swapchain_ci.imageExtent.width = swapchainExtent.width;
     swapchain_ci.imageExtent.height = swapchainExtent.height;
     swapchain_ci.preTransform = preTransform;
@@ -118,22 +133,23 @@ int main() {
     swapchain_ci.clipped = true;
     swapchain_ci.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
     swapchain_ci.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-    swapchain_ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;*/
+    swapchain_ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    VkDeviceQueueCreateInfo queue_info = {};
-    float queue_priorities[1] = {0.0};
-    queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_info.queueCount = 1;
-    queue_info.pQueuePriorities = queue_priorities;
+    VkSwapchainKHR swapchain = 0;
+    res = vkCreateSwapchainKHR(device, &swapchain_ci, NULL, &swapchain);
+    printf("\tvkCreateSwapchainKHR: res=%d\n", res);
 
-    VkDeviceCreateInfo device_info = {};
-    device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_info.queueCreateInfoCount = 1;
-    device_info.pQueueCreateInfos = &queue_info;
 
-    VkDevice device = 0;
-    res = vkCreateDevice(physical_devices[0], &device_info, NULL, &device);
-    printf("\tvkCreateDevice: res=%d\n", res);
+    uint32_t image_count = 0;
+    res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, NULL);
+    printf("\tvkCreateSwapchainKHR (query): res=%d image_count=%d\n", res, image_count);
+    assert(!res);
+
+    VkImage *swapchain_images = new VkImage[image_count];
+    assert(swapchain_images);
+
+    res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, swapchain_images);
+    printf("\tvkCreateSwapchainKHR: res=%d\n", res);
     assert(!res);
 
     VkCommandPool cmd_pool = 0;
@@ -164,10 +180,17 @@ int main() {
 
     }
 
+    delete[] swapchain_images;
+    vkDestroySwapchainKHR(device, swapchain, NULL);
+    printf("\tvkDestroySwapchainKHR\n");
     vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
+    printf("\tvkFreeCommandBuffers\n");
     vkDestroyCommandPool(device, cmd_pool, NULL);
+    printf("\tvkDestroyCommandPool\n");
     vkDestroySurfaceKHR(instance, surface, NULL);
+    printf("\tvkDestroySurfaceKHR\n");
     vkDestroyDevice(device, NULL);
+    printf("\tvkDestroyDevice\n");
     vkDestroyInstance(instance, NULL);
 
     printf("done.\n");
