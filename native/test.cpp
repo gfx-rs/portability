@@ -7,6 +7,7 @@
 #include <vulkan/vulkan.h>
 #include <assert.h>
 #include <stdio.h>
+#include <vector>
 #include "window.hpp"
 
 int main() {
@@ -145,12 +146,34 @@ int main() {
     printf("\tvkCreateSwapchainKHR (query): res=%d image_count=%d\n", res, image_count);
     assert(!res);
 
-    VkImage *swapchain_images = new VkImage[image_count];
-    assert(swapchain_images);
-
-    res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, swapchain_images);
+    std::vector<VkImage> swapchain_images(image_count);
+    res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, &swapchain_images[0]);
     printf("\tvkCreateSwapchainKHR: res=%d\n", res);
     assert(!res);
+
+    std::vector<VkImageView> swapchain_views(image_count);
+    for(auto i = 0; i < image_count; i++) {
+        VkImageViewCreateInfo color_image_view = {};
+        color_image_view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        color_image_view.pNext = NULL;
+        color_image_view.flags = 0;
+        color_image_view.image = swapchain_images[i];
+        color_image_view.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        color_image_view.format = swapchain_ci.imageFormat;
+        color_image_view.components.r = VK_COMPONENT_SWIZZLE_R;
+        color_image_view.components.g = VK_COMPONENT_SWIZZLE_G;
+        color_image_view.components.b = VK_COMPONENT_SWIZZLE_B;
+        color_image_view.components.a = VK_COMPONENT_SWIZZLE_A;
+        color_image_view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        color_image_view.subresourceRange.baseMipLevel = 0;
+        color_image_view.subresourceRange.levelCount = 1;
+        color_image_view.subresourceRange.baseArrayLayer = 0;
+        color_image_view.subresourceRange.layerCount = 1;
+
+        res = vkCreateImageView(device, &color_image_view, NULL, &swapchain_views[i]);
+        printf("\tvkCreateImageView: res=%d\n", res);
+        assert(!res);
+    }
 
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
@@ -180,7 +203,7 @@ int main() {
 
     }
 
-    delete[] swapchain_images;
+    // TODO: destroy image views
     vkDestroySwapchainKHR(device, swapchain, NULL);
     printf("\tvkDestroySwapchainKHR\n");
     vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);

@@ -1,7 +1,5 @@
-use {VkExtent2D, VkFormat};
-
-use hal::format;
-use hal::window;
+use super::*;
+use hal::{format, image, window};
 
 pub fn format_from_hal(format: format::Format) -> VkFormat {
     use VkFormat::*;
@@ -61,4 +59,56 @@ pub fn extent2d_from_hal(extent: window::Extent2d) -> VkExtent2D {
         width: extent.width,
         height: extent.height,
     }
+}
+
+pub fn map_swizzle(components: VkComponentMapping) -> format::Swizzle {
+    format::Swizzle(
+        map_swizzle_component(components.r, format::Component::R),
+        map_swizzle_component(components.g, format::Component::G),
+        map_swizzle_component(components.b, format::Component::B),
+        map_swizzle_component(components.a, format::Component::A),
+    )
+}
+
+fn map_swizzle_component(
+    component: VkComponentSwizzle,
+    identity: format::Component,
+) -> format::Component {
+    use VkComponentSwizzle::*;
+
+    match component {
+        VK_COMPONENT_SWIZZLE_IDENTITY => identity,
+        VK_COMPONENT_SWIZZLE_ZERO => format::Component::Zero,
+        VK_COMPONENT_SWIZZLE_ONE => format::Component::One,
+        VK_COMPONENT_SWIZZLE_R => format::Component::R,
+        VK_COMPONENT_SWIZZLE_G => format::Component::G,
+        VK_COMPONENT_SWIZZLE_B => format::Component::B,
+        VK_COMPONENT_SWIZZLE_A => format::Component::A,
+        _ => panic!("Unsupported swizzle component: {:?}", component),
+    }
+}
+
+pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> image::SubresourceRange {
+    image::SubresourceRange {
+        aspects: map_aspect(subresource.aspectMask),
+        levels: subresource.baseMipLevel as _ .. (subresource.baseMipLevel+subresource.levelCount) as _,
+        layers: subresource.baseArrayLayer as _ .. (subresource.baseArrayLayer+subresource.layerCount) as _,
+    }
+}
+
+fn map_aspect(aspects: VkImageAspectFlags) -> image::AspectFlags {
+    let mut flags = image::AspectFlags::empty();
+    if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
+        flags |= image::AspectFlags::COLOR;
+    }
+    if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
+        flags |= image::AspectFlags::DEPTH;
+    }
+    if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
+        flags |= image::AspectFlags::DEPTH;
+    }
+    if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_METADATA_BIT as u32 != 0 {
+        unimplemented!()
+    }
+    flags
 }
