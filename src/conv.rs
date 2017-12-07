@@ -41,6 +41,21 @@ pub fn format_from_hal(format: format::Format) -> VkFormat {
     }
 }
 
+pub fn hal_from_format(format: VkFormat) -> format::Format {
+    use VkFormat::*;
+    use hal::format::ChannelType::*;
+    use hal::format::SurfaceType::*;
+
+    let (sf, cf) = match format {
+        VK_FORMAT_B8G8R8A8_UNORM => (B8_G8_R8_A8, Unorm),
+        _ => {
+            panic!("format {:?}", format);
+        }
+    };
+
+    format::Format(sf, cf)
+}
+
 pub fn extent2d_from_hal(extent: window::Extent2d) -> VkExtent2D {
     VkExtent2D {
         width: extent.width,

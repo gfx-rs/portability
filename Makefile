@@ -2,13 +2,13 @@ VULKAN_DIR=modules/vulkan-docs/src
 BINDING=target/vulkan.rs
 NATIVE_DIR=target/native
 TARGET=$(NATIVE_DIR)/test
-OBJECTS=$(NATIVE_DIR)/test.o
+OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
 LIBRARY=target/debug/libportability.a
 
 CC=g++
-CFLAGS=-ggdb -O0 -I$(VULKAN_DIR)
+CFLAGS=-std=c++11 -ggdb -O0 -I$(VULKAN_DIR)
 DEPS=
-LDFLAGS=-lpthread -ldl -lm -lX11
+LDFLAGS=-lpthread -ldl -lm -lX11 -lxcb
 
 .PHONY: all binding run
 
