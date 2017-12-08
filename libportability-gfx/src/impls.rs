@@ -2,6 +2,7 @@
 use super::*;
 use std::mem;
 
+#[inline]
 pub extern fn gfxCreateInstance(
     _pCreateInfo: *const VkInstanceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -12,6 +13,7 @@ pub extern fn gfxCreateInstance(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
@@ -20,6 +22,7 @@ pub extern fn gfxDestroyInstance(
     //let it drop
 }
 
+#[inline]
 pub extern fn gfxEnumeratePhysicalDevices(
     instance: VkInstance,
     pPhysicalDeviceCount: *mut u32,
@@ -37,6 +40,7 @@ pub extern fn gfxEnumeratePhysicalDevices(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxGetPhysicalDeviceQueueFamilyProperties(
     adapter: VkPhysicalDevice,
     pQueueFamilyPropertyCount: *mut u32,
@@ -111,6 +115,7 @@ extern "C" {
      -> PFN_vkVoidFunction;
 }
 
+#[inline]
 pub extern fn gfxCreateDevice(
     adapter: VkPhysicalDevice,
     pCreateInfo: *const VkDeviceCreateInfo,
@@ -134,6 +139,7 @@ pub extern fn gfxCreateDevice(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxDestroyDevice(
     device: VkDevice,
     _pAllocator: *const VkAllocationCallbacks,
@@ -160,6 +166,7 @@ lazy_static! {
     };
 }
 
+#[inline]
 pub extern fn gfxEnumerateInstanceExtensionProperties(
     pLayerName: *const ::std::os::raw::c_char,
     pPropertyCount: *mut u32,
@@ -417,6 +424,7 @@ extern "C" {
                                            *const VkImageSubresource,
                                        pLayout: *mut VkSubresourceLayout);
 }
+#[inline]
 pub extern fn gfxCreateImageView(
     gpu: VkDevice,
     pCreateInfo: *const VkImageViewCreateInfo,
@@ -446,6 +454,7 @@ pub extern fn gfxCreateImageView(
         },
     }
 }
+#[inline]
 pub extern fn gfxDestroyImageView(
     gpu: VkDevice,
     imageView: VkImageView,
@@ -619,6 +628,7 @@ extern "C" {
                                       pGranularity: *mut VkExtent2D);
 }
 
+#[inline]
 pub extern fn gfxCreateCommandPool(
     gpu: VkDevice,
     pCreateInfo: *const VkCommandPoolCreateInfo,
@@ -644,6 +654,7 @@ pub extern fn gfxCreateCommandPool(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxDestroyCommandPool(
     gpu: VkDevice,
     commandPool: VkCommandPool,
@@ -652,6 +663,7 @@ pub extern fn gfxDestroyCommandPool(
     gpu.device.destroy_command_pool(*commandPool.unwrap());
 }
 
+#[inline]
 pub extern fn gfxResetCommandPool(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
@@ -661,6 +673,7 @@ pub extern fn gfxResetCommandPool(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxAllocateCommandBuffers(
     _gpu: VkDevice,
     pAllocateInfo: *const VkCommandBufferAllocateInfo,
@@ -682,6 +695,7 @@ pub extern fn gfxAllocateCommandBuffers(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxFreeCommandBuffers(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
@@ -964,6 +978,7 @@ extern "C" {
                                 pCommandBuffers: *const VkCommandBuffer);
 }
 
+#[inline]
 pub extern fn gfxDestroySurfaceKHR(
     _instance: VkInstance,
     surface: VkSurfaceKHR,
@@ -972,6 +987,7 @@ pub extern fn gfxDestroySurfaceKHR(
     let _ = surface.unwrap(); //TODO
 }
 
+#[inline]
 pub extern fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     adapter: VkPhysicalDevice,
     queueFamilyIndex: u32,
@@ -984,6 +1000,7 @@ pub extern fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
@@ -1014,6 +1031,7 @@ pub extern fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
@@ -1036,6 +1054,7 @@ pub extern fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     _adapter: VkPhysicalDevice,
     _surface: VkSurfaceKHR,
@@ -1055,6 +1074,7 @@ pub extern fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     VkResult::VK_SUCCESS
 }
 
+#[inline]
 pub extern fn gfxCreateSwapchainKHR(
     gpu: VkDevice,
     pCreateInfo: *const VkSwapchainCreateInfoKHR,
@@ -1090,6 +1110,7 @@ pub extern fn gfxCreateSwapchainKHR(
     unsafe { *pSwapchain = Handle::new(swapchain) };
     VkResult::VK_SUCCESS
 }
+#[inline]
 pub extern fn gfxDestroySwapchainKHR(
     device: VkDevice,
     mut swapchain: VkSwapchainKHR,
@@ -1100,6 +1121,7 @@ pub extern fn gfxDestroySwapchainKHR(
     }
     let _ = swapchain.unwrap();
 }
+#[inline]
 pub extern fn gfxGetSwapchainImagesKHR(
     device: VkDevice,
     swapchain: VkSwapchainKHR,
