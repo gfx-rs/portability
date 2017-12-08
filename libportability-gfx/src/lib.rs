@@ -5,6 +5,8 @@
 
 extern crate gfx_hal as hal;
 extern crate gfx_backend_vulkan as back;
+#[macro_use]
+extern crate lazy_static;
 
 mod conv;
 mod handle;
@@ -4527,85 +4529,6 @@ pub type PFN_vkQueuePresentKHR =
                                                pPresentInfo:
                                                    *const VkPresentInfoKHR)
                               -> VkResult>;
-pub fn gfxCreateSwapchainKHR(
-    gpu: VkDevice,
-    pCreateInfo: *const VkSwapchainCreateInfoKHR,
-    _pAllocator: *const VkAllocationCallbacks,
-    pSwapchain: *mut VkSwapchainKHR,
-) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
-    // TODO: more checks
-    assert_eq!(info.clipped, VK_TRUE); // TODO
-    assert_eq!(info.imageSharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
-
-    let config = hal::SwapchainConfig {
-        color_format: conv::hal_from_format(info.imageFormat),
-        depth_stencil_format: None,
-        image_count: info.minImageCount,
-    };
-    let (swapchain, backbuffers) = gpu.device.create_swapchain(&mut info.surface.clone(), config);
-
-    let images = match backbuffers {
-        hal::Backbuffer::Images(images) => {
-            images.into_iter().map(|image| Handle::new(image)).collect()
-        },
-        hal::Backbuffer::Framebuffer(_) => {
-            panic!("Expected backbuffer images. Backends returning only framebuffers are not supported!")
-        },
-    };
-
-    let swapchain = Swapchain {
-        raw: swapchain,
-        images,
-    };
-
-    unsafe { *pSwapchain = Handle::new(swapchain) };
-    VkResult::VK_SUCCESS
-}
-pub fn gfxDestroySwapchainKHR(
-    device: VkDevice,
-    mut swapchain: VkSwapchainKHR,
-    pAllocator: *const VkAllocationCallbacks,
-) {
-    for image in &mut swapchain.images {
-        let _ = image.unwrap();
-    }
-    let _ = swapchain.unwrap();
-}
-pub fn gfxGetSwapchainImagesKHR(
-    device: VkDevice,
-    swapchain: VkSwapchainKHR,
-    pSwapchainImageCount: *mut u32,
-    pSwapchainImages: *mut VkImage,
-) -> VkResult {
-    debug_assert!(!pSwapchainImageCount.is_null());
-
-    let swapchain_image_count = unsafe { *pSwapchainImageCount };
-    let available_images = swapchain.images.len();
-
-    if pSwapchainImages.is_null() {
-        // If NULL the number of presentable images is returned.
-        unsafe { *pSwapchainImageCount = swapchain.images.len() as _; }
-    } else {
-        let num_images = available_images.min(swapchain_image_count as _);
-        let swapchain_images = unsafe {
-            slice::from_raw_parts_mut(pSwapchainImages, num_images)
-        };
-
-        for i in 0..num_images as _ {
-            swapchain_images[i] = swapchain.images[i];
-        }
-
-        // Overwrite pSwapchainImageCount with actual image count
-        unsafe { *pSwapchainImageCount = num_images as _; }
-
-        if num_images < available_images {
-            return VkResult::VK_INCOMPLETE;
-        }
-    }
-
-    VkResult::VK_SUCCESS
-}
 extern "C" {
     pub fn vkAcquireNextImageKHR(device: VkDevice, swapchain: VkSwapchainKHR,
                                  timeout: u64, semaphore: VkSemaphore,

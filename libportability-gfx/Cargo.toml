@@ -6,6 +6,9 @@ authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
 [lib]
 name = "portability_gfx"
 
+[dependencies]
+lazy_static = "1.0"
+
 [dependencies.gfx-hal]
 #path = "../gfx/src/hal"
 git = "https://github.com/kvark/gfx-rs"

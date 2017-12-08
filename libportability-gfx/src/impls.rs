@@ -1,7 +1,8 @@
 
 use super::*;
+use std::mem;
 
-pub fn gfxCreateInstance(
+pub extern fn gfxCreateInstance(
     _pCreateInfo: *const VkInstanceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
@@ -11,7 +12,7 @@ pub fn gfxCreateInstance(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxDestroyInstance(
+pub extern fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
@@ -19,7 +20,7 @@ pub fn gfxDestroyInstance(
     //let it drop
 }
 
-pub fn gfxEnumeratePhysicalDevices(
+pub extern fn gfxEnumeratePhysicalDevices(
     instance: VkInstance,
     pPhysicalDeviceCount: *mut u32,
     pPhysicalDevices: *mut VkPhysicalDevice,
@@ -36,7 +37,7 @@ pub fn gfxEnumeratePhysicalDevices(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxGetPhysicalDeviceQueueFamilyProperties(
+pub extern fn gfxGetPhysicalDeviceQueueFamilyProperties(
     adapter: VkPhysicalDevice,
     pQueueFamilyPropertyCount: *mut u32,
     pQueueFamilyProperties: *mut VkQueueFamilyProperties,
@@ -110,7 +111,7 @@ extern "C" {
      -> PFN_vkVoidFunction;
 }
 
-pub fn gfxCreateDevice(
+pub extern fn gfxCreateDevice(
     adapter: VkPhysicalDevice,
     pCreateInfo: *const VkDeviceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -133,21 +134,59 @@ pub fn gfxCreateDevice(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxDestroyDevice(
+pub extern fn gfxDestroyDevice(
     device: VkDevice,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     let _ = device.unwrap(); //TODO?
 }
 
-extern "C" {
-    pub fn vkEnumerateInstanceExtensionProperties(pLayerName:
-                                                      *const ::std::os::raw::c_char,
-                                                  pPropertyCount: *mut u32,
-                                                  pProperties:
-                                                      *mut VkExtensionProperties)
-     -> VkResult;
+lazy_static! {
+    static ref INSTANCE_EXTENSIONS: [VkExtensionProperties; 1] = {
+        let mut extensions = [
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
+                specVersion: VK_KHR_SURFACE_SPEC_VERSION,
+            }
+        ];
+
+        extensions[0]
+            .extensionName[..VK_KHR_SURFACE_EXTENSION_NAME.len()]
+            .copy_from_slice(unsafe {
+                mem::transmute(VK_KHR_SURFACE_EXTENSION_NAME as &[u8])
+            });
+
+        extensions
+    };
 }
+
+pub extern fn gfxEnumerateInstanceExtensionProperties(
+    pLayerName: *const ::std::os::raw::c_char,
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkExtensionProperties,
+) -> VkResult {
+    let property_count = unsafe { &mut *pPropertyCount };
+    let num_extensions = INSTANCE_EXTENSIONS.len() as u32;
+
+    if pProperties.is_null() {
+        *property_count = num_extensions;
+    } else {
+        if *property_count > num_extensions {
+            *property_count = num_extensions;
+        }
+        let properties = unsafe { slice::from_raw_parts_mut(pProperties, *property_count as usize) };
+        for i in 0..*property_count as usize {
+            properties[i] = INSTANCE_EXTENSIONS[i];
+        }
+
+        if *property_count < num_extensions {
+            return VkResult::VK_INCOMPLETE;
+        }
+    }
+
+    VkResult::VK_SUCCESS
+}
+
 extern "C" {
     pub fn vkEnumerateDeviceExtensionProperties(physicalDevice:
                                                     VkPhysicalDevice,
@@ -378,7 +417,7 @@ extern "C" {
                                            *const VkImageSubresource,
                                        pLayout: *mut VkSubresourceLayout);
 }
-pub fn gfxCreateImageView(
+pub extern fn gfxCreateImageView(
     gpu: VkDevice,
     pCreateInfo: *const VkImageViewCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -407,7 +446,7 @@ pub fn gfxCreateImageView(
         },
     }
 }
-pub fn gfxDestroyImageView(
+pub extern fn gfxDestroyImageView(
     gpu: VkDevice,
     imageView: VkImageView,
     pAllocator: *const VkAllocationCallbacks,
@@ -580,7 +619,7 @@ extern "C" {
                                       pGranularity: *mut VkExtent2D);
 }
 
-pub fn gfxCreateCommandPool(
+pub extern fn gfxCreateCommandPool(
     gpu: VkDevice,
     pCreateInfo: *const VkCommandPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -605,7 +644,7 @@ pub fn gfxCreateCommandPool(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxDestroyCommandPool(
+pub extern fn gfxDestroyCommandPool(
     gpu: VkDevice,
     commandPool: VkCommandPool,
     _pAllocator: *const VkAllocationCallbacks,
@@ -613,7 +652,7 @@ pub fn gfxDestroyCommandPool(
     gpu.device.destroy_command_pool(*commandPool.unwrap());
 }
 
-pub fn gfxResetCommandPool(
+pub extern fn gfxResetCommandPool(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
     _flags: VkCommandPoolResetFlags,
@@ -622,7 +661,7 @@ pub fn gfxResetCommandPool(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxAllocateCommandBuffers(
+pub extern fn gfxAllocateCommandBuffers(
     _gpu: VkDevice,
     pAllocateInfo: *const VkCommandBufferAllocateInfo,
     pCommandBuffers: *mut VkCommandBuffer,
@@ -643,7 +682,7 @@ pub fn gfxAllocateCommandBuffers(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxFreeCommandBuffers(
+pub extern fn gfxFreeCommandBuffers(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
     commandBufferCount: u32,
@@ -925,7 +964,7 @@ extern "C" {
                                 pCommandBuffers: *const VkCommandBuffer);
 }
 
-pub fn gfxDestroySurfaceKHR(
+pub extern fn gfxDestroySurfaceKHR(
     _instance: VkInstance,
     surface: VkSurfaceKHR,
     _: *const VkAllocationCallbacks,
@@ -933,7 +972,7 @@ pub fn gfxDestroySurfaceKHR(
     let _ = surface.unwrap(); //TODO
 }
 
-pub fn gfxGetPhysicalDeviceSurfaceSupportKHR(
+pub extern fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     adapter: VkPhysicalDevice,
     queueFamilyIndex: u32,
     surface: VkSurfaceKHR,
@@ -945,7 +984,7 @@ pub fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
+pub extern fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
@@ -975,7 +1014,7 @@ pub fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
+pub extern fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pSurfaceFormatCount: *mut u32,
@@ -997,7 +1036,7 @@ pub fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     VkResult::VK_SUCCESS
 }
 
-pub fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
+pub extern fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     _adapter: VkPhysicalDevice,
     _surface: VkSurfaceKHR,
     pPresentModeCount: *mut u32,
@@ -1011,6 +1050,83 @@ pub fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     }
     for (out, mode) in output.iter_mut().zip(modes) {
         *out = mode;
+    }
+
+    VkResult::VK_SUCCESS
+}
+
+pub extern fn gfxCreateSwapchainKHR(
+    gpu: VkDevice,
+    pCreateInfo: *const VkSwapchainCreateInfoKHR,
+    _pAllocator: *const VkAllocationCallbacks,
+    pSwapchain: *mut VkSwapchainKHR,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    // TODO: more checks
+    assert_eq!(info.clipped, VK_TRUE); // TODO
+    assert_eq!(info.imageSharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
+
+    let config = hal::SwapchainConfig {
+        color_format: conv::hal_from_format(info.imageFormat),
+        depth_stencil_format: None,
+        image_count: info.minImageCount,
+    };
+    let (swapchain, backbuffers) = gpu.device.create_swapchain(&mut info.surface.clone(), config);
+
+    let images = match backbuffers {
+        hal::Backbuffer::Images(images) => {
+            images.into_iter().map(|image| Handle::new(image)).collect()
+        },
+        hal::Backbuffer::Framebuffer(_) => {
+            panic!("Expected backbuffer images. Backends returning only framebuffers are not supported!")
+        },
+    };
+
+    let swapchain = Swapchain {
+        raw: swapchain,
+        images,
+    };
+
+    unsafe { *pSwapchain = Handle::new(swapchain) };
+    VkResult::VK_SUCCESS
+}
+pub extern fn gfxDestroySwapchainKHR(
+    device: VkDevice,
+    mut swapchain: VkSwapchainKHR,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    for image in &mut swapchain.images {
+        let _ = image.unwrap();
+    }
+    let _ = swapchain.unwrap();
+}
+pub extern fn gfxGetSwapchainImagesKHR(
+    device: VkDevice,
+    swapchain: VkSwapchainKHR,
+    pSwapchainImageCount: *mut u32,
+    pSwapchainImages: *mut VkImage,
+) -> VkResult {
+    debug_assert!(!pSwapchainImageCount.is_null());
+
+    let swapchain_image_count = unsafe { &mut*pSwapchainImageCount };
+    let available_images = swapchain.images.len() as u32;
+
+    if pSwapchainImages.is_null() {
+        // If NULL the number of presentable images is returned.
+        *swapchain_image_count = available_images;
+    } else {
+        *swapchain_image_count = available_images.min(*swapchain_image_count);
+        let swapchain_images = unsafe {
+            slice::from_raw_parts_mut(pSwapchainImages, *swapchain_image_count as _)
+        };
+
+        for i in 0..*swapchain_image_count as _ {
+            swapchain_images[i] = swapchain.images[i];
+        }
+
+        if *swapchain_image_count < available_images {
+            return VkResult::VK_INCOMPLETE;
+        }
     }
 
     VkResult::VK_SUCCESS
