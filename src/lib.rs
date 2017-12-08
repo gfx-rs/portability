@@ -4702,9 +4702,13 @@ pub extern fn vkCreateImageView(
         },
     }
 }
-extern "C" {
-    pub fn vkDestroyImageView(device: VkDevice, imageView: VkImageView,
-                              pAllocator: *const VkAllocationCallbacks);
+#[no_mangle]
+pub extern fn vkDestroyImageView(
+    gpu: VkDevice,
+    imageView: VkImageView,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gpu.device.destroy_image_view(*imageView.unwrap())
 }
 extern "C" {
     pub fn vkCreateShaderModule(device: VkDevice,

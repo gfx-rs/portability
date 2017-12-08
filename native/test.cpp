@@ -203,7 +203,10 @@ int main() {
 
     }
 
-    // TODO: destroy image views
+    for(auto view : swapchain_views) {
+        vkDestroyImageView(device, view, NULL);
+        printf("\tvkDestroyImageView\n");
+    }
     vkDestroySwapchainKHR(device, swapchain, NULL);
     printf("\tvkDestroySwapchainKHR\n");
     vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
