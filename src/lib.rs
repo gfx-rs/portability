@@ -519,12 +519,9 @@ pub struct VkBufferView_T {
     _unused: [u8; 0],
 }
 pub type VkBufferView = *mut VkBufferView_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkImageView_T {
-    _unused: [u8; 0],
-}
-pub type VkImageView = *mut VkImageView_T;
+
+pub type VkImageView = Handle<<B as hal::Backend>::ImageView>;
+
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkShaderModule_T {
@@ -4675,15 +4672,43 @@ extern "C" {
                                            *const VkImageSubresource,
                                        pLayout: *mut VkSubresourceLayout);
 }
-extern "C" {
-    pub fn vkCreateImageView(device: VkDevice,
-                             pCreateInfo: *const VkImageViewCreateInfo,
-                             pAllocator: *const VkAllocationCallbacks,
-                             pView: *mut VkImageView) -> VkResult;
+#[no_mangle]
+pub extern fn vkCreateImageView(
+    gpu: VkDevice,
+    pCreateInfo: *const VkImageViewCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pView: *mut VkImageView,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
+    assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
+
+    let view = gpu
+        .device
+        .create_image_view(
+            &info.image,
+            conv::hal_from_format(info.format),
+            conv::map_swizzle(info.components),
+            conv::map_subresource_range(info.subresourceRange),
+        );
+
+    match view {
+        Ok(view) => {
+            unsafe { *pView = Handle::new(view) };
+            VkResult::VK_SUCCESS
+        },
+        Err(err) => {
+            panic!("Unexpected image view creation error: {:?}", err)
+        },
+    }
 }
-extern "C" {
-    pub fn vkDestroyImageView(device: VkDevice, imageView: VkImageView,
-                              pAllocator: *const VkAllocationCallbacks);
+#[no_mangle]
+pub extern fn vkDestroyImageView(
+    gpu: VkDevice,
+    imageView: VkImageView,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gpu.device.destroy_image_view(*imageView.unwrap())
 }
 extern "C" {
     pub fn vkCreateShaderModule(device: VkDevice,
