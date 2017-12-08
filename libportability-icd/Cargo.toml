@@ -1,0 +1,11 @@
+[package]
+name = "portability-icd"
+version = "0.1.0"
+authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
+
+[lib]
+name = "portability_icd"
+crate-type = ["dylib"]
+
+[dependencies]
+portability-gfx = { path = "../libportability-gfx" }

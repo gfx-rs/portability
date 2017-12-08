@@ -1,0 +1,11 @@
+[package]
+name = "portability"
+version = "0.1.0"
+authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
+
+[lib]
+name = "portability"
+crate-type = ["staticlib"]
+
+[dependencies]
+portability-gfx = { path = "../libportability-gfx" }
