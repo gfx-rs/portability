@@ -174,3 +174,85 @@ fn map_aspect(aspects: VkImageAspectFlags) -> image::AspectFlags {
     }
     flags
 }
+
+pub fn map_image_kind(
+    ty: VkImageType,
+    flags: VkImageCreateFlags,
+    extent: VkExtent3D,
+    array_layers: u32,
+    samples: VkSampleCountFlagBits,
+) -> image::Kind {
+    debug_assert_ne!(array_layers, 0);
+    let is_cube = flags & VkImageCreateFlagBits::VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT as u32 != 0;
+    assert!(!is_cube || array_layers % 6 == 0);
+
+    match ty {
+        VkImageType::VK_IMAGE_TYPE_1D => {
+            image::Kind::D1(extent.width as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_1D => {
+            image::Kind::D1Array(extent.width as _, array_layers as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_2D if array_layers == 1 => {
+            image::Kind::D2(extent.width as _, extent.height as _, map_aa_mode(samples))
+        }
+        VkImageType::VK_IMAGE_TYPE_2D if is_cube && array_layers == 6 => {
+            image::Kind::Cube(extent.width as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_2D if is_cube => {
+            image::Kind::CubeArray(extent.width as _, (array_layers / 6) as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_2D => {
+            image::Kind::D2Array(
+                extent.width as _,
+                extent.height as _,
+                array_layers as _,
+                map_aa_mode(samples),
+            )
+        }
+        VkImageType::VK_IMAGE_TYPE_3D => {
+            image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _)
+        }
+        _ => unimplemented!(),
+    }
+}
+
+fn map_aa_mode(samples: VkSampleCountFlagBits) -> image::AaMode {
+    use VkSampleCountFlagBits::*;
+
+    match samples {
+        VK_SAMPLE_COUNT_1_BIT => image::AaMode::Single,
+        _ => image::AaMode::Multi(samples as _),
+    }
+}
+
+pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
+    let mut flags = image::Usage::empty();
+
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT as u32 != 0 {
+        flags |= image::Usage::TRANSFER_SRC;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT as u32 != 0 {
+        flags |= image::Usage::TRANSFER_DST;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT as u32 != 0 {
+        flags |= image::Usage::SAMPLED;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT as u32 != 0 {
+        flags |= image::Usage::STORAGE;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as u32 != 0 {
+        flags |= image::Usage::COLOR_ATTACHMENT;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT as u32 != 0 {
+        flags |= image::Usage::DEPTH_STENCIL_ATTACHMENT;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT as u32 != 0 {
+        unimplemented!()
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT as u32 != 0 {
+        unimplemented!()
+    }
+
+    flags
+}

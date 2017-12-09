@@ -27,7 +27,12 @@ pub type VkDevice = Handle<hal::Gpu<B>>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
 pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
 
-pub type VkImage = Handle<<B as hal::Backend>::Image>;
+pub enum Image<B: hal::Backend> {
+    Image(B::Image),
+    Unbound(B::UnboundImage),
+}
+
+pub type VkImage = Handle<Image<B>>;
 pub type VkImageView = Handle<<B as hal::Backend>::ImageView>;
 
 //NOTE: all *KHR types have to be pure `Handle` things for compatibility with
