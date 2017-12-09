@@ -73,12 +73,14 @@ extern "C" {
                                        pFeatures:
                                            *mut VkPhysicalDeviceFeatures);
 }
-extern "C" {
-    pub fn vkGetPhysicalDeviceFormatProperties(physicalDevice:
-                                                   VkPhysicalDevice,
-                                               format: VkFormat,
-                                               pFormatProperties:
-                                                   *mut VkFormatProperties);
+#[inline]
+pub extern fn gfxGetPhysicalDeviceFormatProperties(
+    adapter: VkPhysicalDevice,
+    format: VkFormat,
+    pFormatProperties: *mut VkFormatProperties,
+) {
+    let properties = adapter.physical_device.format_properties(conv::map_format(format));
+    unsafe { *pFormatProperties = conv::format_properties_from_hal(properties); }
 }
 extern "C" {
     pub fn vkGetPhysicalDeviceImageFormatProperties(physicalDevice:
@@ -439,7 +441,7 @@ pub extern fn gfxCreateImageView(
         .device
         .create_image_view(
             &info.image,
-            conv::hal_from_format(info.format),
+            conv::map_format(info.format),
             conv::map_swizzle(info.components),
             conv::map_subresource_range(info.subresourceRange),
         );
@@ -1087,7 +1089,7 @@ pub extern fn gfxCreateSwapchainKHR(
     assert_eq!(info.imageSharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
 
     let config = hal::SwapchainConfig {
-        color_format: conv::hal_from_format(info.imageFormat),
+        color_format: conv::map_format(info.imageFormat),
         depth_stencil_format: None,
         image_count: info.minImageCount,
     };

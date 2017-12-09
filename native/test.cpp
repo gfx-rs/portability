@@ -1,5 +1,25 @@
 /// Sample code adopted from https://github.com/LunarG/VulkanSamples
 
+/*
+ * Vulkan Samples
+ *
+ * Copyright (C) 2015-2016 Valve Corporation
+ * Copyright (C) 2015-2016 LunarG, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+
 #if defined(_WIN32)
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
@@ -173,6 +193,28 @@ int main() {
         res = vkCreateImageView(device, &color_image_view, NULL, &swapchain_views[i]);
         printf("\tvkCreateImageView: res=%d\n", res);
         assert(!res);
+    }
+
+    VkImageCreateInfo image_info = {};
+    const VkFormat depth_format = VK_FORMAT_D16_UNORM;
+    VkFormatProperties props;
+    vkGetPhysicalDeviceFormatProperties(physical_devices[0], depth_format, &props);
+    printf("\tvkGetPhysicalDeviceFormatProperties\n");
+    printf(
+        "\t\tlinear_tiling_features: %x\n"
+        "\t\toptimal_tiling_features: %x\n"
+        "\t\tbuffer_features: %x\n",
+            props.linearTilingFeatures,
+            props.optimalTilingFeatures,
+            props.bufferFeatures);
+
+    if (props.linearTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+        image_info.tiling = VK_IMAGE_TILING_LINEAR;
+    } else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+        image_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    } else {
+        printf("VK_FORMAT_D16_UNORM unsupported.\n");
+        return -1;
     }
 
     VkCommandPool cmd_pool = 0;

@@ -14,7 +14,7 @@ make
 Build the Rust library (portability implementation):
 
 ```
-cargo build
+cargo build -p portability
 ```
 
 Build the native example:

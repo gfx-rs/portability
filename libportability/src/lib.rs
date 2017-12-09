@@ -74,6 +74,14 @@ pub extern fn vkDestroyImageView(
 ) {
     gfxDestroyImageView(device, imageView, pAllocator)
 }
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceFormatProperties(
+    adapter: VkPhysicalDevice,
+    format: VkFormat,
+    pFormatProperties: *mut VkFormatProperties,
+) {
+    gfxGetPhysicalDeviceFormatProperties(adapter, format, pFormatProperties)
+}
 
 #[no_mangle]
 pub extern fn vkCreateCommandPool(

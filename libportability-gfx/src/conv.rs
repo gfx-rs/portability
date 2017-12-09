@@ -39,13 +39,75 @@ pub fn format_from_hal(format: format::Format) -> VkFormat {
     }
 }
 
-pub fn hal_from_format(format: VkFormat) -> format::Format {
+pub fn format_properties_from_hal(properties: format::Properties) -> VkFormatProperties {
+    VkFormatProperties {
+        linearTilingFeatures: image_features_from_hal(properties.linear_tiling),
+        optimalTilingFeatures: image_features_from_hal(properties.optimal_tiling),
+        bufferFeatures: buffer_features_from_hal(properties.buffer_features),
+    }
+}
+
+fn image_features_from_hal(features: format::ImageFeature) -> VkFormatFeatureFlags {
+    let mut flags = 0;
+
+    if features.contains(format::ImageFeature::SAMPLED) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT as _;
+    }
+    if features.contains(format::ImageFeature::STORAGE) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT as _;
+    }
+    if features.contains(format::ImageFeature::STORAGE_ATOMIC) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT as _;
+    }
+    if features.contains(format::ImageFeature::COLOR_ATTACHMENT) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT as _;
+    }
+    if features.contains(format::ImageFeature::COLOR_ATTACHMENT_BLEND) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT as _;
+    }
+    if features.contains(format::ImageFeature::DEPTH_STENCIL_ATTACHMENT) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT as _;
+    }
+    if features.contains(format::ImageFeature::BLIT_SRC) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_SRC_BIT as _;
+    }
+    if features.contains(format::ImageFeature::BLIT_DST) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_DST_BIT as _;
+    }
+    if features.contains(format::ImageFeature::SAMPLED_LINEAR) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT as _;
+    }
+
+    flags
+}
+
+fn buffer_features_from_hal(features: format::BufferFeature) -> VkFormatFeatureFlags {
+    let mut flags = 0;
+
+    if features.contains(format::BufferFeature::UNIFORM_TEXEL) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT as _;
+    }
+    if features.contains(format::BufferFeature::STORAGE_TEXEL) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT as _;
+    }
+    if features.contains(format::BufferFeature::STORAGE_TEXEL_ATOMIC) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT as _;
+    }
+    if features.contains(format::BufferFeature::VERTEX) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT as _;
+    }
+
+    flags
+}
+
+pub fn map_format(format: VkFormat) -> format::Format {
     use VkFormat::*;
     use hal::format::ChannelType::*;
     use hal::format::SurfaceType::*;
 
     let (sf, cf) = match format {
         VK_FORMAT_B8G8R8A8_UNORM => (B8_G8_R8_A8, Unorm),
+        VK_FORMAT_D16_UNORM => (D16, Unorm),
         _ => {
             panic!("format {:?}", format);
         }
