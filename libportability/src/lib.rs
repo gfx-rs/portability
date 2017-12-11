@@ -56,7 +56,15 @@ pub extern fn vkDestroyDevice(
 ) {
     gfxDestroyDevice(device, pAllocator)
 }
-
+#[no_mangle]
+pub extern fn vkCreateImage(
+    device: VkDevice,
+    pCreateInfo: *const VkImageCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pImage: *mut VkImage,
+) -> VkResult {
+    gfxCreateImage(device, pCreateInfo, pAllocator, pImage)
+}
 #[no_mangle]
 pub extern fn vkCreateImageView(
     device: VkDevice,
@@ -67,12 +75,28 @@ pub extern fn vkCreateImageView(
     gfxCreateImageView(device, pCreateInfo, pAllocator, pView)
 }
 #[no_mangle]
+pub extern fn vkGetImageMemoryRequirements(
+    device: VkDevice,
+    image: VkImage,
+    pMemoryRequirements: *mut VkMemoryRequirements,
+) {
+    gfxGetImageMemoryRequirements(device, image, pMemoryRequirements)
+}
+#[no_mangle]
 pub extern fn vkDestroyImageView(
     device: VkDevice,
     imageView: VkImageView,
     pAllocator: *const VkAllocationCallbacks,
 ) {
     gfxDestroyImageView(device, imageView, pAllocator)
+}
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceFormatProperties(
+    adapter: VkPhysicalDevice,
+    format: VkFormat,
+    pFormatProperties: *mut VkFormatProperties,
+) {
+    gfxGetPhysicalDeviceFormatProperties(adapter, format, pFormatProperties)
 }
 
 #[no_mangle]

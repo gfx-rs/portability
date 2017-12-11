@@ -1,6 +1,7 @@
 
 use super::*;
 use std::mem;
+use std::ops::Deref;
 
 #[inline]
 pub extern fn gfxCreateInstance(
@@ -73,12 +74,14 @@ extern "C" {
                                        pFeatures:
                                            *mut VkPhysicalDeviceFeatures);
 }
-extern "C" {
-    pub fn vkGetPhysicalDeviceFormatProperties(physicalDevice:
-                                                   VkPhysicalDevice,
-                                               format: VkFormat,
-                                               pFormatProperties:
-                                                   *mut VkFormatProperties);
+#[inline]
+pub extern fn gfxGetPhysicalDeviceFormatProperties(
+    adapter: VkPhysicalDevice,
+    format: VkFormat,
+    pFormatProperties: *mut VkFormatProperties,
+) {
+    let properties = adapter.physical_device.format_properties(conv::map_format(format));
+    unsafe { *pFormatProperties = conv::format_properties_from_hal(properties); }
 }
 extern "C" {
     pub fn vkGetPhysicalDeviceImageFormatProperties(physicalDevice:
@@ -285,11 +288,25 @@ extern "C" {
                                          pMemoryRequirements:
                                              *mut VkMemoryRequirements);
 }
-extern "C" {
-    pub fn vkGetImageMemoryRequirements(device: VkDevice, image: VkImage,
-                                        pMemoryRequirements:
-                                            *mut VkMemoryRequirements);
+#[inline]
+pub extern fn gfxGetImageMemoryRequirements(
+    gpu: VkDevice,
+    image: VkImage,
+    pMemoryRequirements: *mut VkMemoryRequirements,
+) {
+    let req = match *image.deref() {
+        Image::Image(ref image) => unimplemented!(),
+        Image::Unbound(ref image) => {
+            gpu.device.get_image_requirements(image)
+        }
+    };
+
+    let memory_requirements = unsafe { &mut *pMemoryRequirements };
+    memory_requirements.size = req.size;
+    memory_requirements.alignment = req.alignment;
+    memory_requirements.memoryTypeBits = req.type_mask as _;
 }
+
 extern "C" {
     pub fn vkGetImageSparseMemoryRequirements(device: VkDevice,
                                               image: VkImage,
@@ -408,11 +425,27 @@ extern "C" {
     pub fn vkDestroyBufferView(device: VkDevice, bufferView: VkBufferView,
                                pAllocator: *const VkAllocationCallbacks);
 }
-extern "C" {
-    pub fn vkCreateImage(device: VkDevice,
-                         pCreateInfo: *const VkImageCreateInfo,
-                         pAllocator: *const VkAllocationCallbacks,
-                         pImage: *mut VkImage) -> VkResult;
+#[inline]
+pub extern fn gfxCreateImage(
+    gpu: VkDevice,
+    pCreateInfo: *const VkImageCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pImage: *mut VkImage,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
+    assert_eq!(info.tiling, VkImageTiling::VK_IMAGE_TILING_OPTIMAL); // TODO
+    assert_eq!(info.initialLayout, VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED); // TODO
+
+    let image = gpu.device.create_image(
+        conv::map_image_kind(info.imageType, info.flags, info.extent, info.arrayLayers, info.samples),
+        info.mipLevels as _,
+        conv::map_format(info.format),
+        conv::map_image_usage(info.usage),
+    ).expect("Error on creating image");
+
+    unsafe { *pImage = Handle::new(Image::Unbound(image)); }
+    VkResult::VK_SUCCESS
 }
 extern "C" {
     pub fn vkDestroyImage(device: VkDevice, image: VkImage,
@@ -435,11 +468,17 @@ pub extern fn gfxCreateImageView(
     assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
     assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
 
+    let image = match *info.image.deref() {
+        Image::Image(ref image) => image,
+        // Non-sparse images must be bound prior.
+        Image::Unbound(_) => panic!("Can't create view for unbound image"),
+    };
+
     let view = gpu
         .device
         .create_image_view(
-            &info.image,
-            conv::hal_from_format(info.format),
+            image,
+            conv::map_format(info.format),
             conv::map_swizzle(info.components),
             conv::map_subresource_range(info.subresourceRange),
         );
@@ -1087,7 +1126,7 @@ pub extern fn gfxCreateSwapchainKHR(
     assert_eq!(info.imageSharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
 
     let config = hal::SwapchainConfig {
-        color_format: conv::hal_from_format(info.imageFormat),
+        color_format: conv::map_format(info.imageFormat),
         depth_stencil_format: None,
         image_count: info.minImageCount,
     };
@@ -1095,7 +1134,7 @@ pub extern fn gfxCreateSwapchainKHR(
 
     let images = match backbuffers {
         hal::Backbuffer::Images(images) => {
-            images.into_iter().map(|image| Handle::new(image)).collect()
+            images.into_iter().map(|image| Handle::new(Image::Image(image))).collect()
         },
         hal::Backbuffer::Framebuffer(_) => {
             panic!("Expected backbuffer images. Backends returning only framebuffers are not supported!")

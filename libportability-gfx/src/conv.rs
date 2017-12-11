@@ -39,13 +39,75 @@ pub fn format_from_hal(format: format::Format) -> VkFormat {
     }
 }
 
-pub fn hal_from_format(format: VkFormat) -> format::Format {
+pub fn format_properties_from_hal(properties: format::Properties) -> VkFormatProperties {
+    VkFormatProperties {
+        linearTilingFeatures: image_features_from_hal(properties.linear_tiling),
+        optimalTilingFeatures: image_features_from_hal(properties.optimal_tiling),
+        bufferFeatures: buffer_features_from_hal(properties.buffer_features),
+    }
+}
+
+fn image_features_from_hal(features: format::ImageFeature) -> VkFormatFeatureFlags {
+    let mut flags = 0;
+
+    if features.contains(format::ImageFeature::SAMPLED) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::STORAGE) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::STORAGE_ATOMIC) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::COLOR_ATTACHMENT) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::COLOR_ATTACHMENT_BLEND) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::DEPTH_STENCIL_ATTACHMENT) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::BLIT_SRC) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_SRC_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::BLIT_DST) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_DST_BIT as u32;
+    }
+    if features.contains(format::ImageFeature::SAMPLED_LINEAR) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT as u32;
+    }
+
+    flags
+}
+
+fn buffer_features_from_hal(features: format::BufferFeature) -> VkFormatFeatureFlags {
+    let mut flags = 0;
+
+    if features.contains(format::BufferFeature::UNIFORM_TEXEL) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT as u32;
+    }
+    if features.contains(format::BufferFeature::STORAGE_TEXEL) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT as u32;
+    }
+    if features.contains(format::BufferFeature::STORAGE_TEXEL_ATOMIC) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT as u32;
+    }
+    if features.contains(format::BufferFeature::VERTEX) {
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT as u32;
+    }
+
+    flags
+}
+
+pub fn map_format(format: VkFormat) -> format::Format {
     use VkFormat::*;
     use hal::format::ChannelType::*;
     use hal::format::SurfaceType::*;
 
     let (sf, cf) = match format {
         VK_FORMAT_B8G8R8A8_UNORM => (B8_G8_R8_A8, Unorm),
+        VK_FORMAT_D16_UNORM => (D16, Unorm),
         _ => {
             panic!("format {:?}", format);
         }
@@ -110,5 +172,87 @@ fn map_aspect(aspects: VkImageAspectFlags) -> image::AspectFlags {
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_METADATA_BIT as u32 != 0 {
         unimplemented!()
     }
+    flags
+}
+
+pub fn map_image_kind(
+    ty: VkImageType,
+    flags: VkImageCreateFlags,
+    extent: VkExtent3D,
+    array_layers: u32,
+    samples: VkSampleCountFlagBits,
+) -> image::Kind {
+    debug_assert_ne!(array_layers, 0);
+    let is_cube = flags & VkImageCreateFlagBits::VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT as u32 != 0;
+    assert!(!is_cube || array_layers % 6 == 0);
+
+    match ty {
+        VkImageType::VK_IMAGE_TYPE_1D => {
+            image::Kind::D1(extent.width as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_1D => {
+            image::Kind::D1Array(extent.width as _, array_layers as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_2D if array_layers == 1 => {
+            image::Kind::D2(extent.width as _, extent.height as _, map_aa_mode(samples))
+        }
+        VkImageType::VK_IMAGE_TYPE_2D if is_cube && array_layers == 6 => {
+            image::Kind::Cube(extent.width as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_2D if is_cube => {
+            image::Kind::CubeArray(extent.width as _, (array_layers / 6) as _)
+        }
+        VkImageType::VK_IMAGE_TYPE_2D => {
+            image::Kind::D2Array(
+                extent.width as _,
+                extent.height as _,
+                array_layers as _,
+                map_aa_mode(samples),
+            )
+        }
+        VkImageType::VK_IMAGE_TYPE_3D => {
+            image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _)
+        }
+        _ => unimplemented!(),
+    }
+}
+
+fn map_aa_mode(samples: VkSampleCountFlagBits) -> image::AaMode {
+    use VkSampleCountFlagBits::*;
+
+    match samples {
+        VK_SAMPLE_COUNT_1_BIT => image::AaMode::Single,
+        _ => image::AaMode::Multi(samples as _),
+    }
+}
+
+pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
+    let mut flags = image::Usage::empty();
+
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT as u32 != 0 {
+        flags |= image::Usage::TRANSFER_SRC;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT as u32 != 0 {
+        flags |= image::Usage::TRANSFER_DST;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT as u32 != 0 {
+        flags |= image::Usage::SAMPLED;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT as u32 != 0 {
+        flags |= image::Usage::STORAGE;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as u32 != 0 {
+        flags |= image::Usage::COLOR_ATTACHMENT;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT as u32 != 0 {
+        flags |= image::Usage::DEPTH_STENCIL_ATTACHMENT;
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT as u32 != 0 {
+        unimplemented!()
+    }
+    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT as u32 != 0 {
+        unimplemented!()
+    }
+
     flags
 }
