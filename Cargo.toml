@@ -1,22 +1,6 @@
-[package]
-name = "portability"
-version = "0.1.0"
-authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
-
-[lib]
-name = "portability"
-crate-type = ["staticlib"]
-
-[dependencies]
-winit = "0.7"
-
-[dependencies.gfx-hal]
-#path = "../gfx/src/hal"
-git = "https://github.com/kvark/gfx-rs"
-branch = "portable"
-
-[dependencies.gfx-backend-vulkan]
-#path = "../gfx/src/backend/vulkan"
-git = "https://github.com/kvark/gfx-rs"
-branch = "portable"
-features = ["portable"]
+[workspace]
+members = [
+    "libportability",
+    "libportability-gfx",
+    "libportability-icd",
+]

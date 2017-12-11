@@ -19,8 +19,8 @@ binding: $(BINDING)
 $(BINDING): $(VULKAN_DIR)/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
 
-$(LIBRARY): src/*.rs Cargo.toml $(wildcard Cargo.lock)
-	cargo build
+$(LIBRARY): libportability/src/*.rs libportability-gfx/src/*.rs Cargo.toml $(wildcard Cargo.lock)
+	cargo build -p portability
 	mkdir -p target/native
 
 $(NATIVE_DIR)/%.o: native/%.cpp $(DEPS) Makefile
