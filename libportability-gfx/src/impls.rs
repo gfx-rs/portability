@@ -288,11 +288,25 @@ extern "C" {
                                          pMemoryRequirements:
                                              *mut VkMemoryRequirements);
 }
-extern "C" {
-    pub fn vkGetImageMemoryRequirements(device: VkDevice, image: VkImage,
-                                        pMemoryRequirements:
-                                            *mut VkMemoryRequirements);
+#[inline]
+pub extern fn gfxGetImageMemoryRequirements(
+    gpu: VkDevice,
+    image: VkImage,
+    pMemoryRequirements: *mut VkMemoryRequirements,
+) {
+    let req = match *image.deref() {
+        Image::Image(ref image) => unimplemented!(),
+        Image::Unbound(ref image) => {
+            gpu.device.get_image_requirements(image)
+        }
+    };
+
+    let memory_requirements = unsafe { &mut *pMemoryRequirements };
+    memory_requirements.size = req.size;
+    memory_requirements.alignment = req.alignment;
+    memory_requirements.memoryTypeBits = req.type_mask as _;
 }
+
 extern "C" {
     pub fn vkGetImageSparseMemoryRequirements(device: VkDevice,
                                               image: VkImage,

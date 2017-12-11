@@ -268,6 +268,16 @@ int main() {
     printf("\tvkCreateImage: res=%d\n", res);
     assert(!res);
 
+    vkGetImageMemoryRequirements(device, depth_image, &mem_reqs);
+    printf("\tvkGetImageMemoryRequirements\n");
+    printf(
+        "\t\tsize: %llx\n"
+        "\t\talignment: %llx\n"
+        "\t\tmemoryTypeBits: %x\n",
+            mem_reqs.size,
+            mem_reqs.alignment,
+            mem_reqs.memoryTypeBits);
+
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
     cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

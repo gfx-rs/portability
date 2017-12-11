@@ -75,6 +75,14 @@ pub extern fn vkCreateImageView(
     gfxCreateImageView(device, pCreateInfo, pAllocator, pView)
 }
 #[no_mangle]
+pub extern fn vkGetImageMemoryRequirements(
+    device: VkDevice,
+    image: VkImage,
+    pMemoryRequirements: *mut VkMemoryRequirements,
+) {
+    gfxGetImageMemoryRequirements(device, image, pMemoryRequirements)
+}
+#[no_mangle]
 pub extern fn vkDestroyImageView(
     device: VkDevice,
     imageView: VkImageView,

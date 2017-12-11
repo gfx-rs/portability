@@ -51,31 +51,31 @@ fn image_features_from_hal(features: format::ImageFeature) -> VkFormatFeatureFla
     let mut flags = 0;
 
     if features.contains(format::ImageFeature::SAMPLED) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT as u32;
     }
     if features.contains(format::ImageFeature::STORAGE) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT as u32;
     }
     if features.contains(format::ImageFeature::STORAGE_ATOMIC) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT as u32;
     }
     if features.contains(format::ImageFeature::COLOR_ATTACHMENT) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT as u32;
     }
     if features.contains(format::ImageFeature::COLOR_ATTACHMENT_BLEND) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT as u32;
     }
     if features.contains(format::ImageFeature::DEPTH_STENCIL_ATTACHMENT) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT as u32;
     }
     if features.contains(format::ImageFeature::BLIT_SRC) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_SRC_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_SRC_BIT as u32;
     }
     if features.contains(format::ImageFeature::BLIT_DST) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_DST_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_BLIT_DST_BIT as u32;
     }
     if features.contains(format::ImageFeature::SAMPLED_LINEAR) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT as u32;
     }
 
     flags
@@ -85,16 +85,16 @@ fn buffer_features_from_hal(features: format::BufferFeature) -> VkFormatFeatureF
     let mut flags = 0;
 
     if features.contains(format::BufferFeature::UNIFORM_TEXEL) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT as u32;
     }
     if features.contains(format::BufferFeature::STORAGE_TEXEL) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT as u32;
     }
     if features.contains(format::BufferFeature::STORAGE_TEXEL_ATOMIC) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT as u32;
     }
     if features.contains(format::BufferFeature::VERTEX) {
-        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT as _;
+        flags |= VkFormatFeatureFlagBits::VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT as u32;
     }
 
     flags
