@@ -7,5 +7,9 @@ rust:
 os:
   - linux
 
+branches:
+  except:
+    - staging.tmp
+
 script:
   - make
