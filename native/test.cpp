@@ -30,6 +30,27 @@
 #include <vector>
 #include "window.hpp"
 
+bool memory_type_from_properties(
+    const VkPhysicalDeviceMemoryProperties &memory_properties,
+    uint32_t type_bits,
+    const VkFlags requirements_mask,
+    uint32_t *type_index)
+{
+    // Search memtypes to find first index with those properties
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; i++) {
+        if ((type_bits & 1) == 1) {
+            // Type is available, does it match user properties?
+            if ((memory_properties.memoryTypes[i].propertyFlags & requirements_mask) == requirements_mask) {
+                *type_index = i;
+                return true;
+            }
+        }
+        type_bits >>= 1;
+    }
+    // No memory types matched, return failure
+    return false;
+}
+
 int main() {
     printf("starting the portability test\n");
 
@@ -90,6 +111,10 @@ int main() {
     }
     printf("\tusing queue family index %d\n", queue_family_index);
     assert(queue_family_index >= 0);
+
+    VkPhysicalDeviceMemoryProperties memory_properties = {};
+    vkGetPhysicalDeviceMemoryProperties(physical_devices[0], &memory_properties);
+    printf("\tvkGetPhysicalDeviceMemoryProperties\n");
 
     VkDeviceQueueCreateInfo queue_info = {};
     float queue_priorities[1] = {0.0};
@@ -277,6 +302,14 @@ int main() {
             mem_reqs.size,
             mem_reqs.alignment,
             mem_reqs.memoryTypeBits);
+
+    mem_alloc.allocationSize = mem_reqs.size;
+    bool pass = memory_type_from_properties(
+        memory_properties,
+        mem_reqs.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        &mem_alloc.memoryTypeIndex);
+    assert(pass);
 
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
