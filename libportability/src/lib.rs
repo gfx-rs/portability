@@ -38,7 +38,13 @@ pub extern fn vkGetPhysicalDeviceQueueFamilyProperties(
 ) {
     gfxGetPhysicalDeviceQueueFamilyProperties(adapter, pQueueFamilyPropertyCount, pQueueFamilyProperties)
 }
-
+#[no_mangle]
+pub extern fn vkGetPhysicalDeviceMemoryProperties(
+    physicalDevice: VkPhysicalDevice,
+    pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties,
+) {
+    gfxGetPhysicalDeviceMemoryProperties(physicalDevice, pMemoryProperties)
+}
 #[no_mangle]
 pub extern fn vkCreateDevice(
     adapter: VkPhysicalDevice,
@@ -48,7 +54,24 @@ pub extern fn vkCreateDevice(
 ) -> VkResult {
     gfxCreateDevice(adapter, pCreateInfo, pAllocator, pDevice)
 }
-
+#[no_mangle]
+pub extern fn vkAllocateMemory(
+    device: VkDevice,
+    pAllocateInfo: *const VkMemoryAllocateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pMemory: *mut VkDeviceMemory,
+) -> VkResult {
+    gfxAllocateMemory(device, pAllocateInfo, pAllocator, pMemory)
+}
+#[no_mangle]
+pub extern fn vkBindImageMemory(
+    device: VkDevice,
+    image: VkImage,
+    memory: VkDeviceMemory,
+    memoryOffset: VkDeviceSize,
+) -> VkResult {
+    gfxBindImageMemory(device, image, memory, memoryOffset)
+}
 #[no_mangle]
 pub extern fn vkDestroyDevice(
     device: VkDevice,

@@ -100,12 +100,32 @@ extern "C" {
                                          pProperties:
                                              *mut VkPhysicalDeviceProperties);
 }
+#[inline]
+pub extern fn gfxGetPhysicalDeviceMemoryProperties(
+    adapter: VkPhysicalDevice,
+    pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties,
+) {
+    let properties = adapter.physical_device.memory_properties();
+    let memory_properties = unsafe { &mut *pMemoryProperties };
 
-extern "C" {
-    pub fn vkGetPhysicalDeviceMemoryProperties(physicalDevice:
-                                                   VkPhysicalDevice,
-                                               pMemoryProperties:
-                                                   *mut VkPhysicalDeviceMemoryProperties);
+    let num_types = properties.memory_types.len();
+    memory_properties.memoryTypeCount = num_types as _;
+    for i in 0..num_types {
+        let flags = conv::memory_properties_from_hal(properties.memory_types[i].properties);
+        memory_properties.memoryTypes[i] = VkMemoryType {
+            propertyFlags: flags, // propertyFlags
+            heapIndex: properties.memory_types[i].heap_index as _,
+        };
+    }
+
+    let num_heaps = properties.memory_heaps.len();
+    memory_properties.memoryHeapCount = num_heaps as _;
+    for i in 0..num_heaps {
+        memory_properties.memoryHeaps[i] = VkMemoryHeap {
+            size: properties.memory_heaps[i],
+            flags: 0, // TODO
+        };
+    }
 }
 extern "C" {
     pub fn vkGetInstanceProcAddr(instance: VkInstance,
@@ -235,11 +255,14 @@ extern "C" {
 extern "C" {
     pub fn vkDeviceWaitIdle(device: VkDevice) -> VkResult;
 }
-extern "C" {
-    pub fn vkAllocateMemory(device: VkDevice,
-                            pAllocateInfo: *const VkMemoryAllocateInfo,
-                            pAllocator: *const VkAllocationCallbacks,
-                            pMemory: *mut VkDeviceMemory) -> VkResult;
+#[inline]
+pub extern fn gfxAllocateMemory(
+    gpu: VkDevice,
+    pAllocateInfo: *const VkMemoryAllocateInfo,
+    _pAllocator: *const VkAllocationCallbacks,
+    pMemory: *mut VkDeviceMemory,
+) -> VkResult {
+    unimplemented!()
 }
 extern "C" {
     pub fn vkFreeMemory(device: VkDevice, memory: VkDeviceMemory,
@@ -278,10 +301,14 @@ extern "C" {
                               memory: VkDeviceMemory,
                               memoryOffset: VkDeviceSize) -> VkResult;
 }
-extern "C" {
-    pub fn vkBindImageMemory(device: VkDevice, image: VkImage,
-                             memory: VkDeviceMemory,
-                             memoryOffset: VkDeviceSize) -> VkResult;
+#[inline]
+pub extern fn gfxBindImageMemory(
+    device: VkDevice,
+    image: VkImage,
+    memory: VkDeviceMemory,
+    memoryOffset: VkDeviceSize,
+) -> VkResult {
+    unimplemented!()
 }
 extern "C" {
     pub fn vkGetBufferMemoryRequirements(device: VkDevice, buffer: VkBuffer,

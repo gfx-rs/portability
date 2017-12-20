@@ -1,5 +1,5 @@
 use super::*;
-use hal::{format, image, window};
+use hal::{self, format, image, memory, window};
 
 pub fn format_from_hal(format: format::Format) -> VkFormat {
     use VkFormat::*;
@@ -252,6 +252,28 @@ pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
     }
     if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT as u32 != 0 {
         unimplemented!()
+    }
+
+    flags
+}
+
+pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPropertyFlags {
+    let mut flags = 0;
+
+    if properties.contains(memory::Properties::DEVICE_LOCAL) {
+        flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT as u32;
+    }
+    if properties.contains(memory::Properties::COHERENT) {
+        flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT as u32;
+    }
+    if properties.contains(memory::Properties::CPU_VISIBLE) {
+        flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT as u32;
+    }
+    if properties.contains(memory::Properties::CPU_CACHED) {
+        flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_CACHED_BIT as u32;
+    }
+    if properties.contains(memory::Properties::LAZILY_ALLOCATED) {
+        flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT as u32;
     }
 
     flags
