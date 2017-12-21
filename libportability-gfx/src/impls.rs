@@ -262,11 +262,25 @@ pub extern fn gfxAllocateMemory(
     _pAllocator: *const VkAllocationCallbacks,
     pMemory: *mut VkDeviceMemory,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pAllocateInfo };
+    let memory = gpu
+        .device
+        .allocate_memory(
+            hal::MemoryTypeId(info.memoryTypeIndex as _),
+            info.allocationSize,
+        )
+        .unwrap(); // TODO:
+
+    unsafe { *pMemory = Handle::new(memory); }
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkFreeMemory(device: VkDevice, memory: VkDeviceMemory,
-                        pAllocator: *const VkAllocationCallbacks);
+#[inline]
+pub extern fn gfxFreeMemory(
+    gpu: VkDevice,
+    memory: VkDeviceMemory,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gpu.device.free_memory(*memory.unwrap());
 }
 extern "C" {
     pub fn vkMapMemory(device: VkDevice, memory: VkDeviceMemory,

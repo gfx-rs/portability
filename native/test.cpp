@@ -311,6 +311,11 @@ int main() {
         &mem_alloc.memoryTypeIndex);
     assert(pass);
 
+    VkDeviceMemory depth_memory = 0;
+    res = vkAllocateMemory(device, &mem_alloc, NULL, &depth_memory);
+    printf("\tvkAllocateMemory: res=%d\n", res);
+    assert(!res);
+
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
     cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -339,6 +344,8 @@ int main() {
 
     }
 
+    vkFreeMemory(device, depth_memory, NULL);
+    printf("\tvkFreeMemory\n");
     for(auto view : swapchain_views) {
         vkDestroyImageView(device, view, NULL);
         printf("\tvkDestroyImageView\n");

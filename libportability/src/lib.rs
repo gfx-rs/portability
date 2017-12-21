@@ -64,6 +64,14 @@ pub extern fn vkAllocateMemory(
     gfxAllocateMemory(device, pAllocateInfo, pAllocator, pMemory)
 }
 #[no_mangle]
+pub extern fn vkFreeMemory(
+    device: VkDevice,
+    memory: VkDeviceMemory,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxFreeMemory(device, memory, pAllocator)
+}
+#[no_mangle]
 pub extern fn vkBindImageMemory(
     device: VkDevice,
     image: VkImage,
