@@ -10,12 +10,10 @@ name = "portability_gfx"
 lazy_static = "1.0"
 
 [dependencies.gfx-hal]
-#path = "../gfx/src/hal"
 git = "https://github.com/gfx-rs/gfx"
 branch = "portable"
 
 [dependencies.gfx-backend-vulkan]
-#path = "../gfx/src/backend/vulkan"
 git = "https://github.com/gfx-rs/gfx"
 branch = "portable"
 features = ["portable"]

@@ -26,6 +26,7 @@ pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
 pub type VkDevice = Handle<hal::Gpu<B>>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
 pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
+pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
 
 pub enum Image<B: hal::Backend> {
     Image(B::Image),
@@ -510,12 +511,6 @@ pub struct VkFence_T {
     _unused: [u8; 0],
 }
 pub type VkFence = *mut VkFence_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkDeviceMemory_T {
-    _unused: [u8; 0],
-}
-pub type VkDeviceMemory = *mut VkDeviceMemory_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkBuffer_T {
