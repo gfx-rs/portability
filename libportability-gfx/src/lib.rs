@@ -4,7 +4,11 @@
 #![allow(improper_ctypes)] //TEMP: buggy Rustc FFI analysis
 
 extern crate gfx_hal as hal;
+#[cfg(feature = "dx12")]
+extern crate gfx_backend_dx12 as back;
+#[cfg(feature = "vulkan")]
 extern crate gfx_backend_vulkan as back;
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -4805,30 +4809,6 @@ pub struct VkWin32SurfaceCreateInfoKHR {
 }
 impl Clone for VkWin32SurfaceCreateInfoKHR {
     fn clone(&self) -> Self { *self }
-}
-pub fn gfxCreateWin32SurfaceKHR(
-    instance: VkInstance,
-    pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
-    pAllocator: *const VkAllocationCallbacks,
-    pSurface: *mut VkSurfaceKHR,
-) -> VkResult {
-    #[cfg(target_os = "windows")]
-    {
-        unsafe {
-            assert_eq!((*pCreateInfos).flags, 0);
-            assert!(pAllocator.is_null());
-            // TODO: handle HINSTANCE
-            *pSurface = Handle::new(
-                instance.create_surface_from_hwnd(
-                    (*pCreateInfos).hinstance,
-                    (*pCreateInfos).hwnd,
-                )
-            );
-            VkResult::VK_SUCCESS
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
-    unreachable!()
 }
 #[repr(C)]
 #[derive(Debug, Copy)]

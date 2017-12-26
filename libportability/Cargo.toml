@@ -7,5 +7,10 @@ authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
 name = "portability"
 crate-type = ["staticlib"]
 
+[features]
+default = []
+dx12 = ["portability-gfx/dx12"]
+vulkan = ["portability-gfx/vulkan"]
+
 [dependencies]
 portability-gfx = { path = "../libportability-gfx" }

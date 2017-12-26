@@ -156,7 +156,7 @@ pub extern fn gfxCreateDevice(
         (family, vec![1.0; info.queueCount as usize])
     }).collect::<Vec<_>>();
 
-    let gpu = adapter.physical_device.clone().open(request_infos);
+    let gpu = adapter.physical_device.open(request_infos);
     unsafe { *pDevice = Handle::new(gpu) };
 
     VkResult::VK_SUCCESS
@@ -1347,4 +1347,41 @@ extern "C" {
                                        firstDiscardRectangle: u32,
                                        discardRectangleCount: u32,
                                        pDiscardRectangles: *const VkRect2D);
+}
+
+pub fn gfxCreateWin32SurfaceKHR(
+    instance: VkInstance,
+    pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    #[cfg(all(feature = "vulkan", target_os = "windows"))]
+    {
+        unsafe {
+            assert_eq!((*pCreateInfos).flags, 0);
+            assert!(pAllocator.is_null());
+            *pSurface = Handle::new(
+                instance.create_surface_from_hwnd(
+                    (*pCreateInfos).hinstance,
+                    (*pCreateInfos).hwnd,
+                )
+            );
+            VkResult::VK_SUCCESS
+        }
+    }
+    #[cfg(feature = "dx12")]
+    {
+        unsafe {
+            assert_eq!((*pCreateInfos).flags, 0);
+            assert!(pAllocator.is_null());
+            *pSurface = Handle::new(
+                instance.create_surface_from_hwnd(
+                    (*pCreateInfos).hwnd,
+                )
+            );
+            VkResult::VK_SUCCESS
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    unreachable!()
 }
