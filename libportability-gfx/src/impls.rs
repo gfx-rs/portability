@@ -317,12 +317,26 @@ extern "C" {
 }
 #[inline]
 pub extern fn gfxBindImageMemory(
-    device: VkDevice,
-    image: VkImage,
+    gpu: VkDevice,
+    mut image: VkImage,
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    unimplemented!()
+    let new_img = match *image.unwrap() {
+        Image::Image(_) => panic!("An Image can only be bound once!"),
+        Image::Unbound(unbound) => {
+            gpu.device.bind_image_memory(
+                &memory,
+                memoryOffset,
+                unbound,
+            ).unwrap() // TODO
+        }
+    };
+
+    // Replace the unbound image with an actual image under the hood.
+    *image = Image::Image(new_img);
+
+    VkResult::VK_SUCCESS
 }
 extern "C" {
     pub fn vkGetBufferMemoryRequirements(device: VkDevice, buffer: VkBuffer,
