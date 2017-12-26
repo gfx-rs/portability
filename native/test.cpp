@@ -28,6 +28,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <vector>
+
+#include "math.hpp"
 #include "window.hpp"
 
 bool memory_type_from_properties(
@@ -324,6 +326,22 @@ int main() {
     printf("\tvkCreateImageView: res=%d\n", res);
     assert(!res);
 
+    auto projection = perspective(45.0f, 1.0f, 0.1f, 100.0f);
+    auto view = look_at(
+        vec3(-5.0f, 3.0f, -10.0f),
+        vec3(0, 0, 0),
+        vec3(0, -1, 0)
+    );
+    auto model = mat4::identity();
+
+    auto clip = mat4(
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f,-1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.5f, 0.0f,
+        0.0f, 0.0f, 0.5f, 1.0f);
+
+    auto mvp = clip * projection * view * model;
+
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
     cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -352,8 +370,13 @@ int main() {
 
     }
 
+    // TODO: destroy depth image
+
     vkFreeMemory(device, depth_memory, NULL);
     printf("\tvkFreeMemory\n");
+    vkDestroyImageView(device, depth_view, NULL);
+    printf("\tvkDestroyImageView\n");
+
     for(auto view : swapchain_views) {
         vkDestroyImageView(device, view, NULL);
         printf("\tvkDestroyImageView\n");
