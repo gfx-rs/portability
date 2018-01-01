@@ -193,12 +193,12 @@ int main() {
 
     uint32_t image_count = 0;
     res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, NULL);
-    printf("\tvkCreateSwapchainKHR (query): res=%d image_count=%d\n", res, image_count);
+    printf("\tvkGetSwapchainImagesKHR (query): res=%d image_count=%d\n", res, image_count);
     assert(!res);
 
     std::vector<VkImage> swapchain_images(image_count);
     res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, &swapchain_images[0]);
-    printf("\tvkCreateSwapchainKHR: res=%d\n", res);
+    printf("\tvkGetSwapchainImagesKHR: res=%d\n", res);
     assert(!res);
 
     std::vector<VkImageView> swapchain_views(image_count);

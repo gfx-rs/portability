@@ -17,7 +17,6 @@ mod handle;
 mod impls;
 
 use std::{cmp, slice};
-use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface}; // traits only
 use hal::pool::RawCommandPool;
 use back::Backend as B;
 use handle::Handle;
