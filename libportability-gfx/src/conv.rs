@@ -1,42 +1,13 @@
+
+use hal::{adapter, format, image, memory, window};
+
+use std::mem;
+
 use super::*;
-use hal::{self, format, image, memory, window};
 
 pub fn format_from_hal(format: format::Format) -> VkFormat {
-    use VkFormat::*;
-    use hal::format::ChannelType::*;
-    use hal::format::SurfaceType::*;
-
-    match format.0 {
-        R5_G6_B5 => match format.1 {
-            Unorm => VK_FORMAT_R5G6B5_UNORM_PACK16,
-            _ => unreachable!(),
-        },
-        R4_G4_B4_A4 => match format.1 {
-            Unorm => VK_FORMAT_R4G4B4A4_UNORM_PACK16,
-            _ => unreachable!(),
-        },
-        R8_G8_B8_A8 => match format.1 {
-            Unorm => VK_FORMAT_R8G8B8A8_UNORM,
-            Inorm => VK_FORMAT_R8G8B8A8_SNORM,
-            Srgb => VK_FORMAT_R8G8B8A8_SRGB,
-            _ => panic!("format {:?}", format),
-        },
-        B8_G8_R8_A8 => match format.1 {
-            Unorm => VK_FORMAT_B8G8R8A8_UNORM,
-            Inorm => VK_FORMAT_B8G8R8A8_SNORM,
-            Srgb => VK_FORMAT_B8G8R8A8_SRGB,
-            _ => panic!("format {:?}", format),
-        },
-        R16_G16_B16_A16 => match format.1 {
-            Unorm => VK_FORMAT_R16G16B16A16_UNORM,
-            Inorm => VK_FORMAT_R16G16B16A16_SNORM,
-            Float => VK_FORMAT_R16G16B16A16_SFLOAT,
-            _ => panic!("format {:?}", format),
-        },
-        _ => {
-            panic!("format {:?}", format);
-        }
-    }
+    // HAL formats have the same numeric representation as Vulkan formats
+    unsafe { mem::transmute(format) }
 }
 
 pub fn format_properties_from_hal(properties: format::Properties) -> VkFormatProperties {
@@ -101,19 +72,12 @@ fn buffer_features_from_hal(features: format::BufferFeature) -> VkFormatFeatureF
 }
 
 pub fn map_format(format: VkFormat) -> format::Format {
-    use VkFormat::*;
-    use hal::format::ChannelType::*;
-    use hal::format::SurfaceType::*;
-
-    let (sf, cf) = match format {
-        VK_FORMAT_B8G8R8A8_UNORM => (B8_G8_R8_A8, Unorm),
-        VK_FORMAT_D16_UNORM => (D16, Unorm),
-        _ => {
-            panic!("format {:?}", format);
-        }
-    };
-
-    format::Format(sf, cf)
+    if (format as usize) < format::NUM_FORMATS {
+        // HAL formats have the same numeric representation as Vulkan formats
+        unsafe { mem::transmute(format) }
+    } else {
+        unimplemented!("Unknown format {:?}", format);
+    }
 }
 
 pub fn extent2d_from_hal(extent: window::Extent2d) -> VkExtent2D {
@@ -158,16 +122,16 @@ pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> image::Sub
     }
 }
 
-fn map_aspect(aspects: VkImageAspectFlags) -> image::AspectFlags {
-    let mut flags = image::AspectFlags::empty();
+fn map_aspect(aspects: VkImageAspectFlags) -> format::AspectFlags {
+    let mut flags = format::AspectFlags::empty();
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
-        flags |= image::AspectFlags::COLOR;
+        flags |= format::AspectFlags::COLOR;
     }
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
-        flags |= image::AspectFlags::DEPTH;
+        flags |= format::AspectFlags::DEPTH;
     }
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
-        flags |= image::AspectFlags::DEPTH;
+        flags |= format::AspectFlags::DEPTH;
     }
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_METADATA_BIT as u32 != 0 {
         unimplemented!()
@@ -277,4 +241,18 @@ pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPro
     }
 
     flags
+}
+
+pub fn map_err_device_creation(err: adapter::DeviceCreationError) -> VkResult {
+    use hal::adapter::DeviceCreationError::*;
+
+    match err {
+        OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+        InitializationFailed => VkResult::VK_ERROR_INITIALIZATION_FAILED,
+        MissingExtension => VkResult::VK_ERROR_EXTENSION_NOT_PRESENT,
+        MissingFeature => VkResult::VK_ERROR_FEATURE_NOT_PRESENT,
+        TooManyObjects => VkResult::VK_ERROR_TOO_MANY_OBJECTS,
+        DeviceLost => VkResult::VK_ERROR_DEVICE_LOST,
+    }
 }

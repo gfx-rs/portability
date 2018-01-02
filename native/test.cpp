@@ -28,6 +28,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <vector>
+
+#include "math.hpp"
 #include "window.hpp"
 
 bool memory_type_from_properties(
@@ -191,12 +193,12 @@ int main() {
 
     uint32_t image_count = 0;
     res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, NULL);
-    printf("\tvkCreateSwapchainKHR (query): res=%d image_count=%d\n", res, image_count);
+    printf("\tvkGetSwapchainImagesKHR (query): res=%d image_count=%d\n", res, image_count);
     assert(!res);
 
     std::vector<VkImage> swapchain_images(image_count);
     res = vkGetSwapchainImagesKHR(device, swapchain, &image_count, &swapchain_images[0]);
-    printf("\tvkCreateSwapchainKHR: res=%d\n", res);
+    printf("\tvkGetSwapchainImagesKHR: res=%d\n", res);
     assert(!res);
 
     std::vector<VkImageView> swapchain_views(image_count);
@@ -268,26 +270,8 @@ int main() {
     mem_alloc.allocationSize = 0;
     mem_alloc.memoryTypeIndex = 0;
 
-    VkImageViewCreateInfo view_info = {};
-    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view_info.pNext = NULL;
-    view_info.image = VK_NULL_HANDLE;
-    view_info.format = depth_format;
-    view_info.components.r = VK_COMPONENT_SWIZZLE_R;
-    view_info.components.g = VK_COMPONENT_SWIZZLE_G;
-    view_info.components.b = VK_COMPONENT_SWIZZLE_B;
-    view_info.components.a = VK_COMPONENT_SWIZZLE_A;
-    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    view_info.subresourceRange.baseMipLevel = 0;
-    view_info.subresourceRange.levelCount = 1;
-    view_info.subresourceRange.baseArrayLayer = 0;
-    view_info.subresourceRange.layerCount = 1;
-    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    view_info.flags = 0;
-
     VkMemoryRequirements mem_reqs;
 
-    /* Create image */
     VkImage depth_image = 0;
     res = vkCreateImage(device, &image_info, NULL, &depth_image);
     printf("\tvkCreateImage: res=%d\n", res);
@@ -315,6 +299,48 @@ int main() {
     res = vkAllocateMemory(device, &mem_alloc, NULL, &depth_memory);
     printf("\tvkAllocateMemory: res=%d\n", res);
     assert(!res);
+
+    res = vkBindImageMemory(device, depth_image, depth_memory, 0);
+    printf("\tvkBindImageMemory: res=%d\n", res);
+    assert(!res);
+
+    VkImageViewCreateInfo view_info = {};
+    view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    view_info.pNext = NULL;
+    view_info.image = depth_image;
+    view_info.format = depth_format;
+    view_info.components.r = VK_COMPONENT_SWIZZLE_R;
+    view_info.components.g = VK_COMPONENT_SWIZZLE_G;
+    view_info.components.b = VK_COMPONENT_SWIZZLE_B;
+    view_info.components.a = VK_COMPONENT_SWIZZLE_A;
+    view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    view_info.subresourceRange.baseMipLevel = 0;
+    view_info.subresourceRange.levelCount = 1;
+    view_info.subresourceRange.baseArrayLayer = 0;
+    view_info.subresourceRange.layerCount = 1;
+    view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    view_info.flags = 0;
+
+    VkImageView depth_view = 0;
+    res = vkCreateImageView(device, &view_info, NULL, &depth_view);
+    printf("\tvkCreateImageView: res=%d\n", res);
+    assert(!res);
+
+    auto projection = perspective(45.0f, 1.0f, 0.1f, 100.0f);
+    auto view = look_at(
+        vec3(-5.0f, 3.0f, -10.0f),
+        vec3(0, 0, 0),
+        vec3(0, -1, 0)
+    );
+    auto model = mat4::identity();
+
+    auto clip = mat4(
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f,-1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 0.5f, 0.0f,
+        0.0f, 0.0f, 0.5f, 1.0f);
+
+    auto mvp = clip * projection * view * model;
 
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
@@ -344,8 +370,13 @@ int main() {
 
     }
 
+    // TODO: destroy depth image
+
     vkFreeMemory(device, depth_memory, NULL);
     printf("\tvkFreeMemory\n");
+    vkDestroyImageView(device, depth_view, NULL);
+    printf("\tvkDestroyImageView\n");
+
     for(auto view : swapchain_views) {
         vkDestroyImageView(device, view, NULL);
         printf("\tvkDestroyImageView\n");

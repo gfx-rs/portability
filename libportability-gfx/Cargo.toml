@@ -6,6 +6,11 @@ authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
 [lib]
 name = "portability_gfx"
 
+[features]
+default = []
+dx12 = ["gfx-backend-dx12"]
+vulkan = ["gfx-backend-vulkan"]
+
 [dependencies]
 lazy_static = "1.0"
 
@@ -17,3 +22,9 @@ branch = "portable"
 git = "https://github.com/gfx-rs/gfx"
 branch = "portable"
 features = ["portable"]
+optional = true
+
+[target.'cfg(windows)'.dependencies.gfx-backend-dx12]
+git = "https://github.com/gfx-rs/gfx"
+branch = "portable"
+optional = true

@@ -1,7 +1,10 @@
 
-use super::*;
+use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface};
+
 use std::mem;
 use std::ops::Deref;
+
+use super::*;
 
 #[inline]
 pub extern fn gfxCreateInstance(
@@ -80,7 +83,12 @@ pub extern fn gfxGetPhysicalDeviceFormatProperties(
     format: VkFormat,
     pFormatProperties: *mut VkFormatProperties,
 ) {
-    let properties = adapter.physical_device.format_properties(conv::map_format(format));
+    let format = match format {
+        VkFormat::VK_FORMAT_UNDEFINED => None,
+        format => Some(conv::map_format(format)),
+    };
+
+    let properties = adapter.physical_device.format_properties(format);
     unsafe { *pFormatProperties = conv::format_properties_from_hal(properties); }
 }
 extern "C" {
@@ -156,10 +164,15 @@ pub extern fn gfxCreateDevice(
         (family, vec![1.0; info.queueCount as usize])
     }).collect::<Vec<_>>();
 
-    let gpu = adapter.physical_device.clone().open(request_infos);
-    unsafe { *pDevice = Handle::new(gpu) };
+    let gpu = adapter.physical_device.open(request_infos);
 
-    VkResult::VK_SUCCESS
+    match gpu {
+        Ok(device) => {
+            unsafe { *pDevice = Handle::new(device); }
+            VkResult::VK_SUCCESS
+        }
+        Err(err) => conv::map_err_device_creation(err),
+    }
 }
 
 #[inline]
@@ -317,12 +330,26 @@ extern "C" {
 }
 #[inline]
 pub extern fn gfxBindImageMemory(
-    device: VkDevice,
-    image: VkImage,
+    gpu: VkDevice,
+    mut image: VkImage,
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    unimplemented!()
+    let new_img = match *image.unwrap() {
+        Image::Image(_) => panic!("An Image can only be bound once!"),
+        Image::Unbound(unbound) => {
+            gpu.device.bind_image_memory(
+                &memory,
+                memoryOffset,
+                unbound,
+            ).unwrap() // TODO
+        }
+    };
+
+    // Replace the unbound image with an actual image under the hood.
+    *image = Image::Image(new_img);
+
+    VkResult::VK_SUCCESS
 }
 extern "C" {
     pub fn vkGetBufferMemoryRequirements(device: VkDevice, buffer: VkBuffer,
@@ -1118,17 +1145,31 @@ pub extern fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     pSurfaceFormatCount: *mut u32,
     pSurfaceFormats: *mut VkSurfaceFormatKHR,
 ) -> VkResult {
-    let (_, formats) = surface.capabilities_and_formats(&adapter.physical_device);
-    let output = unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
+    let formats = surface
+        .capabilities_and_formats(&adapter.physical_device)
+        .1
+        .map(|formats|
+            formats
+                .into_iter()
+                .map(conv::format_from_hal)
+                .collect()
+        )
+        .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
 
-    if output.len() > formats.len() {
+    if pSurfaceFormats.is_null() {
+        // Return only the number of formats
         unsafe { *pSurfaceFormatCount = formats.len() as u32 };
-    }
-    for (out, format) in output.iter_mut().zip(formats) {
-        *out = VkSurfaceFormatKHR {
-            format: conv::format_from_hal(format),
-            colorSpace: VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, //TODO
-        };
+    } else {
+        let output = unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
+        if output.len() > formats.len() {
+            unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+        }
+        for (out, format) in output.iter_mut().zip(formats) {
+            *out = VkSurfaceFormatKHR {
+                format,
+                colorSpace: VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, //TODO
+            };
+        }
     }
 
     VkResult::VK_SUCCESS
@@ -1347,4 +1388,41 @@ extern "C" {
                                        firstDiscardRectangle: u32,
                                        discardRectangleCount: u32,
                                        pDiscardRectangles: *const VkRect2D);
+}
+
+pub fn gfxCreateWin32SurfaceKHR(
+    instance: VkInstance,
+    pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    #[cfg(all(feature = "vulkan", target_os = "windows"))]
+    {
+        unsafe {
+            assert_eq!((*pCreateInfos).flags, 0);
+            assert!(pAllocator.is_null());
+            *pSurface = Handle::new(
+                instance.create_surface_from_hwnd(
+                    (*pCreateInfos).hinstance,
+                    (*pCreateInfos).hwnd,
+                )
+            );
+            VkResult::VK_SUCCESS
+        }
+    }
+    #[cfg(feature = "dx12")]
+    {
+        unsafe {
+            assert_eq!((*pCreateInfos).flags, 0);
+            assert!(pAllocator.is_null());
+            *pSurface = Handle::new(
+                instance.create_surface_from_hwnd(
+                    (*pCreateInfos).hwnd,
+                )
+            );
+            VkResult::VK_SUCCESS
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    unreachable!()
 }

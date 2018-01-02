@@ -14,7 +14,7 @@ make
 Build the Rust library (portability implementation):
 
 ```
-cargo build -p portability
+cargo build --manifest-path libportability/Cargo.toml --features <vulkan|dx12>
 ```
 
 Build the native example:
