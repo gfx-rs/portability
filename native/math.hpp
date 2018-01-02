@@ -1,7 +1,9 @@
 
 #pragma once
 
-const float M_PI = 3.1415926535897932;
+#include <cmath>
+
+const float pi = 3.1415926535897932;
 
 template<typename T>
 class mat4_tl
@@ -85,7 +87,7 @@ template<typename T>
 auto perspective(T fov, T aspect, T n, T f) -> mat4_tl<T> {
     assert(fov > 0); assert(aspect > 0);
 
-    const T rad = fov*T(M_PI)/T(180);
+    const T rad = fov*T(pi)/T(180);
     const T a = T(1)/(std::tan(rad/T(2)));
 
     return mat4_tl<T>(
@@ -101,7 +103,7 @@ class vec3_tl
 public:
     union {
         struct { T x, y, z; };
-        struct { T s, t, r; };
+        struct { T s, t, u; };
         struct { T r, g, b; };
         T data[3];
     };
