@@ -81,6 +81,15 @@ pub extern fn vkBindImageMemory(
     gfxBindImageMemory(device, image, memory, memoryOffset)
 }
 #[no_mangle]
+pub extern fn vkBindBufferMemory(
+    device: VkDevice,
+    buffer: VkBuffer,
+    memory: VkDeviceMemory,
+    memoryOffset: VkDeviceSize,
+) -> VkResult {
+    gfxBindBufferMemory(device, buffer, memory, memoryOffset)
+}
+#[no_mangle]
 pub extern fn vkDestroyDevice(
     device: VkDevice,
     pAllocator: *const VkAllocationCallbacks,
@@ -260,4 +269,65 @@ pub extern fn vkCreateWin32SurfaceKHR(
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     gfxCreateWin32SurfaceKHR(instance, pCreateInfos, pAllocator, pSurface)
+}
+
+#[no_mangle]
+pub extern fn vkMapMemory(
+    device: VkDevice,
+    memory: VkDeviceMemory,
+    offset: VkDeviceSize,
+    size: VkDeviceSize,
+    flags: VkMemoryMapFlags,
+    ppData: *mut *mut ::std::os::raw::c_void,
+) -> VkResult {
+    gfxMapMemory(
+        device,
+        memory,
+        offset,
+        size,
+        flags,
+        ppData,
+    )
+}
+
+#[no_mangle]
+pub extern fn vkUnmapMemory(device: VkDevice, memory: VkDeviceMemory) {
+    gfxUnmapMemory(device, memory)
+}
+
+#[no_mangle]
+pub extern fn vkDestroyImage(
+    device: VkDevice,
+    image: VkImage,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyImage(device, image, pAllocator)
+}
+
+#[no_mangle]
+pub extern fn vkCreateBuffer(
+    device: VkDevice,
+    pCreateInfo: *const VkBufferCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pBuffer: *mut VkBuffer,
+) -> VkResult {
+    gfxCreateBuffer(device, pCreateInfo, pAllocator, pBuffer)
+}
+
+#[no_mangle]
+pub extern fn vkDestroyBuffer(
+    device: VkDevice,
+    buffer: VkBuffer,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyBuffer(device, buffer, pAllocator)
+}
+
+#[no_mangle]
+pub extern fn vkGetBufferMemoryRequirements(
+    device: VkDevice,
+    buffer: VkBuffer,
+    pMemoryRequirements: *mut VkMemoryRequirements,
+) {
+    gfxGetBufferMemoryRequirements(device, buffer, pMemoryRequirements)
 }

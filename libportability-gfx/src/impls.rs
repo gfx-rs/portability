@@ -295,14 +295,31 @@ pub extern fn gfxFreeMemory(
 ) {
     gpu.device.free_memory(*memory.unwrap());
 }
-extern "C" {
-    pub fn vkMapMemory(device: VkDevice, memory: VkDeviceMemory,
-                       offset: VkDeviceSize, size: VkDeviceSize,
-                       flags: VkMemoryMapFlags,
-                       ppData: *mut *mut ::std::os::raw::c_void) -> VkResult;
+#[inline]
+pub extern fn gfxMapMemory(
+    gpu: VkDevice,
+    memory: VkDeviceMemory,
+    offset: VkDeviceSize,
+    size: VkDeviceSize,
+    _flags: VkMemoryMapFlags,
+    ppData: *mut *mut ::std::os::raw::c_void,
+) -> VkResult {
+    if size == VK_WHOLE_SIZE as VkDeviceSize {
+        unimplemented!()
+    }
+
+    unsafe {
+        *ppData = gpu
+            .device
+            .map_memory(&memory, offset..offset+size)
+            .unwrap() as *mut _; // TODO
+    }
+
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkUnmapMemory(device: VkDevice, memory: VkDeviceMemory);
+#[inline]
+pub extern fn gfxUnmapMemory(gpu: VkDevice, memory: VkDeviceMemory) {
+    gpu.device.unmap_memory(&memory);
 }
 extern "C" {
     pub fn vkFlushMappedMemoryRanges(device: VkDevice, memoryRangeCount: u32,
@@ -323,10 +340,27 @@ extern "C" {
                                        pCommittedMemoryInBytes:
                                            *mut VkDeviceSize);
 }
-extern "C" {
-    pub fn vkBindBufferMemory(device: VkDevice, buffer: VkBuffer,
-                              memory: VkDeviceMemory,
-                              memoryOffset: VkDeviceSize) -> VkResult;
+#[inline]
+pub extern fn gfxBindBufferMemory(
+    gpu: VkDevice,
+    mut buffer: VkBuffer,
+    memory: VkDeviceMemory,
+    memoryOffset: VkDeviceSize,
+) -> VkResult {
+    *buffer = match *buffer.unwrap() {
+        Buffer::Buffer(_) => panic!("An Buffer can only be bound once!"),
+        Buffer::Unbound(unbound) => {
+            Buffer::Buffer(
+                gpu.device.bind_buffer_memory(
+                    &memory,
+                    memoryOffset,
+                    unbound,
+                ).unwrap() // TODO
+            )
+        }
+    };
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern fn gfxBindImageMemory(
@@ -335,26 +369,39 @@ pub extern fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let new_img = match *image.unwrap() {
+    *image = match *image.unwrap() {
         Image::Image(_) => panic!("An Image can only be bound once!"),
         Image::Unbound(unbound) => {
-            gpu.device.bind_image_memory(
-                &memory,
-                memoryOffset,
-                unbound,
-            ).unwrap() // TODO
+            Image::Image(
+                gpu.device.bind_image_memory(
+                    &memory,
+                    memoryOffset,
+                    unbound,
+                ).unwrap() // TODO
+            )
         }
     };
 
-    // Replace the unbound image with an actual image under the hood.
-    *image = Image::Image(new_img);
-
     VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkGetBufferMemoryRequirements(device: VkDevice, buffer: VkBuffer,
-                                         pMemoryRequirements:
-                                             *mut VkMemoryRequirements);
+#[inline]
+pub extern fn gfxGetBufferMemoryRequirements(
+    gpu: VkDevice,
+    buffer: VkBuffer,
+    pMemoryRequirements: *mut VkMemoryRequirements,
+) {
+    let req = match *buffer.deref() {
+        Buffer::Buffer(ref buffer) => unimplemented!(),
+        Buffer::Unbound(ref buffer) => {
+            gpu.device.get_buffer_requirements(buffer)
+        }
+    };
+
+    *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
+        size: req.size,
+        alignment: req.alignment,
+        memoryTypeBits: req.type_mask as _,
+    };
 }
 #[inline]
 pub extern fn gfxGetImageMemoryRequirements(
@@ -369,10 +416,11 @@ pub extern fn gfxGetImageMemoryRequirements(
         }
     };
 
-    let memory_requirements = unsafe { &mut *pMemoryRequirements };
-    memory_requirements.size = req.size;
-    memory_requirements.alignment = req.alignment;
-    memory_requirements.memoryTypeBits = req.type_mask as _;
+    *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
+        size: req.size,
+        alignment: req.alignment,
+        memoryTypeBits: req.type_mask as _,
+    };
 }
 
 extern "C" {
@@ -473,15 +521,37 @@ extern "C" {
                                  stride: VkDeviceSize,
                                  flags: VkQueryResultFlags) -> VkResult;
 }
-extern "C" {
-    pub fn vkCreateBuffer(device: VkDevice,
-                          pCreateInfo: *const VkBufferCreateInfo,
-                          pAllocator: *const VkAllocationCallbacks,
-                          pBuffer: *mut VkBuffer) -> VkResult;
+#[inline]
+pub extern fn gfxCreateBuffer(
+    gpu: VkDevice,
+    pCreateInfo: *const VkBufferCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pBuffer: *mut VkBuffer,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
+    assert_eq!(info.flags, 0); // TODO
+
+    let buffer = gpu.device.create_buffer(
+        info.size,
+        conv::map_buffer_usage(info.usage),
+    ).expect("Error on creating buffer");
+
+    unsafe { *pBuffer = Handle::new(Buffer::Unbound(buffer)); }
+    VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkDestroyBuffer(device: VkDevice, buffer: VkBuffer,
-                           pAllocator: *const VkAllocationCallbacks);
+#[inline]
+pub extern fn gfxDestroyBuffer(
+    gpu: VkDevice,
+    buffer: VkBuffer,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    if !buffer.is_null() {
+        match *buffer.unwrap() {
+            Buffer::Buffer(buffer) => gpu.device.destroy_buffer(buffer),
+            Buffer::Unbound(_) => unimplemented!(),
+        }
+    }
 }
 extern "C" {
     pub fn vkCreateBufferView(device: VkDevice,
@@ -515,9 +585,18 @@ pub extern fn gfxCreateImage(
     unsafe { *pImage = Handle::new(Image::Unbound(image)); }
     VkResult::VK_SUCCESS
 }
-extern "C" {
-    pub fn vkDestroyImage(device: VkDevice, image: VkImage,
-                          pAllocator: *const VkAllocationCallbacks);
+#[inline]
+pub extern fn gfxDestroyImage(
+    gpu: VkDevice,
+    image: VkImage,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    if !image.is_null() {
+        match *image.unwrap() {
+            Image::Image(image) => gpu.device.destroy_image(image),
+            Image::Unbound(_) => unimplemented!(),
+        }
+    }
 }
 extern "C" {
     pub fn vkGetImageSubresourceLayout(device: VkDevice, image: VkImage,

@@ -1,5 +1,5 @@
 
-use hal::{adapter, format, image, memory, window};
+use hal::{adapter, buffer, format, image, memory, window};
 
 use std::mem;
 
@@ -216,6 +216,40 @@ pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
     }
     if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT as u32 != 0 {
         unimplemented!()
+    }
+
+    flags
+}
+
+pub fn map_buffer_usage(usage: VkBufferUsageFlags) -> buffer::Usage {
+    let mut flags = buffer::Usage::empty();
+
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_SRC_BIT as u32 != 0 {
+        flags |= buffer::Usage::TRANSFER_SRC;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_DST_BIT as u32 != 0 {
+        flags |= buffer::Usage::TRANSFER_DST;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::UNIFORM_TEXEL;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::STORAGE_TEXEL;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::UNIFORM;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_STORAGE_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::STORAGE;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_INDEX_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::INDEX;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_VERTEX_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::VERTEX;
+    }
+    if usage & VkBufferUsageFlagBits::VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT as u32 != 0 {
+        flags |= buffer::Usage::INDIRECT;
     }
 
     flags

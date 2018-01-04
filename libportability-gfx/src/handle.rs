@@ -1,3 +1,4 @@
+use VK_NULL_HANDLE;
 use std::{fmt, ops};
 
 
@@ -12,6 +13,10 @@ impl<T> Handle<T> {
 
     pub fn unwrap(self) -> Box<T> {
         unsafe { Box::from_raw(self.0) }
+    }
+
+    pub fn is_null(&self) -> bool {
+        self.0 == VK_NULL_HANDLE as *mut T
     }
 }
 

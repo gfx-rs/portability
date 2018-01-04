@@ -28,6 +28,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <vector>
+#include <cstring>
 
 #include "math.hpp"
 #include "window.hpp"
@@ -342,6 +343,56 @@ int main() {
 
     auto mvp = clip * projection * view * model;
 
+    VkBuffer uniform_buf = 0;
+
+    VkBufferCreateInfo buf_info = {};
+    buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buf_info.pNext = NULL;
+    buf_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    buf_info.size = sizeof(mvp);
+    buf_info.queueFamilyIndexCount = 0;
+    buf_info.pQueueFamilyIndices = NULL;
+    buf_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    buf_info.flags = 0;
+    res = vkCreateBuffer(device, &buf_info, NULL, &uniform_buf);
+    printf("\tvkCreateBuffer: res=%d\n", res);
+    assert(!res);
+
+    VkMemoryRequirements mem_reqs_uniform;
+    vkGetBufferMemoryRequirements(device, uniform_buf, &mem_reqs_uniform);
+
+    VkMemoryAllocateInfo alloc_info = {};
+    alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.pNext = NULL;
+    alloc_info.memoryTypeIndex = 0;
+
+    alloc_info.allocationSize = mem_reqs_uniform.size;
+    pass = memory_type_from_properties(
+        memory_properties,
+        mem_reqs_uniform.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        &alloc_info.memoryTypeIndex);
+    assert(pass && "No mappable, coherent memory");
+
+    VkDeviceMemory uniform_mem = 0;
+    res = vkAllocateMemory(device, &alloc_info, NULL, &uniform_mem);
+    printf("\tvkAllocateMemory: res=%d\n", res);
+    assert(!res);
+
+    uint8_t *pData;
+    res = vkMapMemory(device, uniform_mem, 0, mem_reqs_uniform.size, 0, (void **)&pData);
+    printf("\tvkMapMemory: res=%d\n", res);
+    assert(!res);
+
+    memcpy(pData, &mvp, sizeof(mvp));
+
+    vkUnmapMemory(device, uniform_mem);
+    printf("\tvkUnmapMemory");
+
+    res = vkBindBufferMemory(device, uniform_buf, uniform_mem, 0);
+    printf("\tvkBindBufferMemory: res=%d\n", res);
+    assert(!res);
+
     VkCommandPool cmd_pool = 0;
     VkCommandPoolCreateInfo cmd_pool_info = {};
     cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -370,12 +421,17 @@ int main() {
 
     }
 
-    // TODO: destroy depth image
-
-    vkFreeMemory(device, depth_memory, NULL);
+    vkDestroyBuffer(device, uniform_buf, NULL);
+    printf("\tvkDestroyBuffer\n");
+    vkFreeMemory(device, uniform_mem, NULL);
     printf("\tvkFreeMemory\n");
+
     vkDestroyImageView(device, depth_view, NULL);
     printf("\tvkDestroyImageView\n");
+    vkDestroyImage(device, depth_image, NULL);
+    printf("\tvkDestroyImage\n");
+    vkFreeMemory(device, depth_memory, NULL);
+    printf("\tvkFreeMemory\n");
 
     for(auto view : swapchain_views) {
         vkDestroyImageView(device, view, NULL);
