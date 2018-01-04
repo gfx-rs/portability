@@ -1,4 +1,3 @@
-
 use hal::{adapter, buffer, format, image, memory, window};
 
 use std::mem;
@@ -117,8 +116,10 @@ fn map_swizzle_component(
 pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> image::SubresourceRange {
     image::SubresourceRange {
         aspects: map_aspect(subresource.aspectMask),
-        levels: subresource.baseMipLevel as _ .. (subresource.baseMipLevel+subresource.levelCount) as _,
-        layers: subresource.baseArrayLayer as _ .. (subresource.baseArrayLayer+subresource.layerCount) as _,
+        levels: subresource.baseMipLevel as _
+            ..(subresource.baseMipLevel + subresource.levelCount) as _,
+        layers: subresource.baseArrayLayer as _
+            ..(subresource.baseArrayLayer + subresource.layerCount) as _,
     }
 }
 
@@ -151,12 +152,8 @@ pub fn map_image_kind(
     assert!(!is_cube || array_layers % 6 == 0);
 
     match ty {
-        VkImageType::VK_IMAGE_TYPE_1D => {
-            image::Kind::D1(extent.width as _)
-        }
-        VkImageType::VK_IMAGE_TYPE_1D => {
-            image::Kind::D1Array(extent.width as _, array_layers as _)
-        }
+        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width as _),
+        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1Array(extent.width as _, array_layers as _),
         VkImageType::VK_IMAGE_TYPE_2D if array_layers == 1 => {
             image::Kind::D2(extent.width as _, extent.height as _, map_aa_mode(samples))
         }
@@ -166,14 +163,12 @@ pub fn map_image_kind(
         VkImageType::VK_IMAGE_TYPE_2D if is_cube => {
             image::Kind::CubeArray(extent.width as _, (array_layers / 6) as _)
         }
-        VkImageType::VK_IMAGE_TYPE_2D => {
-            image::Kind::D2Array(
-                extent.width as _,
-                extent.height as _,
-                array_layers as _,
-                map_aa_mode(samples),
-            )
-        }
+        VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2Array(
+            extent.width as _,
+            extent.height as _,
+            array_layers as _,
+            map_aa_mode(samples),
+        ),
         VkImageType::VK_IMAGE_TYPE_3D => {
             image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _)
         }

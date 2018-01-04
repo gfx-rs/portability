@@ -1,7 +1,6 @@
 use VK_NULL_HANDLE;
 use std::{fmt, ops};
 
-
 #[repr(C)]
 pub struct Handle<T>(*mut T);
 
@@ -31,7 +30,7 @@ impl<T> Copy for Handle<T> {}
 impl<T> ops::Deref for Handle<T> {
     type Target = T;
     fn deref(&self) -> &T {
-        unsafe { & *self.0 }
+        unsafe { &*self.0 }
     }
 }
 
