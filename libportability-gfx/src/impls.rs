@@ -347,20 +347,18 @@ pub extern fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let mut buffer_copy = buffer;
-    let new_buffer = match *buffer.unwrap() {
+    *buffer = match *buffer.unwrap() {
         Buffer::Buffer(_) => panic!("An Buffer can only be bound once!"),
         Buffer::Unbound(unbound) => {
-            gpu.device.bind_buffer_memory(
-                &memory,
-                memoryOffset,
-                unbound,
-            ).unwrap() // TODO
+            Buffer::Buffer(
+                gpu.device.bind_buffer_memory(
+                    &memory,
+                    memoryOffset,
+                    unbound,
+                ).unwrap() // TODO
+            )
         }
     };
-
-    // Replace the unbound buffer with an actual buffer under the hood.
-    *buffer_copy = Buffer::Buffer(new_buffer);
 
     VkResult::VK_SUCCESS
 }
@@ -371,20 +369,18 @@ pub extern fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let mut image_copy = image;
-    let new_img = match *image.unwrap() {
+    *image = match *image.unwrap() {
         Image::Image(_) => panic!("An Image can only be bound once!"),
         Image::Unbound(unbound) => {
-            gpu.device.bind_image_memory(
-                &memory,
-                memoryOffset,
-                unbound,
-            ).unwrap() // TODO
+            Image::Image(
+                gpu.device.bind_image_memory(
+                    &memory,
+                    memoryOffset,
+                    unbound,
+                ).unwrap() // TODO
+            )
         }
     };
-
-    // Replace the unbound image with an actual image under the hood.
-    *image_copy = Image::Image(new_img);
 
     VkResult::VK_SUCCESS
 }
@@ -401,10 +397,11 @@ pub extern fn gfxGetBufferMemoryRequirements(
         }
     };
 
-    let memory_requirements = unsafe { &mut *pMemoryRequirements };
-    memory_requirements.size = req.size;
-    memory_requirements.alignment = req.alignment;
-    memory_requirements.memoryTypeBits = req.type_mask as _;
+    *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
+        size: req.size,
+        alignment: req.alignment,
+        memoryTypeBits: req.type_mask as _,
+    };
 }
 #[inline]
 pub extern fn gfxGetImageMemoryRequirements(
@@ -419,10 +416,11 @@ pub extern fn gfxGetImageMemoryRequirements(
         }
     };
 
-    let memory_requirements = unsafe { &mut *pMemoryRequirements };
-    memory_requirements.size = req.size;
-    memory_requirements.alignment = req.alignment;
-    memory_requirements.memoryTypeBits = req.type_mask as _;
+    *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
+        size: req.size,
+        alignment: req.alignment,
+        memoryTypeBits: req.type_mask as _,
+    };
 }
 
 extern "C" {
