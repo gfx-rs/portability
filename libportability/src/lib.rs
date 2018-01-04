@@ -5,7 +5,7 @@ extern crate portability_gfx;
 use portability_gfx::*;
 
 #[no_mangle]
-pub extern fn vkCreateInstance(
+pub extern "C" fn vkCreateInstance(
     pCreateInfo: *const VkInstanceCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
@@ -14,7 +14,7 @@ pub extern fn vkCreateInstance(
 }
 
 #[no_mangle]
-pub extern fn vkDestroyInstance(
+pub extern "C" fn vkDestroyInstance(
     instance: VkInstance,
     pAllocator: *const VkAllocationCallbacks,
 ) {
@@ -22,7 +22,7 @@ pub extern fn vkDestroyInstance(
 }
 
 #[no_mangle]
-pub extern fn vkEnumeratePhysicalDevices(
+pub extern "C" fn vkEnumeratePhysicalDevices(
     instance: VkInstance,
     pPhysicalDeviceCount: *mut u32,
     pPhysicalDevices: *mut VkPhysicalDevice,
@@ -31,22 +31,26 @@ pub extern fn vkEnumeratePhysicalDevices(
 }
 
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceQueueFamilyProperties(
+pub extern "C" fn vkGetPhysicalDeviceQueueFamilyProperties(
     adapter: VkPhysicalDevice,
     pQueueFamilyPropertyCount: *mut u32,
     pQueueFamilyProperties: *mut VkQueueFamilyProperties,
 ) {
-    gfxGetPhysicalDeviceQueueFamilyProperties(adapter, pQueueFamilyPropertyCount, pQueueFamilyProperties)
+    gfxGetPhysicalDeviceQueueFamilyProperties(
+        adapter,
+        pQueueFamilyPropertyCount,
+        pQueueFamilyProperties,
+    )
 }
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceMemoryProperties(
+pub extern "C" fn vkGetPhysicalDeviceMemoryProperties(
     physicalDevice: VkPhysicalDevice,
     pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties,
 ) {
     gfxGetPhysicalDeviceMemoryProperties(physicalDevice, pMemoryProperties)
 }
 #[no_mangle]
-pub extern fn vkCreateDevice(
+pub extern "C" fn vkCreateDevice(
     adapter: VkPhysicalDevice,
     pCreateInfo: *const VkDeviceCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -55,7 +59,7 @@ pub extern fn vkCreateDevice(
     gfxCreateDevice(adapter, pCreateInfo, pAllocator, pDevice)
 }
 #[no_mangle]
-pub extern fn vkAllocateMemory(
+pub extern "C" fn vkAllocateMemory(
     device: VkDevice,
     pAllocateInfo: *const VkMemoryAllocateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -64,7 +68,7 @@ pub extern fn vkAllocateMemory(
     gfxAllocateMemory(device, pAllocateInfo, pAllocator, pMemory)
 }
 #[no_mangle]
-pub extern fn vkFreeMemory(
+pub extern "C" fn vkFreeMemory(
     device: VkDevice,
     memory: VkDeviceMemory,
     pAllocator: *const VkAllocationCallbacks,
@@ -72,7 +76,7 @@ pub extern fn vkFreeMemory(
     gfxFreeMemory(device, memory, pAllocator)
 }
 #[no_mangle]
-pub extern fn vkBindImageMemory(
+pub extern "C" fn vkBindImageMemory(
     device: VkDevice,
     image: VkImage,
     memory: VkDeviceMemory,
@@ -81,7 +85,7 @@ pub extern fn vkBindImageMemory(
     gfxBindImageMemory(device, image, memory, memoryOffset)
 }
 #[no_mangle]
-pub extern fn vkBindBufferMemory(
+pub extern "C" fn vkBindBufferMemory(
     device: VkDevice,
     buffer: VkBuffer,
     memory: VkDeviceMemory,
@@ -90,14 +94,11 @@ pub extern fn vkBindBufferMemory(
     gfxBindBufferMemory(device, buffer, memory, memoryOffset)
 }
 #[no_mangle]
-pub extern fn vkDestroyDevice(
-    device: VkDevice,
-    pAllocator: *const VkAllocationCallbacks,
-) {
+pub extern "C" fn vkDestroyDevice(device: VkDevice, pAllocator: *const VkAllocationCallbacks) {
     gfxDestroyDevice(device, pAllocator)
 }
 #[no_mangle]
-pub extern fn vkCreateImage(
+pub extern "C" fn vkCreateImage(
     device: VkDevice,
     pCreateInfo: *const VkImageCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -106,7 +107,7 @@ pub extern fn vkCreateImage(
     gfxCreateImage(device, pCreateInfo, pAllocator, pImage)
 }
 #[no_mangle]
-pub extern fn vkCreateImageView(
+pub extern "C" fn vkCreateImageView(
     device: VkDevice,
     pCreateInfo: *const VkImageViewCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -115,7 +116,7 @@ pub extern fn vkCreateImageView(
     gfxCreateImageView(device, pCreateInfo, pAllocator, pView)
 }
 #[no_mangle]
-pub extern fn vkGetImageMemoryRequirements(
+pub extern "C" fn vkGetImageMemoryRequirements(
     device: VkDevice,
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
@@ -123,7 +124,7 @@ pub extern fn vkGetImageMemoryRequirements(
     gfxGetImageMemoryRequirements(device, image, pMemoryRequirements)
 }
 #[no_mangle]
-pub extern fn vkDestroyImageView(
+pub extern "C" fn vkDestroyImageView(
     device: VkDevice,
     imageView: VkImageView,
     pAllocator: *const VkAllocationCallbacks,
@@ -131,7 +132,7 @@ pub extern fn vkDestroyImageView(
     gfxDestroyImageView(device, imageView, pAllocator)
 }
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceFormatProperties(
+pub extern "C" fn vkGetPhysicalDeviceFormatProperties(
     adapter: VkPhysicalDevice,
     format: VkFormat,
     pFormatProperties: *mut VkFormatProperties,
@@ -140,7 +141,7 @@ pub extern fn vkGetPhysicalDeviceFormatProperties(
 }
 
 #[no_mangle]
-pub extern fn vkCreateCommandPool(
+pub extern "C" fn vkCreateCommandPool(
     device: VkDevice,
     pCreateInfo: *const VkCommandPoolCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -150,7 +151,7 @@ pub extern fn vkCreateCommandPool(
 }
 
 #[no_mangle]
-pub extern fn vkDestroyCommandPool(
+pub extern "C" fn vkDestroyCommandPool(
     device: VkDevice,
     commandPool: VkCommandPool,
     pAllocator: *const VkAllocationCallbacks,
@@ -159,7 +160,7 @@ pub extern fn vkDestroyCommandPool(
 }
 
 #[no_mangle]
-pub extern fn vkResetCommandPool(
+pub extern "C" fn vkResetCommandPool(
     device: VkDevice,
     commandPool: VkCommandPool,
     flags: VkCommandPoolResetFlags,
@@ -168,7 +169,7 @@ pub extern fn vkResetCommandPool(
 }
 
 #[no_mangle]
-pub extern fn vkAllocateCommandBuffers(
+pub extern "C" fn vkAllocateCommandBuffers(
     device: VkDevice,
     pAllocateInfo: *const VkCommandBufferAllocateInfo,
     pCommandBuffers: *mut VkCommandBuffer,
@@ -177,7 +178,7 @@ pub extern fn vkAllocateCommandBuffers(
 }
 
 #[no_mangle]
-pub extern fn vkFreeCommandBuffers(
+pub extern "C" fn vkFreeCommandBuffers(
     device: VkDevice,
     commandPool: VkCommandPool,
     commandBufferCount: u32,
@@ -187,7 +188,7 @@ pub extern fn vkFreeCommandBuffers(
 }
 
 #[no_mangle]
-pub extern fn vkDestroySurfaceKHR(
+pub extern "C" fn vkDestroySurfaceKHR(
     instance: VkInstance,
     surface: VkSurfaceKHR,
     pAllocator: *const VkAllocationCallbacks,
@@ -196,7 +197,7 @@ pub extern fn vkDestroySurfaceKHR(
 }
 
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceSurfaceSupportKHR(
+pub extern "C" fn vkGetPhysicalDeviceSurfaceSupportKHR(
     adapter: VkPhysicalDevice,
     queueFamilyIndex: u32,
     surface: VkSurfaceKHR,
@@ -206,7 +207,7 @@ pub extern fn vkGetPhysicalDeviceSurfaceSupportKHR(
 }
 
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+pub extern "C" fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
@@ -215,7 +216,7 @@ pub extern fn vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
 }
 
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceSurfaceFormatsKHR(
+pub extern "C" fn vkGetPhysicalDeviceSurfaceFormatsKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pSurfaceFormatCount: *mut u32,
@@ -225,7 +226,7 @@ pub extern fn vkGetPhysicalDeviceSurfaceFormatsKHR(
 }
 
 #[no_mangle]
-pub extern fn vkGetPhysicalDeviceSurfacePresentModesKHR(
+pub extern "C" fn vkGetPhysicalDeviceSurfacePresentModesKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pPresentModeCount: *mut u32,
@@ -235,7 +236,7 @@ pub extern fn vkGetPhysicalDeviceSurfacePresentModesKHR(
 }
 
 #[no_mangle]
-pub extern fn vkCreateSwapchainKHR(
+pub extern "C" fn vkCreateSwapchainKHR(
     device: VkDevice,
     pCreateInfo: *const VkSwapchainCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
@@ -244,7 +245,7 @@ pub extern fn vkCreateSwapchainKHR(
     gfxCreateSwapchainKHR(device, pCreateInfo, pAllocator, pSwapchain)
 }
 #[no_mangle]
-pub extern fn vkDestroySwapchainKHR(
+pub extern "C" fn vkDestroySwapchainKHR(
     device: VkDevice,
     swapchain: VkSwapchainKHR,
     pAllocator: *const VkAllocationCallbacks,
@@ -252,7 +253,7 @@ pub extern fn vkDestroySwapchainKHR(
     gfxDestroySwapchainKHR(device, swapchain, pAllocator)
 }
 #[no_mangle]
-pub extern fn vkGetSwapchainImagesKHR(
+pub extern "C" fn vkGetSwapchainImagesKHR(
     device: VkDevice,
     swapchain: VkSwapchainKHR,
     pSwapchainImageCount: *mut u32,
@@ -262,7 +263,7 @@ pub extern fn vkGetSwapchainImagesKHR(
 }
 
 #[no_mangle]
-pub extern fn vkCreateWin32SurfaceKHR(
+pub extern "C" fn vkCreateWin32SurfaceKHR(
     instance: VkInstance,
     pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
@@ -272,7 +273,7 @@ pub extern fn vkCreateWin32SurfaceKHR(
 }
 
 #[no_mangle]
-pub extern fn vkMapMemory(
+pub extern "C" fn vkMapMemory(
     device: VkDevice,
     memory: VkDeviceMemory,
     offset: VkDeviceSize,
@@ -280,23 +281,16 @@ pub extern fn vkMapMemory(
     flags: VkMemoryMapFlags,
     ppData: *mut *mut ::std::os::raw::c_void,
 ) -> VkResult {
-    gfxMapMemory(
-        device,
-        memory,
-        offset,
-        size,
-        flags,
-        ppData,
-    )
+    gfxMapMemory(device, memory, offset, size, flags, ppData)
 }
 
 #[no_mangle]
-pub extern fn vkUnmapMemory(device: VkDevice, memory: VkDeviceMemory) {
+pub extern "C" fn vkUnmapMemory(device: VkDevice, memory: VkDeviceMemory) {
     gfxUnmapMemory(device, memory)
 }
 
 #[no_mangle]
-pub extern fn vkDestroyImage(
+pub extern "C" fn vkDestroyImage(
     device: VkDevice,
     image: VkImage,
     pAllocator: *const VkAllocationCallbacks,
@@ -305,7 +299,7 @@ pub extern fn vkDestroyImage(
 }
 
 #[no_mangle]
-pub extern fn vkCreateBuffer(
+pub extern "C" fn vkCreateBuffer(
     device: VkDevice,
     pCreateInfo: *const VkBufferCreateInfo,
     pAllocator: *const VkAllocationCallbacks,
@@ -315,7 +309,7 @@ pub extern fn vkCreateBuffer(
 }
 
 #[no_mangle]
-pub extern fn vkDestroyBuffer(
+pub extern "C" fn vkDestroyBuffer(
     device: VkDevice,
     buffer: VkBuffer,
     pAllocator: *const VkAllocationCallbacks,
@@ -324,10 +318,1038 @@ pub extern fn vkDestroyBuffer(
 }
 
 #[no_mangle]
-pub extern fn vkGetBufferMemoryRequirements(
+pub extern "C" fn vkGetBufferMemoryRequirements(
     device: VkDevice,
     buffer: VkBuffer,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
     gfxGetBufferMemoryRequirements(device, buffer, pMemoryRequirements)
+}
+#[no_mangle]
+pub extern "C" fn vkGetInstanceProcAddr(
+    instance: VkInstance,
+    pName: *const ::std::os::raw::c_char,
+) -> PFN_vkVoidFunction {
+    gfxGetInstanceProcAddr(instance, pName)
+}
+#[no_mangle]
+pub extern "C" fn vkGetDeviceProcAddr(
+    device: VkDevice,
+    pName: *const ::std::os::raw::c_char,
+) -> PFN_vkVoidFunction {
+    gfxGetDeviceProcAddr(device, pName)
+}
+#[no_mangle]
+pub extern "C" fn vkGetPhysicalDeviceFeatures(
+    physicalDevice: VkPhysicalDevice,
+    pFeatures: *mut VkPhysicalDeviceFeatures,
+) {
+    gfxGetPhysicalDeviceFeatures(physicalDevice, pFeatures)
+}
+#[no_mangle]
+pub extern "C" fn vkGetPhysicalDeviceImageFormatProperties(
+    physicalDevice: VkPhysicalDevice,
+    format: VkFormat,
+    type_: VkImageType,
+    tiling: VkImageTiling,
+    usage: VkImageUsageFlags,
+    flags: VkImageCreateFlags,
+    pImageFormatProperties: *mut VkImageFormatProperties,
+) -> VkResult {
+    gfxGetPhysicalDeviceImageFormatProperties(
+        physicalDevice,
+        format,
+        type_,
+        tiling,
+        usage,
+        flags,
+        pImageFormatProperties,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkGetPhysicalDeviceProperties(
+    physicalDevice: VkPhysicalDevice,
+    pProperties: *mut VkPhysicalDeviceProperties,
+) {
+    gfxGetPhysicalDeviceProperties(physicalDevice, pProperties)
+}
+#[no_mangle]
+pub extern "C" fn vkEnumerateDeviceExtensionProperties(
+    physicalDevice: VkPhysicalDevice,
+    pLayerName: *const ::std::os::raw::c_char,
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkExtensionProperties,
+) -> VkResult {
+    gfxEnumerateDeviceExtensionProperties(physicalDevice, pLayerName, pPropertyCount, pProperties)
+}
+#[no_mangle]
+pub extern "C" fn vkEnumerateInstanceLayerProperties(
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkLayerProperties,
+) -> VkResult {
+    gfxEnumerateInstanceLayerProperties(pPropertyCount, pProperties)
+}
+#[no_mangle]
+pub extern "C" fn vkEnumerateDeviceLayerProperties(
+    physicalDevice: VkPhysicalDevice,
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkLayerProperties,
+) -> VkResult {
+    gfxEnumerateDeviceLayerProperties(physicalDevice, pPropertyCount, pProperties)
+}
+#[no_mangle]
+pub extern "C" fn vkGetDeviceQueue(
+    device: VkDevice,
+    queueFamilyIndex: u32,
+    queueIndex: u32,
+    pQueue: *mut VkQueue,
+) {
+    gfxGetDeviceQueue(device, queueFamilyIndex, queueIndex, pQueue)
+}
+#[no_mangle]
+pub extern "C" fn vkQueueSubmit(
+    queue: VkQueue,
+    submitCount: u32,
+    pSubmits: *const VkSubmitInfo,
+    fence: VkFence,
+) -> VkResult {
+    gfxQueueSubmit(queue, submitCount, pSubmits, fence)
+}
+#[no_mangle]
+pub extern "C" fn vkQueueWaitIdle(queue: VkQueue) -> VkResult {
+    gfxQueueWaitIdle(queue)
+}
+#[no_mangle]
+pub extern "C" fn vkDeviceWaitIdle(device: VkDevice) -> VkResult {
+    gfxDeviceWaitIdle(device)
+}
+#[no_mangle]
+pub extern "C" fn vkFlushMappedMemoryRanges(
+    device: VkDevice,
+    memoryRangeCount: u32,
+    pMemoryRanges: *const VkMappedMemoryRange,
+) -> VkResult {
+    gfxFlushMappedMemoryRanges(device, memoryRangeCount, pMemoryRanges)
+}
+#[no_mangle]
+pub extern "C" fn vkInvalidateMappedMemoryRanges(
+    device: VkDevice,
+    memoryRangeCount: u32,
+    pMemoryRanges: *const VkMappedMemoryRange,
+) -> VkResult {
+    gfxInvalidateMappedMemoryRanges(device, memoryRangeCount, pMemoryRanges)
+}
+#[no_mangle]
+pub extern "C" fn vkGetDeviceMemoryCommitment(
+    device: VkDevice,
+    memory: VkDeviceMemory,
+    pCommittedMemoryInBytes: *mut VkDeviceSize,
+) {
+    gfxGetDeviceMemoryCommitment(device, memory, pCommittedMemoryInBytes)
+}
+#[no_mangle]
+pub extern "C" fn vkGetImageSparseMemoryRequirements(
+    device: VkDevice,
+    image: VkImage,
+    pSparseMemoryRequirementCount: *mut u32,
+    pSparseMemoryRequirements: *mut VkSparseImageMemoryRequirements,
+) {
+    gfxGetImageSparseMemoryRequirements(
+        device,
+        image,
+        pSparseMemoryRequirementCount,
+        pSparseMemoryRequirements,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkGetPhysicalDeviceSparseImageFormatProperties(
+    physicalDevice: VkPhysicalDevice,
+    format: VkFormat,
+    type_: VkImageType,
+    samples: VkSampleCountFlagBits,
+    usage: VkImageUsageFlags,
+    tiling: VkImageTiling,
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkSparseImageFormatProperties,
+) {
+    gfxGetPhysicalDeviceSparseImageFormatProperties(
+        physicalDevice,
+        format,
+        type_,
+        samples,
+        usage,
+        tiling,
+        pPropertyCount,
+        pProperties,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkQueueBindSparse(
+    queue: VkQueue,
+    bindInfoCount: u32,
+    pBindInfo: *const VkBindSparseInfo,
+    fence: VkFence,
+) -> VkResult {
+    gfxQueueBindSparse(queue, bindInfoCount, pBindInfo, fence)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateFence(
+    device: VkDevice,
+    pCreateInfo: *const VkFenceCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pFence: *mut VkFence,
+) -> VkResult {
+    gfxCreateFence(device, pCreateInfo, pAllocator, pFence)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyFence(
+    device: VkDevice,
+    fence: VkFence,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyFence(device, fence, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkResetFences(
+    device: VkDevice,
+    fenceCount: u32,
+    pFences: *const VkFence,
+) -> VkResult {
+    gfxResetFences(device, fenceCount, pFences)
+}
+#[no_mangle]
+pub extern "C" fn vkGetFenceStatus(device: VkDevice, fence: VkFence) -> VkResult {
+    gfxGetFenceStatus(device, fence)
+}
+#[no_mangle]
+pub extern "C" fn vkWaitForFences(
+    device: VkDevice,
+    fenceCount: u32,
+    pFences: *const VkFence,
+    waitAll: VkBool32,
+    timeout: u64,
+) -> VkResult {
+    gfxWaitForFences(device, fenceCount, pFences, waitAll, timeout)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateSemaphore(
+    device: VkDevice,
+    pCreateInfo: *const VkSemaphoreCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pSemaphore: *mut VkSemaphore,
+) -> VkResult {
+    gfxCreateSemaphore(device, pCreateInfo, pAllocator, pSemaphore)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroySemaphore(
+    device: VkDevice,
+    semaphore: VkSemaphore,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroySemaphore(device, semaphore, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateEvent(
+    device: VkDevice,
+    pCreateInfo: *const VkEventCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pEvent: *mut VkEvent,
+) -> VkResult {
+    gfxCreateEvent(device, pCreateInfo, pAllocator, pEvent)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyEvent(
+    device: VkDevice,
+    event: VkEvent,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyEvent(device, event, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkGetEventStatus(device: VkDevice, event: VkEvent) -> VkResult {
+    gfxGetEventStatus(device, event)
+}
+#[no_mangle]
+pub extern "C" fn vkSetEvent(device: VkDevice, event: VkEvent) -> VkResult {
+    gfxSetEvent(device, event)
+}
+#[no_mangle]
+pub extern "C" fn vkResetEvent(device: VkDevice, event: VkEvent) -> VkResult {
+    gfxResetEvent(device, event)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateQueryPool(
+    device: VkDevice,
+    pCreateInfo: *const VkQueryPoolCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pQueryPool: *mut VkQueryPool,
+) -> VkResult {
+    gfxCreateQueryPool(device, pCreateInfo, pAllocator, pQueryPool)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyQueryPool(
+    device: VkDevice,
+    queryPool: VkQueryPool,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyQueryPool(device, queryPool, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkGetQueryPoolResults(
+    device: VkDevice,
+    queryPool: VkQueryPool,
+    firstQuery: u32,
+    queryCount: u32,
+    dataSize: usize,
+    pData: *mut ::std::os::raw::c_void,
+    stride: VkDeviceSize,
+    flags: VkQueryResultFlags,
+) -> VkResult {
+    gfxGetQueryPoolResults(
+        device,
+        queryPool,
+        firstQuery,
+        queryCount,
+        dataSize,
+        pData,
+        stride,
+        flags,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkCreateBufferView(
+    device: VkDevice,
+    pCreateInfo: *const VkBufferViewCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pView: *mut VkBufferView,
+) -> VkResult {
+    gfxCreateBufferView(device, pCreateInfo, pAllocator, pView)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyBufferView(
+    device: VkDevice,
+    bufferView: VkBufferView,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyBufferView(device, bufferView, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkGetImageSubresourceLayout(
+    device: VkDevice,
+    image: VkImage,
+    pSubresource: *const VkImageSubresource,
+    pLayout: *mut VkSubresourceLayout,
+) {
+    gfxGetImageSubresourceLayout(device, image, pSubresource, pLayout)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateShaderModule(
+    device: VkDevice,
+    pCreateInfo: *const VkShaderModuleCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pShaderModule: *mut VkShaderModule,
+) -> VkResult {
+    gfxCreateShaderModule(device, pCreateInfo, pAllocator, pShaderModule)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyShaderModule(
+    device: VkDevice,
+    shaderModule: VkShaderModule,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyShaderModule(device, shaderModule, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreatePipelineCache(
+    device: VkDevice,
+    pCreateInfo: *const VkPipelineCacheCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pPipelineCache: *mut VkPipelineCache,
+) -> VkResult {
+    gfxCreatePipelineCache(device, pCreateInfo, pAllocator, pPipelineCache)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyPipelineCache(
+    device: VkDevice,
+    pipelineCache: VkPipelineCache,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyPipelineCache(device, pipelineCache, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkGetPipelineCacheData(
+    device: VkDevice,
+    pipelineCache: VkPipelineCache,
+    pDataSize: *mut usize,
+    pData: *mut ::std::os::raw::c_void,
+) -> VkResult {
+    gfxGetPipelineCacheData(device, pipelineCache, pDataSize, pData)
+}
+#[no_mangle]
+pub extern "C" fn vkMergePipelineCaches(
+    device: VkDevice,
+    dstCache: VkPipelineCache,
+    srcCacheCount: u32,
+    pSrcCaches: *const VkPipelineCache,
+) -> VkResult {
+    gfxMergePipelineCaches(device, dstCache, srcCacheCount, pSrcCaches)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateGraphicsPipelines(
+    device: VkDevice,
+    pipelineCache: VkPipelineCache,
+    createInfoCount: u32,
+    pCreateInfos: *const VkGraphicsPipelineCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pPipelines: *mut VkPipeline,
+) -> VkResult {
+    gfxCreateGraphicsPipelines(
+        device,
+        pipelineCache,
+        createInfoCount,
+        pCreateInfos,
+        pAllocator,
+        pPipelines,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkCreateComputePipelines(
+    device: VkDevice,
+    pipelineCache: VkPipelineCache,
+    createInfoCount: u32,
+    pCreateInfos: *const VkComputePipelineCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pPipelines: *mut VkPipeline,
+) -> VkResult {
+    gfxCreateComputePipelines(
+        device,
+        pipelineCache,
+        createInfoCount,
+        pCreateInfos,
+        pAllocator,
+        pPipelines,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyPipeline(
+    device: VkDevice,
+    pipeline: VkPipeline,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyPipeline(device, pipeline, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreatePipelineLayout(
+    device: VkDevice,
+    pCreateInfo: *const VkPipelineLayoutCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pPipelineLayout: *mut VkPipelineLayout,
+) -> VkResult {
+    gfxCreatePipelineLayout(device, pCreateInfo, pAllocator, pPipelineLayout)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyPipelineLayout(
+    device: VkDevice,
+    pipelineLayout: VkPipelineLayout,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyPipelineLayout(device, pipelineLayout, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateSampler(
+    device: VkDevice,
+    pCreateInfo: *const VkSamplerCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pSampler: *mut VkSampler,
+) -> VkResult {
+    gfxCreateSampler(device, pCreateInfo, pAllocator, pSampler)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroySampler(
+    device: VkDevice,
+    sampler: VkSampler,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroySampler(device, sampler, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateDescriptorSetLayout(
+    device: VkDevice,
+    pCreateInfo: *const VkDescriptorSetLayoutCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pSetLayout: *mut VkDescriptorSetLayout,
+) -> VkResult {
+    gfxCreateDescriptorSetLayout(device, pCreateInfo, pAllocator, pSetLayout)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyDescriptorSetLayout(
+    device: VkDevice,
+    descriptorSetLayout: VkDescriptorSetLayout,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyDescriptorSetLayout(device, descriptorSetLayout, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateDescriptorPool(
+    device: VkDevice,
+    pCreateInfo: *const VkDescriptorPoolCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pDescriptorPool: *mut VkDescriptorPool,
+) -> VkResult {
+    gfxCreateDescriptorPool(device, pCreateInfo, pAllocator, pDescriptorPool)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyDescriptorPool(
+    device: VkDevice,
+    descriptorPool: VkDescriptorPool,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyDescriptorPool(device, descriptorPool, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkResetDescriptorPool(
+    device: VkDevice,
+    descriptorPool: VkDescriptorPool,
+    flags: VkDescriptorPoolResetFlags,
+) -> VkResult {
+    gfxResetDescriptorPool(device, descriptorPool, flags)
+}
+#[no_mangle]
+pub extern "C" fn vkAllocateDescriptorSets(
+    device: VkDevice,
+    pAllocateInfo: *const VkDescriptorSetAllocateInfo,
+    pDescriptorSets: *mut VkDescriptorSet,
+) -> VkResult {
+    gfxAllocateDescriptorSets(device, pAllocateInfo, pDescriptorSets)
+}
+#[no_mangle]
+pub extern "C" fn vkFreeDescriptorSets(
+    device: VkDevice,
+    descriptorPool: VkDescriptorPool,
+    descriptorSetCount: u32,
+    pDescriptorSets: *const VkDescriptorSet,
+) -> VkResult {
+    gfxFreeDescriptorSets(device, descriptorPool, descriptorSetCount, pDescriptorSets)
+}
+#[no_mangle]
+pub extern "C" fn vkUpdateDescriptorSets(
+    device: VkDevice,
+    descriptorWriteCount: u32,
+    pDescriptorWrites: *const VkWriteDescriptorSet,
+    descriptorCopyCount: u32,
+    pDescriptorCopies: *const VkCopyDescriptorSet,
+) {
+    gfxUpdateDescriptorSets(
+        device,
+        descriptorWriteCount,
+        pDescriptorWrites,
+        descriptorCopyCount,
+        pDescriptorCopies,
+    )
+}
+#[no_mangle]
+pub extern "C" fn vkCreateFramebuffer(
+    device: VkDevice,
+    pCreateInfo: *const VkFramebufferCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pFramebuffer: *mut VkFramebuffer,
+) -> VkResult {
+    gfxCreateFramebuffer(device, pCreateInfo, pAllocator, pFramebuffer)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyFramebuffer(
+    device: VkDevice,
+    framebuffer: VkFramebuffer,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyFramebuffer(device, framebuffer, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkCreateRenderPass(
+    device: VkDevice,
+    pCreateInfo: *const VkRenderPassCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pRenderPass: *mut VkRenderPass,
+) -> VkResult {
+    gfxCreateRenderPass(device, pCreateInfo, pAllocator, pRenderPass)
+}
+#[no_mangle]
+pub extern "C" fn vkDestroyRenderPass(
+    device: VkDevice,
+    renderPass: VkRenderPass,
+    pAllocator: *const VkAllocationCallbacks,
+) {
+    gfxDestroyRenderPass(device, renderPass, pAllocator)
+}
+#[no_mangle]
+pub extern "C" fn vkGetRenderAreaGranularity(
+    device: VkDevice,
+    renderPass: VkRenderPass,
+    pGranularity: *mut VkExtent2D,
+) {
+    gfxGetRenderAreaGranularity(device, renderPass, pGranularity)
+}
+
+#[no_mangle]
+pub extern "C" fn vkBeginCommandBuffer(
+    commandBuffer: VkCommandBuffer,
+    pBeginInfo: *const VkCommandBufferBeginInfo,
+) -> VkResult {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkEndCommandBuffer(commandBuffer: VkCommandBuffer) -> VkResult {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkResetCommandBuffer(
+    commandBuffer: VkCommandBuffer,
+    flags: VkCommandBufferResetFlags,
+) -> VkResult {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBindPipeline(
+    commandBuffer: VkCommandBuffer,
+    pipelineBindPoint: VkPipelineBindPoint,
+    pipeline: VkPipeline,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetViewport(
+    commandBuffer: VkCommandBuffer,
+    firstViewport: u32,
+    viewportCount: u32,
+    pViewports: *const VkViewport,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetScissor(
+    commandBuffer: VkCommandBuffer,
+    firstScissor: u32,
+    scissorCount: u32,
+    pScissors: *const VkRect2D,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetDepthBias(
+    commandBuffer: VkCommandBuffer,
+    depthBiasConstantFactor: f32,
+    depthBiasClamp: f32,
+    depthBiasSlopeFactor: f32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetBlendConstants(
+    commandBuffer: VkCommandBuffer,
+    blendConstants: *const f32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetDepthBounds(
+    commandBuffer: VkCommandBuffer,
+    minDepthBounds: f32,
+    maxDepthBounds: f32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetStencilCompareMask(
+    commandBuffer: VkCommandBuffer,
+    faceMask: VkStencilFaceFlags,
+    compareMask: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetStencilWriteMask(
+    commandBuffer: VkCommandBuffer,
+    faceMask: VkStencilFaceFlags,
+    writeMask: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetStencilReference(
+    commandBuffer: VkCommandBuffer,
+    faceMask: VkStencilFaceFlags,
+    reference: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBindDescriptorSets(
+    commandBuffer: VkCommandBuffer,
+    pipelineBindPoint: VkPipelineBindPoint,
+    layout: VkPipelineLayout,
+    firstSet: u32,
+    descriptorSetCount: u32,
+    pDescriptorSets: *const VkDescriptorSet,
+    dynamicOffsetCount: u32,
+    pDynamicOffsets: *const u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBindIndexBuffer(
+    commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
+    indexType: VkIndexType,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBindVertexBuffers(
+    commandBuffer: VkCommandBuffer,
+    firstBinding: u32,
+    bindingCount: u32,
+    pBuffers: *const VkBuffer,
+    pOffsets: *const VkDeviceSize,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdDraw(
+    commandBuffer: VkCommandBuffer,
+    vertexCount: u32,
+    instanceCount: u32,
+    firstVertex: u32,
+    firstInstance: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdDrawIndexed(
+    commandBuffer: VkCommandBuffer,
+    indexCount: u32,
+    instanceCount: u32,
+    firstIndex: u32,
+    vertexOffset: i32,
+    firstInstance: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdDrawIndirect(
+    commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
+    drawCount: u32,
+    stride: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdDrawIndexedIndirect(
+    commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
+    drawCount: u32,
+    stride: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdDispatch(
+    commandBuffer: VkCommandBuffer,
+    groupCountX: u32,
+    groupCountY: u32,
+    groupCountZ: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdDispatchIndirect(
+    commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdCopyBuffer(
+    commandBuffer: VkCommandBuffer,
+    srcBuffer: VkBuffer,
+    dstBuffer: VkBuffer,
+    regionCount: u32,
+    pRegions: *const VkBufferCopy,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdCopyImage(
+    commandBuffer: VkCommandBuffer,
+    srcImage: VkImage,
+    srcImageLayout: VkImageLayout,
+    dstImage: VkImage,
+    dstImageLayout: VkImageLayout,
+    regionCount: u32,
+    pRegions: *const VkImageCopy,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBlitImage(
+    commandBuffer: VkCommandBuffer,
+    srcImage: VkImage,
+    srcImageLayout: VkImageLayout,
+    dstImage: VkImage,
+    dstImageLayout: VkImageLayout,
+    regionCount: u32,
+    pRegions: *const VkImageBlit,
+    filter: VkFilter,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdCopyBufferToImage(
+    commandBuffer: VkCommandBuffer,
+    srcBuffer: VkBuffer,
+    dstImage: VkImage,
+    dstImageLayout: VkImageLayout,
+    regionCount: u32,
+    pRegions: *const VkBufferImageCopy,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdCopyImageToBuffer(
+    commandBuffer: VkCommandBuffer,
+    srcImage: VkImage,
+    srcImageLayout: VkImageLayout,
+    dstBuffer: VkBuffer,
+    regionCount: u32,
+    pRegions: *const VkBufferImageCopy,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdUpdateBuffer(
+    commandBuffer: VkCommandBuffer,
+    dstBuffer: VkBuffer,
+    dstOffset: VkDeviceSize,
+    dataSize: VkDeviceSize,
+    pData: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdFillBuffer(
+    commandBuffer: VkCommandBuffer,
+    dstBuffer: VkBuffer,
+    dstOffset: VkDeviceSize,
+    size: VkDeviceSize,
+    data: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdClearColorImage(
+    commandBuffer: VkCommandBuffer,
+    image: VkImage,
+    imageLayout: VkImageLayout,
+    pColor: *const VkClearColorValue,
+    rangeCount: u32,
+    pRanges: *const VkImageSubresourceRange,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdClearDepthStencilImage(
+    commandBuffer: VkCommandBuffer,
+    image: VkImage,
+    imageLayout: VkImageLayout,
+    pDepthStencil: *const VkClearDepthStencilValue,
+    rangeCount: u32,
+    pRanges: *const VkImageSubresourceRange,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdClearAttachments(
+    commandBuffer: VkCommandBuffer,
+    attachmentCount: u32,
+    pAttachments: *const VkClearAttachment,
+    rectCount: u32,
+    pRects: *const VkClearRect,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdResolveImage(
+    commandBuffer: VkCommandBuffer,
+    srcImage: VkImage,
+    srcImageLayout: VkImageLayout,
+    dstImage: VkImage,
+    dstImageLayout: VkImageLayout,
+    regionCount: u32,
+    pRegions: *const VkImageResolve,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdSetEvent(
+    commandBuffer: VkCommandBuffer,
+    event: VkEvent,
+    stageMask: VkPipelineStageFlags,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdResetEvent(
+    commandBuffer: VkCommandBuffer,
+    event: VkEvent,
+    stageMask: VkPipelineStageFlags,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdWaitEvents(
+    commandBuffer: VkCommandBuffer,
+    eventCount: u32,
+    pEvents: *const VkEvent,
+    srcStageMask: VkPipelineStageFlags,
+    dstStageMask: VkPipelineStageFlags,
+    memoryBarrierCount: u32,
+    pMemoryBarriers: *const VkMemoryBarrier,
+    bufferMemoryBarrierCount: u32,
+    pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
+    imageMemoryBarrierCount: u32,
+    pImageMemoryBarriers: *const VkImageMemoryBarrier,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdPipelineBarrier(
+    commandBuffer: VkCommandBuffer,
+    srcStageMask: VkPipelineStageFlags,
+    dstStageMask: VkPipelineStageFlags,
+    dependencyFlags: VkDependencyFlags,
+    memoryBarrierCount: u32,
+    pMemoryBarriers: *const VkMemoryBarrier,
+    bufferMemoryBarrierCount: u32,
+    pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
+    imageMemoryBarrierCount: u32,
+    pImageMemoryBarriers: *const VkImageMemoryBarrier,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBeginQuery(
+    commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    query: u32,
+    flags: VkQueryControlFlags,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdEndQuery(
+    commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    query: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdResetQueryPool(
+    commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    firstQuery: u32,
+    queryCount: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdWriteTimestamp(
+    commandBuffer: VkCommandBuffer,
+    pipelineStage: VkPipelineStageFlagBits,
+    queryPool: VkQueryPool,
+    query: u32,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdCopyQueryPoolResults(
+    commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    firstQuery: u32,
+    queryCount: u32,
+    dstBuffer: VkBuffer,
+    dstOffset: VkDeviceSize,
+    stride: VkDeviceSize,
+    flags: VkQueryResultFlags,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdPushConstants(
+    commandBuffer: VkCommandBuffer,
+    layout: VkPipelineLayout,
+    stageFlags: VkShaderStageFlags,
+    offset: u32,
+    size: u32,
+    pValues: *const ::std::os::raw::c_void,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdBeginRenderPass(
+    commandBuffer: VkCommandBuffer,
+    pRenderPassBegin: *const VkRenderPassBeginInfo,
+    contents: VkSubpassContents,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: VkSubpassContents) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdEndRenderPass(commandBuffer: VkCommandBuffer) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkCmdExecuteCommands(
+    commandBuffer: VkCommandBuffer,
+    commandBufferCount: u32,
+    pCommandBuffers: *const VkCommandBuffer,
+) {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkAcquireNextImageKHR(
+    device: VkDevice,
+    swapchain: VkSwapchainKHR,
+    timeout: u64,
+    semaphore: VkSemaphore,
+    fence: VkFence,
+    pImageIndex: *mut u32,
+) -> VkResult {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkQueuePresentKHR(
+    queue: VkQueue,
+    pPresentInfo: *const VkPresentInfoKHR,
+) -> VkResult {
+    unimplemented!()
+}
+#[no_mangle]
+pub extern "C" fn vkEnumerateInstanceExtensionProperties(
+    pLayerName: *const ::std::os::raw::c_char,
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkExtensionProperties,
+) -> VkResult {
+    gfxEnumerateInstanceExtensionProperties(pLayerName, pPropertyCount, pProperties)
 }

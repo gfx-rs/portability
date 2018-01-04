@@ -22,8 +22,9 @@ macro_rules! proc_addr {
 }
 
 #[no_mangle]
-pub extern fn vk_icdGetInstanceProcAddr(
-    instance: VkInstance, pName: *const ::std::os::raw::c_char,
+pub extern "C" fn vk_icdGetInstanceProcAddr(
+    instance: VkInstance,
+    pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
     let name = match name.to_str() {
@@ -38,7 +39,7 @@ pub extern fn vk_icdGetInstanceProcAddr(
 }
 
 #[no_mangle]
-pub extern fn vk_icdNegotiateLoaderICDInterfaceVersion(
+pub extern "C" fn vk_icdNegotiateLoaderICDInterfaceVersion(
     pSupportedVersion: *mut ::std::os::raw::c_uint,
 ) -> VkResult {
     let supported_version = unsafe { &mut *pSupportedVersion };
@@ -50,9 +51,9 @@ pub extern fn vk_icdNegotiateLoaderICDInterfaceVersion(
 }
 
 #[no_mangle]
-pub extern fn vk_icdGetPhysicalDeviceProcAddr(
-    instance: VkInstance, pName: *const ::std::os::raw::c_char,
+pub extern "C" fn vk_icdGetPhysicalDeviceProcAddr(
+    instance: VkInstance,
+    pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     unimplemented!()
 }
-
