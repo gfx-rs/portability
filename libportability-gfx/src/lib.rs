@@ -39,6 +39,13 @@ pub enum Image<B: hal::Backend> {
 pub type VkImage = Handle<Image<B>>;
 pub type VkImageView = Handle<<B as hal::Backend>::ImageView>;
 
+pub enum Buffer<B: hal::Backend> {
+    Buffer(B::Buffer),
+    Unbound(B::UnboundBuffer),
+}
+
+pub type VkBuffer = Handle<Buffer<B>>;
+
 //NOTE: all *KHR types have to be pure `Handle` things for compatibility with
 //`VK_DEFINE_NON_DISPATCHABLE_HANDLE` used in `vulkan.h`
 pub type VkSurfaceKHR = Handle<<B as hal::Backend>::Surface>;
@@ -514,13 +521,6 @@ pub struct VkFence_T {
     _unused: [u8; 0],
 }
 pub type VkFence = *mut VkFence_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkBuffer_T {
-    _unused: [u8; 0],
-}
-pub type VkBuffer = *mut VkBuffer_T;
-
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkEvent_T {
