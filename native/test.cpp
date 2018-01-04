@@ -28,6 +28,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <vector>
+#include <cstring>
 
 #include "math.hpp"
 #include "window.hpp"

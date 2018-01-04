@@ -347,6 +347,7 @@ pub extern fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
+    let mut buffer_copy = buffer;
     let new_buffer = match *buffer.unwrap() {
         Buffer::Buffer(_) => panic!("An Buffer can only be bound once!"),
         Buffer::Unbound(unbound) => {
@@ -359,7 +360,7 @@ pub extern fn gfxBindBufferMemory(
     };
 
     // Replace the unbound buffer with an actual buffer under the hood.
-    *buffer = Buffer::Buffer(new_buffer);
+    *buffer_copy = Buffer::Buffer(new_buffer);
 
     VkResult::VK_SUCCESS
 }
@@ -370,6 +371,7 @@ pub extern fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
+    let mut image_copy = image;
     let new_img = match *image.unwrap() {
         Image::Image(_) => panic!("An Image can only be bound once!"),
         Image::Unbound(unbound) => {
@@ -382,7 +384,7 @@ pub extern fn gfxBindImageMemory(
     };
 
     // Replace the unbound image with an actual image under the hood.
-    *image = Image::Image(new_img);
+    *image_copy = Image::Image(new_img);
 
     VkResult::VK_SUCCESS
 }
@@ -521,11 +523,24 @@ extern "C" {
                                  stride: VkDeviceSize,
                                  flags: VkQueryResultFlags) -> VkResult;
 }
-extern "C" {
-    pub fn vkCreateBuffer(device: VkDevice,
-                          pCreateInfo: *const VkBufferCreateInfo,
-                          pAllocator: *const VkAllocationCallbacks,
-                          pBuffer: *mut VkBuffer) -> VkResult;
+#[inline]
+pub extern fn gfxCreateBuffer(
+    gpu: VkDevice,
+    pCreateInfo: *const VkBufferCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pBuffer: *mut VkBuffer,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
+    assert_eq!(info.flags, 0); // TODO
+
+    let buffer = gpu.device.create_buffer(
+        info.size,
+        conv::map_buffer_usage(info.usage),
+    ).expect("Error on creating buffer");
+
+    unsafe { *pBuffer = Handle::new(Buffer::Unbound(buffer)); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern fn gfxDestroyBuffer(

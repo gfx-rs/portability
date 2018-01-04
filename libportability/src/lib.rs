@@ -305,6 +305,16 @@ pub extern fn vkDestroyImage(
 }
 
 #[no_mangle]
+pub extern fn vkCreateBuffer(
+    device: VkDevice,
+    pCreateInfo: *const VkBufferCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pBuffer: *mut VkBuffer,
+) -> VkResult {
+    gfxCreateBuffer(device, pCreateInfo, pAllocator, pBuffer)
+}
+
+#[no_mangle]
 pub extern fn vkDestroyBuffer(
     device: VkDevice,
     buffer: VkBuffer,
