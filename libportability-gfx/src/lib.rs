@@ -30,6 +30,7 @@ pub type VkDevice = Handle<hal::Gpu<B>>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
 pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
+pub type VkDescriptorSetLayout = Handle<<B as hal::Backend>::DescriptorSetLayout>;
 
 pub enum Image<B: hal::Backend> {
     Image(B::Image),
@@ -570,12 +571,6 @@ pub struct VkPipeline_T {
     _unused: [u8; 0],
 }
 pub type VkPipeline = *mut VkPipeline_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkDescriptorSetLayout_T {
-    _unused: [u8; 0],
-}
-pub type VkDescriptorSetLayout = *mut VkDescriptorSetLayout_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkSampler_T {

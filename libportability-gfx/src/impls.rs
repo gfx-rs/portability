@@ -1,3 +1,4 @@
+use hal::pso;
 use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface};
 
 use std::ffi::CString;
@@ -904,12 +905,36 @@ pub extern "C" fn gfxDestroySampler(
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorSetLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkDescriptorSetLayoutCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pSetLayout: *mut VkDescriptorSetLayout,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    let layout_bindings = unsafe {
+        slice::from_raw_parts(info.pBindings, info.bindingCount as _)
+    };
+
+    let bindings = layout_bindings
+        .iter()
+        .map(|binding| {
+            assert!(binding.pImmutableSamplers.is_null()); // TODO
+
+            pso::DescriptorSetLayoutBinding {
+                binding: binding.binding as _,
+                ty: conv::map_descriptor_type(binding.descriptorType),
+                count: binding.descriptorCount as _,
+                stage_flags: conv::map_stage_flags(binding.stageFlags),
+
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let set_layout = gpu.device
+        .create_descriptor_set_layout(&bindings);
+
+    unsafe { *pSetLayout = Handle::new(set_layout); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyDescriptorSetLayout(

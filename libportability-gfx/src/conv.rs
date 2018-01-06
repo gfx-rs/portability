@@ -1,4 +1,4 @@
-use hal::{adapter, buffer, format, image, memory, window};
+use hal::{adapter, buffer, format, image, memory, pso, window};
 
 use std::mem;
 
@@ -267,6 +267,57 @@ pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPro
     }
     if properties.contains(memory::Properties::LAZILY_ALLOCATED) {
         flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT as u32;
+    }
+
+    flags
+}
+
+pub fn map_descriptor_type(ty: VkDescriptorType) -> pso::DescriptorType {
+    use super::VkDescriptorType::*;
+
+    match ty {
+        VK_DESCRIPTOR_TYPE_SAMPLER => pso::DescriptorType::Sampler,
+        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE => pso::DescriptorType::SampledImage,
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE => pso::DescriptorType::StorageImage,
+        VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER => pso::DescriptorType::UniformTexelBuffer,
+        VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER => pso::DescriptorType::StorageTexelBuffer,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER => pso::DescriptorType::UniformBuffer,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::StorageBuffer,
+        VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT => pso::DescriptorType::InputAttachment,
+
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER |
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC |
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => unimplemented!(),
+        _ => panic!("Unexpected descriptor type: {:?}", ty),
+    }
+}
+
+pub fn map_stage_flags(stages: VkShaderStageFlags) -> pso::ShaderStageFlags {
+    let mut flags = pso::ShaderStageFlags::empty();
+
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_VERTEX_BIT as u32 != 0 {
+        flags |= pso::ShaderStageFlags::VERTEX;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT as u32 != 0 {
+        flags |= pso::ShaderStageFlags::HULL;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT as u32 != 0 {
+        flags |= pso::ShaderStageFlags::DOMAIN;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_GEOMETRY_BIT as u32 != 0 {
+        flags |= pso::ShaderStageFlags::GEOMETRY;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_FRAGMENT_BIT as u32 != 0 {
+        flags |= pso::ShaderStageFlags::FRAGMENT;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
+        flags |= pso::ShaderStageFlags::COMPUTE;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
+        flags |= pso::ShaderStageFlags::GRAPHICS;
+    }
+    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL as u32 != 0 {
+        flags |= pso::ShaderStageFlags::ALL;
     }
 
     flags
