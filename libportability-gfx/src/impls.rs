@@ -1,9 +1,13 @@
 use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface};
 
+use std::ffi::CString;
 use std::mem;
 use std::ops::Deref;
 
 use super::*;
+
+const VERSION: (u32, u32, u32) = (1, 0, 66);
+const DRIVER_VERSION: u32 = 1;
 
 #[inline]
 pub extern "C" fn gfxCreateInstance(
@@ -49,10 +53,17 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
     pQueueFamilyPropertyCount: *mut u32,
     pQueueFamilyProperties: *mut VkQueueFamilyProperties,
 ) {
+    let families = &adapter.queue_families;
+
+    // If NULL, number of queue families is returned.
+    if pQueueFamilyProperties.is_null() {
+        unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
+        return;
+    }
+
     let output = unsafe {
         slice::from_raw_parts_mut(pQueueFamilyProperties, *pQueueFamilyPropertyCount as _)
     };
-    let families = &adapter.queue_families;
     if output.len() > families.len() {
         unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
     }
@@ -80,7 +91,7 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
 
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceFeatures(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     pFeatures: *mut VkPhysicalDeviceFeatures,
 ) {
     unimplemented!()
@@ -115,10 +126,38 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceProperties(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
-    unimplemented!()
+    let adapter_info = &adapter.info;
+    let limits = adapter.physical_device.get_limits();
+    let (major, minor, patch) = VERSION;
+
+    let device_name = {
+        let c_string = CString::new(adapter_info.name.clone()).unwrap();
+        let c_str = c_string.as_bytes_with_nul();
+        let mut name = [0; VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as _];
+        let len = name.len().min(c_str.len()) - 1;
+        name[..len].copy_from_slice(&c_str[..len]);
+        unsafe { mem::transmute(name) }
+    };
+
+    let limits = unsafe { mem::zeroed() }; // TODO
+    let sparse_properties = unsafe { mem::zeroed() }; // TODO
+
+    unsafe {
+        *pProperties = VkPhysicalDeviceProperties {
+            apiVersion: (major << 22) | (minor << 12) | patch,
+            driverVersion: DRIVER_VERSION,
+            vendorID: adapter_info.vendor as _,
+            deviceID: adapter_info.device as _,
+            deviceType: VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_OTHER, // TODO
+            deviceName: device_name,
+            pipelineCacheUUID: [0; 16usize],
+            limits,
+            sparseProperties: sparse_properties,
+        };
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
@@ -265,7 +304,10 @@ pub extern "C" fn gfxEnumerateInstanceLayerProperties(
     pPropertyCount: *mut u32,
     pProperties: *mut VkLayerProperties,
 ) -> VkResult {
-    unimplemented!()
+    // TODO: dummy implementation
+    unsafe { *pPropertyCount = 0; }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxEnumerateDeviceLayerProperties(
@@ -299,7 +341,8 @@ pub extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
 }
 #[inline]
 pub extern "C" fn gfxDeviceWaitIdle(device: VkDevice) -> VkResult {
-    unimplemented!()
+    // TODO
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxAllocateMemory(
@@ -385,14 +428,14 @@ pub extern "C" fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    *buffer = match *buffer.unwrap() {
+    *buffer = match *buffer {
         Buffer::Buffer(_) => panic!("An Buffer can only be bound once!"),
-        Buffer::Unbound(unbound) => {
-            Buffer::Buffer(
+        Buffer::Unbound(ref mut unbound) => {
+            Buffer::Buffer(unsafe {
                 gpu.device
-                    .bind_buffer_memory(&memory, memoryOffset, unbound)
-                    .unwrap(), // TODO
-            )
+                    .bind_buffer_memory_raw(&memory, memoryOffset, unbound)
+                    .unwrap() // TODO
+            })
         }
     };
 
@@ -405,14 +448,14 @@ pub extern "C" fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    *image = match *image.unwrap() {
+    *image = match *image {
         Image::Image(_) => panic!("An Image can only be bound once!"),
-        Image::Unbound(unbound) => {
-            Image::Image(
+        Image::Unbound(ref mut unbound) => {
+            Image::Image(unsafe {
                 gpu.device
-                    .bind_image_memory(&memory, memoryOffset, unbound)
-                    .unwrap(), // TODO
-            )
+                    .bind_image_memory_raw(&memory, memoryOffset, unbound)
+                    .unwrap() // TODO
+            })
         }
     };
 
