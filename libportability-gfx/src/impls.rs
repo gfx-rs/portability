@@ -1,5 +1,5 @@
 use hal::pso;
-use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface};
+use hal::{Backend, Device, Instance, PhysicalDevice, QueueFamily, Surface};
 
 use std::ffi::CString;
 use std::mem;
@@ -871,20 +871,48 @@ pub extern "C" fn gfxDestroyPipeline(
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkPipelineLayoutCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pPipelineLayout: *mut VkPipelineLayout,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    let set_layouts = unsafe {
+        slice::from_raw_parts(info.pSetLayouts, info.setLayoutCount as _)
+    };
+    let push_constants = unsafe {
+        slice::from_raw_parts(info.pPushConstantRanges, info.pushConstantRangeCount as _)
+    };
+
+    let layouts = set_layouts
+        .iter()
+        .map(|layout| layout.deref())
+        .collect::<Vec<&<B as Backend>::DescriptorSetLayout>>();
+
+    let ranges = push_constants
+        .iter()
+        .map(|constant| {
+            let stages = conv::map_stage_flags(constant.stageFlags);
+            let start = constant.offset / 4;
+            let size = constant.size / 4;
+
+            (stages, start .. start+size)
+        })
+        .collect::<Vec<_>>();
+
+    let pipeline_layout = gpu.device
+        .create_pipeline_layout(&layouts, &ranges);
+
+    unsafe { *pPipelineLayout = Handle::new(pipeline_layout); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipelineLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     pipelineLayout: VkPipelineLayout,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_pipeline_layout(*pipelineLayout.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateSampler(
@@ -938,11 +966,11 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
 }
 #[inline]
 pub extern "C" fn gfxDestroyDescriptorSetLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     descriptorSetLayout: VkDescriptorSetLayout,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_descriptor_set_layout(*descriptorSetLayout.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorPool(

@@ -31,6 +31,7 @@ pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
 pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
 pub type VkDescriptorSetLayout = Handle<<B as hal::Backend>::DescriptorSetLayout>;
+pub type VkPipelineLayout = Handle<<B as hal::Backend>::PipelineLayout>;
 
 pub enum Image<B: hal::Backend> {
     Image(B::Image),
@@ -553,12 +554,6 @@ pub struct VkPipelineCache_T {
     _unused: [u8; 0],
 }
 pub type VkPipelineCache = *mut VkPipelineCache_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkPipelineLayout_T {
-    _unused: [u8; 0],
-}
-pub type VkPipelineLayout = *mut VkPipelineLayout_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkRenderPass_T {
