@@ -430,14 +430,16 @@ pub extern "C" fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    *buffer = match *buffer {
-        Buffer::Buffer(_) => panic!("An Buffer can only be bound once!"),
-        Buffer::Unbound(ref mut unbound) => {
-            Buffer::Buffer(unsafe {
+    let temp = unsafe { mem::zeroed() };
+
+    *buffer = match mem::replace(&mut *buffer, temp) {
+        Buffer::Buffer(_) => panic!("An non-sparse buffer can only be bound once!"),
+        Buffer::Unbound(unbound) => {
+            Buffer::Buffer(
                 gpu.device
-                    .bind_buffer_memory_raw(&memory, memoryOffset, unbound)
+                    .bind_buffer_memory(&memory, memoryOffset, unbound)
                     .unwrap() // TODO
-            })
+            )
         }
     };
 
@@ -450,14 +452,16 @@ pub extern "C" fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    *image = match *image {
-        Image::Image(_) => panic!("An Image can only be bound once!"),
-        Image::Unbound(ref mut unbound) => {
-            Image::Image(unsafe {
+    let temp = unsafe { mem::zeroed() };
+
+    *image = match mem::replace(&mut *image, temp) {
+        Image::Image(_) => panic!("An non-sparse image can only be bound once!"),
+        Image::Unbound(unbound) => {
+            Image::Image(
                 gpu.device
-                    .bind_image_memory_raw(&memory, memoryOffset, unbound)
+                    .bind_image_memory(&memory, memoryOffset, unbound)
                     .unwrap() // TODO
-            })
+            )
         }
     };
 
