@@ -35,6 +35,7 @@ pub type VkDescriptorPool = Handle<<B as hal::Backend>::DescriptorPool>;
 pub type VkDescriptorSet = Handle<<B as hal::Backend>::DescriptorSet>;
 pub type VkSampler = Handle<<B as hal::Backend>::Sampler>;
 pub type VkBufferView = Handle<<B as hal::Backend>::BufferView>;
+pub type VkShaderModule = Handle<<B as hal::Backend>::ShaderModule>;
 
 pub enum Image<B: hal::Backend> {
     Image(B::Image),
@@ -538,12 +539,6 @@ pub struct VkQueryPool_T {
     _unused: [u8; 0],
 }
 pub type VkQueryPool = *mut VkQueryPool_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkShaderModule_T {
-    _unused: [u8; 0],
-}
-pub type VkShaderModule = *mut VkShaderModule_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkPipelineCache_T {

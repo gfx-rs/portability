@@ -790,20 +790,33 @@ pub extern "C" fn gfxDestroyImageView(
 }
 #[inline]
 pub extern "C" fn gfxCreateShaderModule(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkShaderModuleCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pShaderModule: *mut VkShaderModule,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    let code = unsafe {
+        slice::from_raw_parts(info.pCode as *const u8, info.codeSize as usize)
+    };
+
+    let shader_module = gpu
+        .device
+        .create_shader_module(code)
+        .expect("Error creating shader module"); // TODO
+
+    unsafe {
+        *pShaderModule = Handle::new(shader_module);
+    }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyShaderModule(
-    device: VkDevice,
+    gpu: VkDevice,
     shaderModule: VkShaderModule,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_shader_module(*shaderModule.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
