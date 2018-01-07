@@ -176,6 +176,24 @@ pub fn map_image_kind(
     }
 }
 
+pub fn map_image_layout(layout: VkImageLayout) -> image::ImageLayout {
+    match layout {
+        /*
+        VK_IMAGE_LAYOUT_UNDEFINED = 0,
+        VK_IMAGE_LAYOUT_GENERAL = 1,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL = 2,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL = 3,
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL = 4,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL = 5,
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL = 6,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL = 7,
+        VK_IMAGE_LAYOUT_PREINITIALIZED = 8,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR = 1000001002,
+        */
+        _ => unimplemented!(),
+    }
+}
+
 fn map_aa_mode(samples: VkSampleCountFlagBits) -> image::AaMode {
     use VkSampleCountFlagBits::*;
 

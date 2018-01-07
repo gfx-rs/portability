@@ -17,7 +17,6 @@ mod handle;
 mod impls;
 
 use std::{cmp, slice};
-use hal::pool::RawCommandPool;
 use back::Backend as B;
 use handle::Handle;
 
@@ -32,6 +31,10 @@ pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
 pub type VkDescriptorSetLayout = Handle<<B as hal::Backend>::DescriptorSetLayout>;
 pub type VkPipelineLayout = Handle<<B as hal::Backend>::PipelineLayout>;
+pub type VkDescriptorPool = Handle<<B as hal::Backend>::DescriptorPool>;
+pub type VkDescriptorSet = Handle<<B as hal::Backend>::DescriptorSet>;
+pub type VkSampler = Handle<<B as hal::Backend>::Sampler>;
+pub type VkBufferView = Handle<<B as hal::Backend>::BufferView>;
 
 pub enum Image<B: hal::Backend> {
     Image(B::Image),
@@ -537,13 +540,6 @@ pub struct VkQueryPool_T {
 pub type VkQueryPool = *mut VkQueryPool_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct VkBufferView_T {
-    _unused: [u8; 0],
-}
-pub type VkBufferView = *mut VkBufferView_T;
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
 pub struct VkShaderModule_T {
     _unused: [u8; 0],
 }
@@ -566,24 +562,6 @@ pub struct VkPipeline_T {
     _unused: [u8; 0],
 }
 pub type VkPipeline = *mut VkPipeline_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkSampler_T {
-    _unused: [u8; 0],
-}
-pub type VkSampler = *mut VkSampler_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkDescriptorPool_T {
-    _unused: [u8; 0],
-}
-pub type VkDescriptorPool = *mut VkDescriptorPool_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkDescriptorSet_T {
-    _unused: [u8; 0],
-}
-pub type VkDescriptorSet = *mut VkDescriptorSet_T;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkFramebuffer_T {
