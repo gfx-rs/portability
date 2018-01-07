@@ -1,9 +1,15 @@
-use hal::{Device, Instance, PhysicalDevice, QueueFamily, Surface};
+use hal::pso;
+use hal::{Backend, DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily, Surface};
+use hal::pool::RawCommandPool;
 
+use std::ffi::CString;
 use std::mem;
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 
 use super::*;
+
+const VERSION: (u32, u32, u32) = (1, 0, 66);
+const DRIVER_VERSION: u32 = 1;
 
 #[inline]
 pub extern "C" fn gfxCreateInstance(
@@ -49,10 +55,17 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
     pQueueFamilyPropertyCount: *mut u32,
     pQueueFamilyProperties: *mut VkQueueFamilyProperties,
 ) {
+    let families = &adapter.queue_families;
+
+    // If NULL, number of queue families is returned.
+    if pQueueFamilyProperties.is_null() {
+        unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
+        return;
+    }
+
     let output = unsafe {
         slice::from_raw_parts_mut(pQueueFamilyProperties, *pQueueFamilyPropertyCount as _)
     };
-    let families = &adapter.queue_families;
     if output.len() > families.len() {
         unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
     }
@@ -80,7 +93,7 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
 
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceFeatures(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     pFeatures: *mut VkPhysicalDeviceFeatures,
 ) {
     unimplemented!()
@@ -115,10 +128,38 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceProperties(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
-    unimplemented!()
+    let adapter_info = &adapter.info;
+    let limits = adapter.physical_device.get_limits();
+    let (major, minor, patch) = VERSION;
+
+    let device_name = {
+        let c_string = CString::new(adapter_info.name.clone()).unwrap();
+        let c_str = c_string.as_bytes_with_nul();
+        let mut name = [0; VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as _];
+        let len = name.len().min(c_str.len()) - 1;
+        name[..len].copy_from_slice(&c_str[..len]);
+        unsafe { mem::transmute(name) }
+    };
+
+    let limits = unsafe { mem::zeroed() }; // TODO
+    let sparse_properties = unsafe { mem::zeroed() }; // TODO
+
+    unsafe {
+        *pProperties = VkPhysicalDeviceProperties {
+            apiVersion: (major << 22) | (minor << 12) | patch,
+            driverVersion: DRIVER_VERSION,
+            vendorID: adapter_info.vendor as _,
+            deviceID: adapter_info.device as _,
+            deviceType: VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_OTHER, // TODO
+            deviceName: device_name,
+            pipelineCacheUUID: [0; 16usize],
+            limits,
+            sparseProperties: sparse_properties,
+        };
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
@@ -265,7 +306,10 @@ pub extern "C" fn gfxEnumerateInstanceLayerProperties(
     pPropertyCount: *mut u32,
     pProperties: *mut VkLayerProperties,
 ) -> VkResult {
-    unimplemented!()
+    // TODO: dummy implementation
+    unsafe { *pPropertyCount = 0; }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxEnumerateDeviceLayerProperties(
@@ -299,7 +343,8 @@ pub extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
 }
 #[inline]
 pub extern "C" fn gfxDeviceWaitIdle(device: VkDevice) -> VkResult {
-    unimplemented!()
+    // TODO
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxAllocateMemory(
@@ -385,13 +430,15 @@ pub extern "C" fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    *buffer = match *buffer.unwrap() {
-        Buffer::Buffer(_) => panic!("An Buffer can only be bound once!"),
+    let temp = unsafe { mem::zeroed() };
+
+    *buffer = match mem::replace(&mut *buffer, temp) {
+        Buffer::Buffer(_) => panic!("An non-sparse buffer can only be bound once!"),
         Buffer::Unbound(unbound) => {
             Buffer::Buffer(
                 gpu.device
                     .bind_buffer_memory(&memory, memoryOffset, unbound)
-                    .unwrap(), // TODO
+                    .unwrap() // TODO
             )
         }
     };
@@ -405,13 +452,15 @@ pub extern "C" fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    *image = match *image.unwrap() {
-        Image::Image(_) => panic!("An Image can only be bound once!"),
+    let temp = unsafe { mem::zeroed() };
+
+    *image = match mem::replace(&mut *image, temp) {
+        Image::Image(_) => panic!("An non-sparse image can only be bound once!"),
         Image::Unbound(unbound) => {
             Image::Image(
                 gpu.device
                     .bind_image_memory(&memory, memoryOffset, unbound)
-                    .unwrap(), // TODO
+                    .unwrap() // TODO
             )
         }
     };
@@ -745,20 +794,33 @@ pub extern "C" fn gfxDestroyImageView(
 }
 #[inline]
 pub extern "C" fn gfxCreateShaderModule(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkShaderModuleCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pShaderModule: *mut VkShaderModule,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    let code = unsafe {
+        slice::from_raw_parts(info.pCode as *const u8, info.codeSize as usize)
+    };
+
+    let shader_module = gpu
+        .device
+        .create_shader_module(code)
+        .expect("Error creating shader module"); // TODO
+
+    unsafe {
+        *pShaderModule = Handle::new(shader_module);
+    }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyShaderModule(
-    device: VkDevice,
+    gpu: VkDevice,
     shaderModule: VkShaderModule,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_shader_module(*shaderModule.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
@@ -827,20 +889,48 @@ pub extern "C" fn gfxDestroyPipeline(
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkPipelineLayoutCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pPipelineLayout: *mut VkPipelineLayout,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    let set_layouts = unsafe {
+        slice::from_raw_parts(info.pSetLayouts, info.setLayoutCount as _)
+    };
+    let push_constants = unsafe {
+        slice::from_raw_parts(info.pPushConstantRanges, info.pushConstantRangeCount as _)
+    };
+
+    let layouts = set_layouts
+        .iter()
+        .map(|layout| layout.deref())
+        .collect::<Vec<&<B as Backend>::DescriptorSetLayout>>();
+
+    let ranges = push_constants
+        .iter()
+        .map(|constant| {
+            let stages = conv::map_stage_flags(constant.stageFlags);
+            let start = constant.offset / 4;
+            let size = constant.size / 4;
+
+            (stages, start .. start+size)
+        })
+        .collect::<Vec<_>>();
+
+    let pipeline_layout = gpu.device
+        .create_pipeline_layout(&layouts, &ranges);
+
+    unsafe { *pPipelineLayout = Handle::new(pipeline_layout); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipelineLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     pipelineLayout: VkPipelineLayout,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_pipeline_layout(*pipelineLayout.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateSampler(
@@ -861,37 +951,82 @@ pub extern "C" fn gfxDestroySampler(
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorSetLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkDescriptorSetLayoutCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pSetLayout: *mut VkDescriptorSetLayout,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    let layout_bindings = unsafe {
+        slice::from_raw_parts(info.pBindings, info.bindingCount as _)
+    };
+
+    let bindings = layout_bindings
+        .iter()
+        .map(|binding| {
+            assert!(binding.pImmutableSamplers.is_null()); // TODO
+
+            pso::DescriptorSetLayoutBinding {
+                binding: binding.binding as _,
+                ty: conv::map_descriptor_type(binding.descriptorType),
+                count: binding.descriptorCount as _,
+                stage_flags: conv::map_stage_flags(binding.stageFlags),
+
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let set_layout = gpu.device
+        .create_descriptor_set_layout(&bindings);
+
+    unsafe { *pSetLayout = Handle::new(set_layout); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyDescriptorSetLayout(
-    device: VkDevice,
+    gpu: VkDevice,
     descriptorSetLayout: VkDescriptorSetLayout,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_descriptor_set_layout(*descriptorSetLayout.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorPool(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkDescriptorPoolCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pDescriptorPool: *mut VkDescriptorPool,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+    assert_eq!(info.flags, 0); // TODO
+
+    let pool_sizes = unsafe {
+        slice::from_raw_parts(info.pPoolSizes, info.poolSizeCount as _)
+    };
+
+    let ranges = pool_sizes
+        .iter()
+        .map(|pool| {
+            pso::DescriptorRangeDesc {
+                ty: conv::map_descriptor_type(pool.type_),
+                count: pool.descriptorCount as _,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let pool = gpu.device
+        .create_descriptor_pool(info.maxSets as _, &ranges);
+
+    unsafe { *pDescriptorPool = Handle::new(pool); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyDescriptorPool(
-    device: VkDevice,
+    gpu: VkDevice,
     descriptorPool: VkDescriptorPool,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_descriptor_pool(*descriptorPool.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxResetDescriptorPool(
@@ -903,11 +1038,30 @@ pub extern "C" fn gfxResetDescriptorPool(
 }
 #[inline]
 pub extern "C" fn gfxAllocateDescriptorSets(
-    device: VkDevice,
+    _device: VkDevice,
     pAllocateInfo: *const VkDescriptorSetAllocateInfo,
     pDescriptorSets: *mut VkDescriptorSet,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &mut *(pAllocateInfo as *mut VkDescriptorSetAllocateInfo) };
+    let pool = &mut info.descriptorPool;
+
+    let set_layouts = unsafe {
+        slice::from_raw_parts(info.pSetLayouts, info.descriptorSetCount as _)
+    };
+    let layouts = set_layouts
+        .iter()
+        .map(|layout| layout.deref())
+        .collect::<Vec<_>>();
+
+    let descriptor_sets = pool.allocate_sets(&layouts);
+    let sets = unsafe {
+        slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
+    };
+    for (set, raw_set) in sets.iter_mut().zip(descriptor_sets.into_iter()) {
+        *set = Handle::new(raw_set);
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxFreeDescriptorSets(
@@ -920,13 +1074,105 @@ pub extern "C" fn gfxFreeDescriptorSets(
 }
 #[inline]
 pub extern "C" fn gfxUpdateDescriptorSets(
-    device: VkDevice,
+    gpu: VkDevice,
     descriptorWriteCount: u32,
     pDescriptorWrites: *const VkWriteDescriptorSet,
     descriptorCopyCount: u32,
     pDescriptorCopies: *const VkCopyDescriptorSet,
 ) {
-    unimplemented!()
+    assert_eq!(descriptorCopyCount, 0); // TODO
+
+    let writes = unsafe {
+        slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _)
+    };
+
+    let writes = writes
+        .iter()
+        .map(|write| {
+            fn map_buffer_info(buffer_info: &[VkDescriptorBufferInfo]) -> Vec<(&<B as Backend>::Buffer, Range<u64>)> {
+                buffer_info
+                    .into_iter()
+                    .map(|buffer| {
+                        assert_ne!(buffer.range as i32, VK_WHOLE_SIZE);
+                        (
+                            match buffer.buffer.deref() {
+                                &Buffer::Buffer(ref buf) => buf,
+                                // Vulkan portability restriction:
+                                // Non-sparse buffer need to be bound to device memory.
+                                &Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
+                            },
+                            buffer.offset .. buffer.offset+buffer.range,
+                        )
+                    })
+                    .collect()
+            }
+
+            let image_info = unsafe {
+                slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
+            };
+            let buffer_info = unsafe {
+                slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
+            };
+            let texel_buffer_views = unsafe {
+                slice::from_raw_parts(write.pTexelBufferView, write.descriptorCount as _)
+            };
+
+            let ty = conv::map_descriptor_type(write.descriptorType);
+            let desc_write = match ty {
+                pso::DescriptorType::Sampler => pso::DescriptorWrite::Sampler(
+                    image_info
+                        .into_iter()
+                        .map(|image| &*image.sampler)
+                        .collect()
+                ),
+                pso::DescriptorType::SampledImage => pso::DescriptorWrite::SampledImage(
+                    image_info
+                        .into_iter()
+                        .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
+                        .collect()
+                ),
+                pso::DescriptorType::StorageImage => pso::DescriptorWrite::StorageImage(
+                    image_info
+                        .into_iter()
+                        .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
+                        .collect()
+                ),
+                pso::DescriptorType::UniformTexelBuffer => pso::DescriptorWrite::UniformTexelBuffer(
+                    texel_buffer_views
+                        .into_iter()
+                        .map(|view| view.deref())
+                        .collect()
+                ),
+                pso::DescriptorType::StorageTexelBuffer => pso::DescriptorWrite::StorageTexelBuffer(
+                    texel_buffer_views
+                        .into_iter()
+                        .map(|view| view.deref())
+                        .collect()
+                ),
+                pso::DescriptorType::UniformBuffer => pso::DescriptorWrite::UniformBuffer(
+                    map_buffer_info(buffer_info)
+                ),
+                pso::DescriptorType::StorageBuffer => pso::DescriptorWrite::StorageBuffer(
+                    map_buffer_info(buffer_info)
+                ),
+                pso::DescriptorType::InputAttachment => pso::DescriptorWrite::InputAttachment(
+                    image_info
+                        .into_iter()
+                        .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
+                        .collect()
+                ),
+            };
+
+            pso::DescriptorSetWrite {
+                set: &*write.dstSet,
+                binding: write.dstBinding as _,
+                array_offset: write.dstArrayElement as _,
+                write: desc_write,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    gpu.device.update_descriptor_sets(&writes);
 }
 #[inline]
 pub extern "C" fn gfxCreateFramebuffer(
