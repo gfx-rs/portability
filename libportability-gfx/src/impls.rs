@@ -235,7 +235,7 @@ pub extern "C" fn gfxCreateDevice(
                     let group = gpu.queues.take_raw(id).unwrap();
                     let queues = group
                         .into_iter()
-                        .map(|queue| Handle::new(queue))
+                        .map(Handle::new)
                         .collect();
 
                     (info.queueFamilyIndex, queues)
@@ -1297,11 +1297,13 @@ pub extern "C" fn gfxCreateRenderPass(
             }
             */
         };
-        let depth_stencil = if subpass.pDepthStencilAttachment.is_null() {
-            None
-        } else {
-            Some(unsafe { map_attachment_ref(&*subpass.pDepthStencilAttachment) })
+        let depth_stencil = unsafe {
+            subpass
+                .pDepthStencilAttachment
+                .as_ref()
+                .map(|attachment| map_attachment_ref(attachment))
         };
+
         let preserve = unsafe {
             slice::from_raw_parts(subpass.pPreserveAttachments, subpass.preserveAttachmentCount as _)
                 .into_iter()
@@ -1318,15 +1320,14 @@ pub extern "C" fn gfxCreateRenderPass(
         });
     }
 
-    let subpasses = subpasses
-        .into_iter()
-        .enumerate()
-        .map(|(i, _)| {
+    let subpasses = attachment_refs
+        .iter()
+        .map(|attachment_ref| {
             pass::SubpassDesc {
-                colors: &attachment_refs[i].color,
-                depth_stencil: attachment_refs[i].depth_stencil.as_ref(),
-                inputs: &attachment_refs[i].input,
-                preserves: &attachment_refs[i].preserve,
+                colors: &attachment_ref.color,
+                depth_stencil: attachment_ref.depth_stencil.as_ref(),
+                inputs: &attachment_ref.input,
+                preserves: &attachment_ref.preserve,
             }
         })
         .collect::<Vec<_>>();

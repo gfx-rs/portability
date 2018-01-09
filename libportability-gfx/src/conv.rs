@@ -179,17 +179,18 @@ pub fn map_image_kind(
 }
 
 pub fn map_image_layout(layout: VkImageLayout) -> image::ImageLayout {
+    use hal::image::ImageLayout::*;
     match layout {
-        VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => image::ImageLayout::Undefined,
-        VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => image::ImageLayout::General,
-        VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL => image::ImageLayout::ColorAttachmentOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL => image::ImageLayout::DepthStencilAttachmentOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL => image::ImageLayout::DepthStencilReadOnlyOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL => image::ImageLayout::ShaderReadOnlyOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL => image::ImageLayout::TransferSrcOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL => image::ImageLayout::TransferDstOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_PREINITIALIZED => image::ImageLayout::Preinitialized,
-        VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR => image::ImageLayout::Present,
+        VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => Undefined,
+        VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => General,
+        VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL => ColorAttachmentOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL => DepthStencilAttachmentOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL => DepthStencilReadOnlyOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL => ShaderReadOnlyOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL => TransferSrcOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL => TransferDstOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_PREINITIALIZED => Preinitialized,
+        VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR => Present,
         _ => panic!("Unexpected image layout: {:?}", layout),
     }
 }
