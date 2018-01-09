@@ -895,11 +895,11 @@ pub extern "C" fn vkBeginCommandBuffer(
     commandBuffer: VkCommandBuffer,
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
-    unimplemented!()
+    gfxBeginCommandBuffer(commandBuffer, pBeginInfo)
 }
 #[no_mangle]
 pub extern "C" fn vkEndCommandBuffer(commandBuffer: VkCommandBuffer) -> VkResult {
-    unimplemented!()
+    gfxEndCommandBuffer(commandBuffer)
 }
 #[no_mangle]
 pub extern "C" fn vkResetCommandBuffer(
