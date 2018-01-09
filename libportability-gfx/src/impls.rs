@@ -1,5 +1,8 @@
-use hal::pso;
-use hal::{Backend, DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily, Surface};
+use hal::{pass, pso, queue};
+use hal::{
+    Backend, DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily,
+    Surface, Swapchain as HalSwapchain, FrameSync,
+};
 use hal::pool::RawCommandPool;
 
 use std::ffi::CString;
@@ -104,12 +107,7 @@ pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
     format: VkFormat,
     pFormatProperties: *mut VkFormatProperties,
 ) {
-    let format = match format {
-        VkFormat::VK_FORMAT_UNDEFINED => None,
-        format => Some(conv::map_format(format)),
-    };
-
-    let properties = adapter.physical_device.format_properties(format);
+    let properties = adapter.physical_device.format_properties(conv::map_format(format));
     unsafe {
         *pFormatProperties = conv::format_properties_from_hal(properties);
     }
@@ -229,9 +227,28 @@ pub extern "C" fn gfxCreateDevice(
     let gpu = adapter.physical_device.open(request_infos);
 
     match gpu {
-        Ok(device) => {
+        Ok(mut gpu) => {
+            let queues = queue_infos
+                .iter()
+                .map(|info| {
+                    let id = queue::QueueFamilyId(info.queueFamilyIndex as usize);
+                    let group = gpu.queues.take_raw(id).unwrap();
+                    let queues = group
+                        .into_iter()
+                        .map(Handle::new)
+                        .collect();
+
+                    (info.queueFamilyIndex, queues)
+                })
+                .collect();
+
+            let gpu = Gpu {
+                device: gpu.device,
+                queues,
+            };
+
             unsafe {
-                *pDevice = Handle::new(device);
+                *pDevice = Handle::new(gpu);
             }
             VkResult::VK_SUCCESS
         }
@@ -321,12 +338,14 @@ pub extern "C" fn gfxEnumerateDeviceLayerProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetDeviceQueue(
-    device: VkDevice,
+    gpu: VkDevice,
     queueFamilyIndex: u32,
     queueIndex: u32,
     pQueue: *mut VkQueue,
 ) {
-    unimplemented!()
+    unsafe {
+        *pQueue = gpu.queues.get(&queueFamilyIndex).unwrap()[queueIndex as usize];
+    }
 }
 #[inline]
 pub extern "C" fn gfxQueueSubmit(
@@ -574,20 +593,26 @@ pub extern "C" fn gfxWaitForFences(
 }
 #[inline]
 pub extern "C" fn gfxCreateSemaphore(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkSemaphoreCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pSemaphore: *mut VkSemaphore,
 ) -> VkResult {
-    unimplemented!()
+    let semaphore = gpu.device
+        .create_semaphore();
+
+    unsafe {
+        *pSemaphore = Handle::new(semaphore);
+    }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroySemaphore(
-    device: VkDevice,
+    gpu: VkDevice,
     semaphore: VkSemaphore,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_semaphore(*semaphore.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateEvent(
@@ -720,7 +745,7 @@ pub extern "C" fn gfxCreateImage(
                 info.samples,
             ),
             info.mipLevels as _,
-            conv::map_format(info.format),
+            conv::map_format(info.format).unwrap(),
             conv::map_image_usage(info.usage),
         )
         .expect("Error on creating image");
@@ -771,7 +796,7 @@ pub extern "C" fn gfxCreateImageView(
 
     let view = gpu.device.create_image_view(
         image,
-        conv::map_format(info.format),
+        conv::map_format(info.format).unwrap(),
         conv::map_swizzle(info.components),
         conv::map_subresource_range(info.subresourceRange),
     );
@@ -1193,20 +1218,174 @@ pub extern "C" fn gfxDestroyFramebuffer(
 }
 #[inline]
 pub extern "C" fn gfxCreateRenderPass(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkRenderPassCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pRenderPass: *mut VkRenderPass,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+
+    // Attachment descriptions
+    let attachments = unsafe {
+        slice::from_raw_parts(info.pAttachments, info.attachmentCount as _)
+    };
+    let attachments = attachments
+        .into_iter()
+        .map(|attachment| {
+            assert_eq!(attachment.flags, 0); // TODO
+
+            let initial_layout = conv::map_image_layout(attachment.initialLayout);
+            let final_layout = conv::map_image_layout(attachment.finalLayout);
+
+            pass::Attachment {
+                format: conv::map_format(attachment.format),
+                ops: pass::AttachmentOps {
+                    load: conv::map_attachment_load_op(attachment.loadOp),
+                    store: conv::map_attachment_store_op(attachment.storeOp),
+                },
+                stencil_ops: pass::AttachmentOps {
+                    load: conv::map_attachment_load_op(attachment.stencilLoadOp),
+                    store: conv::map_attachment_store_op(attachment.stencilStoreOp),
+                },
+                layouts: initial_layout .. final_layout,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Subpass descriptions
+    let subpasses = unsafe {
+        slice::from_raw_parts(info.pSubpasses, info.subpassCount as _)
+    };
+
+    // Store all attachment references, referenced by the subpasses.
+    let mut attachment_refs = Vec::with_capacity(subpasses.len());
+    struct AttachmentRefs {
+        input: Vec<pass::AttachmentRef>,
+        color: Vec<pass::AttachmentRef>,
+        resolve: Vec<pass::AttachmentRef>,
+        depth_stencil: Option<pass::AttachmentRef>,
+        preserve: Vec<usize>,
+    }
+
+    fn map_attachment_ref(att_ref: &VkAttachmentReference) -> pass::AttachmentRef {
+        (att_ref.attachment as _, conv::map_image_layout(att_ref.layout))
+    }
+
+    for subpass in subpasses {
+        let input = unsafe {
+            slice::from_raw_parts(subpass.pInputAttachments, subpass.inputAttachmentCount as _)
+                .into_iter()
+                .map(map_attachment_ref)
+                .collect()
+        };
+        let color = unsafe {
+            slice::from_raw_parts(subpass.pColorAttachments, subpass.colorAttachmentCount as _)
+                .into_iter()
+                .map(map_attachment_ref)
+                .collect()
+        };
+        let resolve = if subpass.pResolveAttachments.is_null() {
+            Vec::new()
+        } else {
+            unimplemented!()
+            /*
+            unsafe {
+                slice::from_raw_parts(subpass.pResolveAttachments, subpass.colorAttachmentCount as _)
+                    .into_iter()
+                    .map(map_attachment_ref)
+                    .collect()
+            }
+            */
+        };
+        let depth_stencil = unsafe {
+            subpass
+                .pDepthStencilAttachment
+                .as_ref()
+                .map(|attachment| map_attachment_ref(attachment))
+        };
+
+        let preserve = unsafe {
+            slice::from_raw_parts(subpass.pPreserveAttachments, subpass.preserveAttachmentCount as _)
+                .into_iter()
+                .map(|id| *id as usize)
+                .collect::<Vec<_>>()
+        };
+
+        attachment_refs.push(AttachmentRefs {
+            input,
+            color,
+            resolve,
+            depth_stencil,
+            preserve,
+        });
+    }
+
+    let subpasses = attachment_refs
+        .iter()
+        .map(|attachment_ref| {
+            pass::SubpassDesc {
+                colors: &attachment_ref.color,
+                depth_stencil: attachment_ref.depth_stencil.as_ref(),
+                inputs: &attachment_ref.input,
+                preserves: &attachment_ref.preserve,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    // Subpass dependencies
+    let dependencies = unsafe {
+        slice::from_raw_parts(info.pDependencies, info.dependencyCount as _)
+    };
+
+    fn map_subpass_ref(subpass: u32) -> pass::SubpassRef {
+        if subpass == VK_SUBPASS_EXTERNAL as u32 {
+            pass::SubpassRef::External
+        } else {
+            pass::SubpassRef::Pass(subpass as _)
+        }
+    }
+
+    let dependencies = dependencies
+        .into_iter()
+        .map(|dependency| {
+            assert_eq!(dependency.dependencyFlags, 0); // TODO
+
+            let src_pass = map_subpass_ref(dependency.srcSubpass);
+            let dst_pass = map_subpass_ref(dependency.dstSubpass);
+
+            let src_stage = conv::map_pipeline_stage_flags(dependency.srcStageMask);
+            let dst_stage = conv::map_pipeline_stage_flags(dependency.dstStageMask);
+
+            // Our portability implementation only supports image access flags atm.
+            // Global buffer barriers can't be handled currently.
+            let src_access = conv::map_image_acces(dependency.srcAccessMask);
+            let dst_access = conv::map_image_acces(dependency.dstAccessMask);
+
+            pass::SubpassDependency {
+                passes: src_pass .. dst_pass,
+                stages: src_stage .. dst_stage,
+                accesses: src_access .. dst_access,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let render_pass = gpu
+        .device
+        .create_render_pass(&attachments, &subpasses, &dependencies);
+
+    unsafe {
+        *pRenderPass = Handle::new(render_pass);
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyRenderPass(
-    device: VkDevice,
+    gpu: VkDevice,
     renderPass: VkRenderPass,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_renderpass(*renderPass.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxGetRenderAreaGranularity(
@@ -1227,8 +1406,7 @@ pub extern "C" fn gfxCreateCommandPool(
     use hal::pool::CommandPoolCreateFlags;
 
     let info = unsafe { &*pCreateInfo };
-    assert_eq!(info.queueFamilyIndex, 0); //TODO
-    let family = gpu.queue_groups[0].family();
+    let family = queue::QueueFamilyId(info.queueFamilyIndex as _);
 
     let mut flags = CommandPoolCreateFlags::empty();
     if info.flags & VkCommandPoolCreateFlagBits::VK_COMMAND_POOL_CREATE_TRANSIENT_BIT as u32 != 0 {
@@ -1863,7 +2041,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     ); // TODO
 
     let config = hal::SwapchainConfig {
-        color_format: conv::map_format(info.imageFormat),
+        color_format: conv::map_format(info.imageFormat).unwrap(),
         depth_stencil_format: None,
         image_count: info.minImageCount,
     };
@@ -2108,14 +2286,23 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
 }
 #[inline]
 pub extern "C" fn gfxAcquireNextImageKHR(
-    device: VkDevice,
-    swapchain: VkSwapchainKHR,
-    timeout: u64,
+    _device: VkDevice,
+    mut swapchain: VkSwapchainKHR,
+    _timeout: u64, // TODO
     semaphore: VkSemaphore,
     fence: VkFence,
     pImageIndex: *mut u32,
 ) -> VkResult {
-    unimplemented!()
+    let sync = if !semaphore.is_null() {
+        FrameSync::Semaphore(&*semaphore)
+    } else {
+        FrameSync::Fence(&*fence)
+    };
+
+    let frame = swapchain.raw.acquire_frame(sync);
+    unsafe { *pImageIndex = frame.id() as _; }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxQueuePresentKHR(

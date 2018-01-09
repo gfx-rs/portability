@@ -1336,7 +1336,14 @@ pub extern "C" fn vkAcquireNextImageKHR(
     fence: VkFence,
     pImageIndex: *mut u32,
 ) -> VkResult {
-    unimplemented!()
+    gfxAcquireNextImageKHR(
+        device,
+        swapchain,
+        timeout,
+        semaphore,
+        fence,
+        pImageIndex,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkQueuePresentKHR(
