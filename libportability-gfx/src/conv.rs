@@ -1,4 +1,4 @@
-use hal::{adapter, buffer, format, image, memory, pso, window};
+use hal::{adapter, buffer, format, image, memory, pass, pso, window};
 
 use std::mem;
 
@@ -70,10 +70,12 @@ fn buffer_features_from_hal(features: format::BufferFeature) -> VkFormatFeatureF
     flags
 }
 
-pub fn map_format(format: VkFormat) -> format::Format {
-    if (format as usize) < format::NUM_FORMATS {
+pub fn map_format(format: VkFormat) -> Option<format::Format> {
+    if format == VkFormat::VK_FORMAT_UNDEFINED {
+        None
+    } else if (format as usize) < format::NUM_FORMATS {
         // HAL formats have the same numeric representation as Vulkan formats
-        unsafe { mem::transmute(format) }
+        Some(unsafe { mem::transmute(format) })
     } else {
         unimplemented!("Unknown format {:?}", format);
     }
@@ -178,19 +180,17 @@ pub fn map_image_kind(
 
 pub fn map_image_layout(layout: VkImageLayout) -> image::ImageLayout {
     match layout {
-        /*
-        VK_IMAGE_LAYOUT_UNDEFINED = 0,
-        VK_IMAGE_LAYOUT_GENERAL = 1,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL = 2,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL = 3,
-        VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL = 4,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL = 5,
-        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL = 6,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL = 7,
-        VK_IMAGE_LAYOUT_PREINITIALIZED = 8,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR = 1000001002,
-        */
-        _ => unimplemented!(),
+        VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => image::ImageLayout::Undefined,
+        VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => image::ImageLayout::General,
+        VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL => image::ImageLayout::ColorAttachmentOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL => image::ImageLayout::DepthStencilAttachmentOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL => image::ImageLayout::DepthStencilReadOnlyOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL => image::ImageLayout::ShaderReadOnlyOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL => image::ImageLayout::TransferSrcOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL => image::ImageLayout::TransferDstOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_PREINITIALIZED => image::ImageLayout::Preinitialized,
+        VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR => image::ImageLayout::Present,
+        _ => panic!("Unexpected image layout: {:?}", layout),
     }
 }
 
@@ -341,6 +341,18 @@ pub fn map_stage_flags(stages: VkShaderStageFlags) -> pso::ShaderStageFlags {
     flags
 }
 
+pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineStage {
+    let max_flag = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_HOST_BIT as u32;
+
+    if (stages & 1 << (max_flag + 1) - 1) == 0 {
+        // HAL flags have the same numeric representation as Vulkan flags
+        unsafe { mem::transmute(stages) }
+    } else {
+        // GRAPHICS and ALL missing
+        unimplemented!("Unsupported pipelinee stage flags: {:?}", stages)
+    }
+}
+
 pub fn map_err_device_creation(err: adapter::DeviceCreationError) -> VkResult {
     use hal::adapter::DeviceCreationError::*;
 
@@ -353,4 +365,67 @@ pub fn map_err_device_creation(err: adapter::DeviceCreationError) -> VkResult {
         TooManyObjects => VkResult::VK_ERROR_TOO_MANY_OBJECTS,
         DeviceLost => VkResult::VK_ERROR_DEVICE_LOST,
     }
+}
+
+pub fn map_attachment_load_op(op: VkAttachmentLoadOp) -> pass::AttachmentLoadOp {
+    match op {
+        VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_LOAD => pass::AttachmentLoadOp::Load,
+        VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_CLEAR => pass::AttachmentLoadOp::Clear,
+        VkAttachmentLoadOp::VK_ATTACHMENT_LOAD_OP_DONT_CARE => pass::AttachmentLoadOp::DontCare,
+        _ => panic!("Unsupported attachment load op: {:?}", op),
+    }
+}
+
+pub fn map_attachment_store_op(op: VkAttachmentStoreOp) -> pass::AttachmentStoreOp {
+    match op {
+        VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_STORE => pass::AttachmentStoreOp::Store,
+        VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE => pass::AttachmentStoreOp::DontCare,
+        _ => panic!("Unsupported attachment store op: {:?}", op),
+    }
+}
+
+pub fn map_image_acces(access: VkAccessFlags) -> image::Access {
+    let mut mask = image::Access::empty();
+
+    if access & VkAccessFlagBits::VK_ACCESS_INPUT_ATTACHMENT_READ_BIT as u32 != 0 {
+        mask |= image::Access::INPUT_ATTACHMENT_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT as u32 != 0 {
+        mask |= image::Access::SHADER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::SHADER_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_READ_BIT as u32 != 0 {
+        mask |= image::Access::COLOR_ATTACHMENT_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::COLOR_ATTACHMENT_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT as u32 != 0 {
+        mask |= image::Access::DEPTH_STENCIL_ATTACHMENT_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_READ_BIT as u32 != 0 {
+        mask |= image::Access::TRANSFER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::TRANSFER_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_HOST_READ_BIT as u32 != 0 {
+        mask |= image::Access::HOST_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_HOST_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::HOST_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_READ_BIT as u32 != 0 {
+        mask |= image::Access::MEMORY_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::MEMORY_WRITE;
+    }
+
+    mask
 }
