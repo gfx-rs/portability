@@ -45,6 +45,7 @@ pub type VkBuffer = Handle<Buffer<B>>;
 pub type VkSemaphore = Handle<<B as hal::Backend>::Semaphore>;
 pub type VkFence = Handle<<B as hal::Backend>::Fence>;
 pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
+pub type VkFramebuffer = Handle<<B as hal::Backend>::Framebuffer>;
 
 pub type QueueFamilyIndex = u32;
 
@@ -543,12 +544,6 @@ pub struct VkPipeline_T {
     _unused: [u8; 0],
 }
 pub type VkPipeline = *mut VkPipeline_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkFramebuffer_T {
-    _unused: [u8; 0],
-}
-pub type VkFramebuffer = *mut VkFramebuffer_T;
 
 pub const VkPipelineCacheHeaderVersion_VK_PIPELINE_CACHE_HEADER_VERSION_BEGIN_RANGE:
           VkPipelineCacheHeaderVersion =

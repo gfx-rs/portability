@@ -3,7 +3,10 @@ use hal::{
     Backend, DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily,
     Surface, Swapchain as HalSwapchain, FrameSync,
 };
+use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
+use hal::command::RawCommandBuffer;
+use hal::queue::RawCommandQueue;
 
 use std::ffi::CString;
 use std::mem;
@@ -349,12 +352,47 @@ pub extern "C" fn gfxGetDeviceQueue(
 }
 #[inline]
 pub extern "C" fn gfxQueueSubmit(
-    queue: VkQueue,
+    mut queue: VkQueue,
     submitCount: u32,
     pSubmits: *const VkSubmitInfo,
     fence: VkFence,
 ) -> VkResult {
-    unimplemented!()
+    assert_eq!(submitCount, 1); // TODO;
+
+    let submission = unsafe { *pSubmits };
+    let cmd_buffers = unsafe {
+        slice::from_raw_parts(submission.pCommandBuffers, submission.commandBufferCount as _)
+            .into_iter()
+            .map(|cmd_buffer| **cmd_buffer)
+            .collect::<Vec<_>>()
+    };
+    let wait_semaphores = unsafe {
+        let semaphores = slice::from_raw_parts(submission.pWaitSemaphores, submission.waitSemaphoreCount as _);
+        let stages = slice::from_raw_parts(submission.pWaitDstStageMask, submission.waitSemaphoreCount as _);
+
+        stages.into_iter()
+            .zip(semaphores.into_iter())
+            .map(|(stage, semaphore)| (semaphore.deref(), conv::map_pipeline_stage_flags(*stage)))
+            .collect::<Vec<_>>()
+    };
+    let signal_semaphores = unsafe {
+        slice::from_raw_parts(submission.pSignalSemaphores, submission.signalSemaphoreCount as _)
+            .into_iter()
+            .map(|semaphore| semaphore.deref())
+            .collect::<Vec<_>>()
+    };
+
+    let submission = hal::queue::RawSubmission {
+        cmd_buffers: &cmd_buffers,
+        wait_semaphores: &wait_semaphores,
+        signal_semaphores: &signal_semaphores,
+    };
+
+    let fence = if fence.is_null() { None } else { Some(&*fence) };
+
+    unsafe { queue.submit_raw(submission, fence); }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
@@ -554,20 +592,31 @@ pub extern "C" fn gfxQueueBindSparse(
 }
 #[inline]
 pub extern "C" fn gfxCreateFence(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkFenceCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pFence: *mut VkFence,
 ) -> VkResult {
-    unimplemented!()
+    let flags = unsafe { (*pCreateInfo).flags };
+    let signalled = flags & VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT as u32 != 0;
+
+    let fence = gpu
+        .device
+        .create_fence(signalled);
+
+    unsafe {
+        *pFence = Handle::new(fence);
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyFence(
-    device: VkDevice,
+    gpu: VkDevice,
     fence: VkFence,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_fence(*fence.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxResetFences(
@@ -583,13 +632,29 @@ pub extern "C" fn gfxGetFenceStatus(device: VkDevice, fence: VkFence) -> VkResul
 }
 #[inline]
 pub extern "C" fn gfxWaitForFences(
-    device: VkDevice,
+    gpu: VkDevice,
     fenceCount: u32,
     pFences: *const VkFence,
     waitAll: VkBool32,
     timeout: u64,
 ) -> VkResult {
-    unimplemented!()
+    let fences = unsafe {
+        slice::from_raw_parts(pFences, fenceCount as _)
+            .into_iter()
+            .map(|fence| fence.deref())
+            .collect::<Vec<_>>()
+    };
+
+    let wait_for = match waitAll {
+        VK_FALSE => WaitFor::Any,
+        _ => WaitFor::All,
+    };
+
+    if gpu.device.wait_for_fences(&fences, wait_for, timeout as _) {
+        VkResult::VK_SUCCESS
+    } else {
+        VkResult::VK_TIMEOUT
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreateSemaphore(
@@ -1201,20 +1266,45 @@ pub extern "C" fn gfxUpdateDescriptorSets(
 }
 #[inline]
 pub extern "C" fn gfxCreateFramebuffer(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkFramebufferCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pFramebuffer: *mut VkFramebuffer,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+
+    let attachments = unsafe {
+        slice::from_raw_parts(info.pAttachments, info.attachmentCount as _)
+    };
+    let attachments = attachments
+        .into_iter()
+        .map(|attachment| attachment.deref())
+        .collect::<Vec<_>>();
+
+    let extent = hal::device::Extent {
+        width: info.width,
+        height: info.height,
+        depth: info.layers,
+    };
+
+    let framebuffer = gpu
+        .device
+        .create_framebuffer(&*info.renderPass, &attachments, extent)
+        .unwrap();
+
+    unsafe {
+        *pFramebuffer = Handle::new(framebuffer);
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyFramebuffer(
-    device: VkDevice,
+    gpu: VkDevice,
     framebuffer: VkFramebuffer,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_framebuffer(*framebuffer.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateRenderPass(
@@ -1481,14 +1571,20 @@ pub extern "C" fn gfxFreeCommandBuffers(
 
 #[inline]
 pub extern "C" fn gfxBeginCommandBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
-    unimplemented!()
+    assert_eq!(unsafe { (*pBeginInfo).flags }, 0); // TODO
+
+    commandBuffer.begin();
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxEndCommandBuffer(commandBuffer: VkCommandBuffer) -> VkResult {
-    unimplemented!()
+pub extern "C" fn gfxEndCommandBuffer(mut commandBuffer: VkCommandBuffer) -> VkResult {
+    commandBuffer.finish();
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxResetCommandBuffer(
