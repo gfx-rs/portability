@@ -1016,7 +1016,13 @@ pub extern "C" fn vkCmdBindVertexBuffers(
     pBuffers: *const VkBuffer,
     pOffsets: *const VkDeviceSize,
 ) {
-    unimplemented!()
+    gfxCmdBindVertexBuffers(
+        commandBuffer,
+        firstBinding,
+        bindingCount,
+        pBuffers,
+        pOffsets,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDraw(

@@ -1695,13 +1695,36 @@ pub extern "C" fn gfxCmdBindIndexBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindVertexBuffers(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     firstBinding: u32,
     bindingCount: u32,
     pBuffers: *const VkBuffer,
     pOffsets: *const VkDeviceSize,
 ) {
-    unimplemented!()
+    assert_eq!(firstBinding, 0); // TODO
+
+    let buffers = unsafe {
+        slice::from_raw_parts(pBuffers, bindingCount as _)
+    };
+    let offsets = unsafe {
+        slice::from_raw_parts(pOffsets, bindingCount as _)
+    };
+
+    let views = buffers
+        .into_iter()
+        .zip(offsets.into_iter())
+        .map(|(buffer, offset)| {
+            let offset = *offset as _;
+            let buffer = match **buffer {
+                Buffer::Buffer(ref buffer) => buffer,
+                Buffer::Unbound(_) => panic!("Non-sparse buffers need to be bound to device memory."),
+            };
+
+            (buffer, offset)
+        })
+        .collect::<Vec<_>>();
+
+    commandBuffer.bind_vertex_buffers(pso::VertexBufferSet(views));
 }
 #[inline]
 pub extern "C" fn gfxCmdDraw(
@@ -2025,8 +2048,8 @@ pub extern "C" fn gfxCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: Vk
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCmdEndRenderPass(commandBuffer: VkCommandBuffer) {
-    unimplemented!()
+pub extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
+    commandBuffer.end_renderpass();
 }
 #[inline]
 pub extern "C" fn gfxCmdExecuteCommands(
