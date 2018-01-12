@@ -1290,7 +1290,16 @@ pub extern "C" fn vkCmdCopyQueryPoolResults(
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) {
-    unimplemented!()
+    gfxCmdCopyQueryPoolResults(
+        commandBuffer,
+        queryPool,
+        firstQuery,
+        queryCount,
+        dstBuffer,
+        dstOffset,
+        stride,
+        flags,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdPushConstants(
@@ -1301,7 +1310,7 @@ pub extern "C" fn vkCmdPushConstants(
     size: u32,
     pValues: *const ::std::os::raw::c_void,
 ) {
-    unimplemented!()
+    gfxCmdPushConstants(commandBuffer, layout, stageFlags, offset, size, pValues)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBeginRenderPass(
@@ -1309,15 +1318,15 @@ pub extern "C" fn vkCmdBeginRenderPass(
     pRenderPassBegin: *const VkRenderPassBeginInfo,
     contents: VkSubpassContents,
 ) {
-    unimplemented!()
+    gfxCmdBeginRenderPass(commandBuffer, pRenderPassBegin, contents)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: VkSubpassContents) {
-    unimplemented!()
+    gfxCmdNextSubpass(commandBuffer, contents)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdEndRenderPass(commandBuffer: VkCommandBuffer) {
-    unimplemented!()
+    gfxCmdEndRenderPass(commandBuffer)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdExecuteCommands(
@@ -1325,7 +1334,7 @@ pub extern "C" fn vkCmdExecuteCommands(
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    unimplemented!()
+    gfxCmdExecuteCommands(commandBuffer, commandBufferCount, pCommandBuffers)
 }
 #[no_mangle]
 pub extern "C" fn vkAcquireNextImageKHR(

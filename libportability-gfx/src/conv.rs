@@ -1,4 +1,4 @@
-use hal::{adapter, buffer, format, image, memory, pass, pso, window};
+use hal::{adapter, buffer, command, format, image, memory, pass, pso, window};
 
 use std::mem;
 
@@ -429,4 +429,14 @@ pub fn map_image_acces(access: VkAccessFlags) -> image::Access {
     }
 
     mask
+}
+
+pub fn map_subpass_contents(contents: VkSubpassContents) -> command::SubpassContents {
+    match contents {
+        VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE => command::SubpassContents::Inline,
+        VkSubpassContents::VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS =>
+            command::SubpassContents::SecondaryBuffers,
+
+        _ => panic!("Unexpected subpass contents: {:?}", contents),
+    }
 }

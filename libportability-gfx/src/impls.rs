@@ -5,7 +5,7 @@ use hal::{
 };
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
-use hal::command::RawCommandBuffer;
+use hal::command::{ClearValueRaw, RawCommandBuffer, Rect};
 use hal::queue::RawCommandQueue;
 
 use std::ffi::CString;
@@ -1990,11 +1990,35 @@ pub extern "C" fn gfxCmdPushConstants(
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginRenderPass(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     pRenderPassBegin: *const VkRenderPassBeginInfo,
     contents: VkSubpassContents,
 ) {
-    unimplemented!()
+    let info = unsafe { &*pRenderPassBegin };
+
+    let render_area = Rect {
+        x: info.renderArea.offset.x as _,
+        y: info.renderArea.offset.y as _,
+        w: info.renderArea.extent.width as _,
+        h: info.renderArea.extent.height as _,
+    };
+    let clear_values = unsafe {
+        slice::from_raw_parts(info.pClearValues, info.clearValueCount as _)
+            .into_iter()
+            .map(|cv| {
+                // HAL and Vulkan clear value union sharing same memory representation
+                mem::transmute::<_, ClearValueRaw>(*cv)
+            })
+    };
+    let contents = conv::map_subpass_contents(contents);
+
+    commandBuffer.begin_renderpass_raw(
+        &*info.renderPass,
+        &*info.framebuffer,
+        render_area,
+        clear_values,
+        contents,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: VkSubpassContents) {
