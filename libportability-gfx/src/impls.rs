@@ -8,7 +8,7 @@ use hal::pool::RawCommandPool;
 use hal::command::{ClearValueRaw, RawCommandBuffer, Rect};
 use hal::queue::RawCommandQueue;
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::mem;
 use std::ops::{Deref, Range};
 
@@ -949,14 +949,344 @@ pub extern "C" fn gfxMergePipelineCaches(
 }
 #[inline]
 pub extern "C" fn gfxCreateGraphicsPipelines(
-    device: VkDevice,
+    gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkGraphicsPipelineCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    unimplemented!()
+    assert!(pipelineCache.is_null());
+
+    let infos = unsafe {
+        slice::from_raw_parts(pCreateInfos, createInfoCount as _)
+    };
+
+    const NUM_SHADER_STAGES: usize = 5;
+    let mut shader_stages = Vec::with_capacity(infos.len() * NUM_SHADER_STAGES);
+
+    // Collect all information which we will borrow later. Need to work around
+    // the borrow checker here.
+    // TODO: try to refactor it once we have a more generic API
+    for info in infos {
+        let stages = unsafe {
+            slice::from_raw_parts(info.pStages, info.stageCount as _)
+        };
+
+        for stage in stages {
+            let name = unsafe { CStr::from_ptr(stage.pName).to_owned() };
+            let specialization = unsafe { stage
+                .pSpecializationInfo
+                .as_ref()
+                .map(|specialization| {
+                    let data = slice::from_raw_parts(
+                        specialization.pData,
+                        specialization.dataSize as _,
+                    );
+                    let entries = slice::from_raw_parts(
+                        specialization.pMapEntries,
+                        specialization.mapEntryCount as _,
+                    );
+
+                    entries.
+                        into_iter()
+                        .map(|entry| {
+                            // Currently blocked due to lack of specialization type knowledge
+                            unimplemented!()
+                        })
+                        .collect::<Vec<pso::Specialization>>()
+                })
+                .unwrap_or(vec![])
+            };
+
+            shader_stages.push((
+                name.into_string().unwrap(),
+                specialization,
+            ));
+        }
+    }
+
+    let mut cur_shader_stage = 0;
+
+    let descs = infos.into_iter().map(|info| {
+        // TODO: handle dynamic states and viewports
+
+        let shaders = {
+            let mut set: pso::GraphicsShaderSet<_> = unsafe { mem::zeroed() };
+
+            let stages = unsafe {
+                slice::from_raw_parts(info.pStages, info.stageCount as _)
+            };
+
+            for stage in stages {
+                use super::VkShaderStageFlagBits::*;
+
+                let (ref name, ref specialization) = shader_stages[cur_shader_stage];
+                cur_shader_stage += 1;
+
+                let entry_point = pso::EntryPoint {
+                    entry: &name,
+                    module: stage.module.deref(),
+                    specialization: &specialization,
+                };
+
+                match stage.stage {
+                    VK_SHADER_STAGE_VERTEX_BIT => { set.vertex = entry_point; }
+                    VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => { set.hull = Some(entry_point); }
+                    VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => { set.domain = Some(entry_point); }
+                    VK_SHADER_STAGE_GEOMETRY_BIT => { set.geometry = Some(entry_point); }
+                    VK_SHADER_STAGE_FRAGMENT_BIT => { set.fragment = Some(entry_point); }
+                    stage => panic!("Unexpected shader stage: {:?}", stage),
+                }
+            }
+
+            set
+        };
+
+        let rasterizer = {
+            let state = unsafe { &*info.pRasterizationState };
+
+            assert_eq!(state.rasterizerDiscardEnable, VK_FALSE); // TODO
+            assert_eq!(state.depthBiasEnable, VK_FALSE); // TODO: ready for work
+
+            pso::Rasterizer {
+                polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
+                cull_face: conv::map_cull_face(state.cullMode),
+                front_face: conv::map_front_face(state.frontFace),
+                depth_clamping: state.depthClampEnable == VK_TRUE,
+                depth_bias: None, // TODO
+                conservative: false,
+            }
+        };
+
+        let (vertex_buffers, attributes) = {
+            let input_state = unsafe { &*info.pVertexInputState };
+
+            let bindings = unsafe {
+                slice::from_raw_parts(
+                    input_state.pVertexBindingDescriptions,
+                    input_state.vertexBindingDescriptionCount as _,
+                )
+            };
+            let attributes = unsafe {
+                slice::from_raw_parts(
+                    input_state.pVertexAttributeDescriptions,
+                    input_state.vertexAttributeDescriptionCount as _,
+                )
+            };
+
+            let bindings = bindings
+                .into_iter()
+                .enumerate()
+                .map(|(i, binding)| {
+                    assert_eq!(i, binding.binding as _); // TODO: currently need to be in order
+
+                    let rate = match binding.inputRate {
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => 0,
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => 1,
+                        rate => panic!("Unexpected input rate: {:?}", rate),
+                    };
+
+                    pso::VertexBufferDesc {
+                        stride: binding.stride,
+                        rate,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let attributes = attributes
+                .into_iter()
+                .map(|attrib| {
+                    pso::AttributeDesc {
+                        location: attrib.location,
+                        binding: attrib.binding,
+                        element: pso::Element {
+                            format: conv::map_format(attrib.format).unwrap(), // TODO: undefined allowed?
+                            offset: attrib.offset,
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            (bindings, attributes)
+        };
+
+        let input_assembler = {
+            let input_state = unsafe { &*info.pInputAssemblyState };
+            let tessellation_state = if shaders.hull.is_some() {
+                Some(unsafe { &*info.pTessellationState })
+            } else {
+                None
+            };
+
+            assert_eq!(input_state.primitiveRestartEnable, VK_FALSE); // TODO
+
+            pso::InputAssemblerDesc {
+                primitive: conv::map_primitive_topology(
+                    input_state.topology,
+                    tessellation_state
+                        .map(|state| state.patchControlPoints as _)
+                        .unwrap_or(0),
+                ),
+                primitive_restart: pso::PrimitiveRestart::Disabled, // TODO
+            }
+        };
+
+        // TODO: `pColorBlendState` could contain garbage, but implementations
+        //        can ignore it in some circumstances. How to handle it?
+        let blender = {
+            let mut blend_desc = pso::BlendDesc::default();
+
+            let blend_state = unsafe { info.pColorBlendState.as_ref() };
+            if let Some(state) = blend_state {
+                if state.logicOpEnable == VK_TRUE {
+                    blend_desc.logic_op = Some(conv::map_logic_op(state.logicOp));
+                }
+
+                let attachments = unsafe {
+                    slice::from_raw_parts(state.pAttachments, state.attachmentCount as _)
+                };
+                blend_desc.targets = attachments
+                    .into_iter()
+                    .map(|attachment| {
+                        let color_mask = conv::map_color_components(attachment.colorWriteMask);
+
+                        let blend = if attachment.blendEnable == VK_TRUE {
+                            pso::BlendState::On {
+                                color: conv::map_blend_op(
+                                    attachment.colorBlendOp,
+                                    attachment.srcColorBlendFactor,
+                                    attachment.dstColorBlendFactor,
+                                ),
+                                alpha: conv::map_blend_op(
+                                    attachment.alphaBlendOp,
+                                    attachment.srcAlphaBlendFactor,
+                                    attachment.dstAlphaBlendFactor,
+                                ),
+                            }
+                        } else {
+                            pso::BlendState::Off
+                        };
+
+                        pso::ColorBlendDesc(color_mask, blend)
+                    })
+                    .collect();
+            }
+
+            // TODO: multisampling
+
+            blend_desc
+        };
+
+        // TODO: `pDepthStencilState` could contain garbage, but implementations
+        //        can ignore it in some circumstances. How to handle it?
+        let depth_stencil = unsafe { info
+            .pDepthStencilState
+            .as_ref()
+            .map(|state| {
+                let depth_test = if state.depthTestEnable == VK_TRUE {
+                    pso::DepthTest::On {
+                        fun: conv::map_compare_op(state.depthCompareOp),
+                        write: state.depthWriteEnable == VK_TRUE,
+                    }
+                } else {
+                    pso::DepthTest::Off
+                };
+
+                fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
+                    // TODO: reference value
+                    pso::StencilFace {
+                        fun: conv::map_compare_op(state.compareOp),
+                        mask_read: state.compareMask,
+                        mask_write: state.writeMask,
+                        op_fail: conv::map_stencil_op(state.failOp),
+                        op_depth_fail: conv::map_stencil_op(state.depthFailOp),
+                        op_pass: conv::map_stencil_op(state.passOp),
+                    }
+                }
+
+                let stencil_test = if state.stencilTestEnable == VK_TRUE {
+                    pso::StencilTest::On {
+                        front: map_stencil_state(state.front),
+                        back: map_stencil_state(state.back),
+                    }
+                } else {
+                    pso::StencilTest::Off
+                };
+
+                // TODO: depth bounds
+
+                pso::DepthStencilDesc {
+                    depth: depth_test,
+                    depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
+                    stencil: stencil_test,
+                }
+            })
+        };
+
+        let layout = &*info.layout;
+        let subpass = pass::Subpass {
+            index: info.subpass as _,
+            main_pass: &*info.renderPass,
+        };
+
+        let flags = {
+            let mut flags = pso::PipelineCreationFlags::empty();
+
+            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT as u32 != 0 {
+                flags |= pso::PipelineCreationFlags::DISABLE_OPTIMIZATION;
+            }
+            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT as u32 != 0 {
+                flags |= pso::PipelineCreationFlags::ALLOW_DERIVATIVES;
+            }
+
+            flags
+        };
+
+        let parent = {
+            let is_derivative = info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DERIVATIVE_BIT as u32 != 0;
+
+            if !info.basePipelineHandle.is_null() {
+                match *info.basePipelineHandle {
+                    Pipeline::Graphics(ref graphics) => pso::BasePipeline::Pipeline(graphics),
+                    Pipeline::Compute(_) => panic!("Base pipeline handle must be a graphics pipeline"),
+                }
+            } else if is_derivative && info.basePipelineIndex > 0 {
+                pso::BasePipeline::Index(info.basePipelineIndex as _)
+            } else {
+                pso::BasePipeline::None // TODO
+            }
+        };
+
+        pso::GraphicsPipelineDesc {
+            shaders,
+            rasterizer,
+            vertex_buffers,
+            attributes,
+            input_assembler,
+            blender,
+            depth_stencil,
+            layout,
+            subpass,
+            flags,
+            parent,
+        }
+    }).collect::<Vec<_>>();
+
+    let pipelines = gpu.device.create_graphics_pipelines(&descs);
+
+    unsafe {
+        slice::from_raw_parts_mut(pPipelines, descs.len())
+            .into_iter()
+            .zip(pipelines.into_iter())
+            .map(|(pipeline, raw)| {
+                if let Ok(raw) = raw {
+                    *pipeline = Handle::new(Pipeline::Graphics(raw));
+                }
+            });
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxCreateComputePipelines(
@@ -971,11 +1301,16 @@ pub extern "C" fn gfxCreateComputePipelines(
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipeline(
-    device: VkDevice,
+    gpu: VkDevice,
     pipeline: VkPipeline,
     pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !pipeline.is_null() {
+        match *pipeline.unwrap() {
+            Pipeline::Graphics(pipeline) => gpu.device.destroy_graphics_pipeline(pipeline),
+            Pipeline::Compute(pipeline) => gpu.device.destroy_compute_pipeline(pipeline),
+        }
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineLayout(

@@ -46,12 +46,18 @@ pub type VkSemaphore = Handle<<B as hal::Backend>::Semaphore>;
 pub type VkFence = Handle<<B as hal::Backend>::Fence>;
 pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
 pub type VkFramebuffer = Handle<<B as hal::Backend>::Framebuffer>;
+pub type VkPipeline = Handle<Pipeline<B>>;
 
 pub type QueueFamilyIndex = u32;
 
 pub struct Gpu<B: hal::Backend> {
     device: B::Device,
     queues: HashMap<QueueFamilyIndex, Vec<VkQueue>>,
+}
+
+pub enum Pipeline<B: hal::Backend> {
+    Graphics(B::GraphicsPipeline),
+    Compute(B::ComputePipeline),
 }
 
 pub enum Image<B: hal::Backend> {
@@ -538,12 +544,6 @@ pub struct VkPipelineCache_T {
     _unused: [u8; 0],
 }
 pub type VkPipelineCache = *mut VkPipelineCache_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkPipeline_T {
-    _unused: [u8; 0],
-}
-pub type VkPipeline = *mut VkPipeline_T;
 
 pub const VkPipelineCacheHeaderVersion_VK_PIPELINE_CACHE_HEADER_VERSION_BEGIN_RANGE:
           VkPipelineCacheHeaderVersion =
