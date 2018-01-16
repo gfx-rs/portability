@@ -10,7 +10,7 @@ use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
 use std::mem;
-use std::ops::{Deref, Range};
+use std::ops::Range;
 
 use super::*;
 
@@ -372,13 +372,13 @@ pub extern "C" fn gfxQueueSubmit(
 
         stages.into_iter()
             .zip(semaphores.into_iter())
-            .map(|(stage, semaphore)| (semaphore.deref(), conv::map_pipeline_stage_flags(*stage)))
+            .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
             .collect::<Vec<_>>()
     };
     let signal_semaphores = unsafe {
         slice::from_raw_parts(submission.pSignalSemaphores, submission.signalSemaphoreCount as _)
             .into_iter()
-            .map(|semaphore| semaphore.deref())
+            .map(|semaphore| &**semaphore)
             .collect::<Vec<_>>()
     };
 
@@ -530,7 +530,7 @@ pub extern "C" fn gfxGetBufferMemoryRequirements(
     buffer: VkBuffer,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = match *buffer.deref() {
+    let req = match *buffer {
         Buffer::Buffer(ref buffer) => unimplemented!(),
         Buffer::Unbound(ref buffer) => gpu.device.get_buffer_requirements(buffer),
     };
@@ -547,7 +547,7 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = match *image.deref() {
+    let req = match *image {
         Image::Image(ref image) => unimplemented!(),
         Image::Unbound(ref image) => gpu.device.get_image_requirements(image),
     };
@@ -641,7 +641,7 @@ pub extern "C" fn gfxWaitForFences(
     let fences = unsafe {
         slice::from_raw_parts(pFences, fenceCount as _)
             .into_iter()
-            .map(|fence| fence.deref())
+            .map(|fence| &**fence)
             .collect::<Vec<_>>()
     };
 
@@ -853,7 +853,7 @@ pub extern "C" fn gfxCreateImageView(
     assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
     assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
 
-    let image = match *info.image.deref() {
+    let image = match *info.image {
         Image::Image(ref image) => image,
         // Non-sparse images must be bound prior.
         Image::Unbound(_) => panic!("Can't create view for unbound image"),
@@ -991,8 +991,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                         specialization.mapEntryCount as _,
                     );
 
-                    entries.
-                        into_iter()
+                    entries
+                        .into_iter()
                         .map(|entry| {
                             // Currently blocked due to lack of specialization type knowledge
                             unimplemented!()
@@ -1029,7 +1029,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
                 let entry_point = pso::EntryPoint {
                     entry: &name,
-                    module: stage.module.deref(),
+                    module: &*stage.module,
                     specialization: &specialization,
                 };
 
@@ -1116,11 +1116,9 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
         let input_assembler = {
             let input_state = unsafe { &*info.pInputAssemblyState };
-            let tessellation_state = if shaders.hull.is_some() {
-                Some(unsafe { &*info.pTessellationState })
-            } else {
-                None
-            };
+            let tessellation_state = shaders
+                .hull
+                .map(|_| unsafe { &*info.pTessellationState });
 
             assert_eq!(input_state.primitiveRestartEnable, VK_FALSE); // TODO
 
@@ -1140,8 +1138,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         let blender = {
             let mut blend_desc = pso::BlendDesc::default();
 
-            let blend_state = unsafe { info.pColorBlendState.as_ref() };
-            if let Some(state) = blend_state {
+            if let Some(state) = unsafe { info.pColorBlendState.as_ref() } {
                 if state.logicOpEnable == VK_TRUE {
                     blend_desc.logic_op = Some(conv::map_logic_op(state.logicOp));
                 }
@@ -1176,7 +1173,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     .collect();
             }
 
-            // TODO: multisampling
+            assert!(info.pMultisampleState.is_null());
 
             blend_desc
         };
@@ -1333,7 +1330,7 @@ pub extern "C" fn gfxCreatePipelineLayout(
 
     let layouts = set_layouts
         .iter()
-        .map(|layout| layout.deref())
+        .map(|layout| &**layout)
         .collect::<Vec<&<B as Backend>::DescriptorSetLayout>>();
 
     let ranges = push_constants
@@ -1479,7 +1476,7 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     };
     let layouts = set_layouts
         .iter()
-        .map(|layout| layout.deref())
+        .map(|layout| &**layout)
         .collect::<Vec<_>>();
 
     let descriptor_sets = pool.allocate_sets(&layouts);
@@ -1524,11 +1521,11 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                     .map(|buffer| {
                         assert_ne!(buffer.range as i32, VK_WHOLE_SIZE);
                         (
-                            match buffer.buffer.deref() {
-                                &Buffer::Buffer(ref buf) => buf,
+                            match *buffer.buffer {
+                                Buffer::Buffer(ref buf) => buf,
                                 // Vulkan portability restriction:
                                 // Non-sparse buffer need to be bound to device memory.
-                                &Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
+                                Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
                             },
                             buffer.offset .. buffer.offset+buffer.range,
                         )
@@ -1569,13 +1566,13 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                 pso::DescriptorType::UniformTexelBuffer => pso::DescriptorWrite::UniformTexelBuffer(
                     texel_buffer_views
                         .into_iter()
-                        .map(|view| view.deref())
+                        .map(|view| &**view)
                         .collect()
                 ),
                 pso::DescriptorType::StorageTexelBuffer => pso::DescriptorWrite::StorageTexelBuffer(
                     texel_buffer_views
                         .into_iter()
-                        .map(|view| view.deref())
+                        .map(|view| &**view)
                         .collect()
                 ),
                 pso::DescriptorType::UniformBuffer => pso::DescriptorWrite::UniformBuffer(
@@ -1617,7 +1614,7 @@ pub extern "C" fn gfxCreateFramebuffer(
     };
     let attachments = attachments
         .into_iter()
-        .map(|attachment| attachment.deref())
+        .map(|attachment| &**attachment)
         .collect::<Vec<_>>();
 
     let extent = hal::device::Extent {
@@ -2062,20 +2059,20 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     let descriptor_sets = unsafe {
         slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
             .into_iter()
-            .map(|set| set.deref())
+            .map(|set| &**set)
     };
 
     match pipelineBindPoint {
         VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => {
             commandBuffer.bind_graphics_descriptor_sets(
-                layout.deref(),
+                &*layout,
                 firstSet as _,
                 descriptor_sets,
             );
         }
         VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => {
             commandBuffer.bind_compute_descriptor_sets(
-                layout.deref(),
+                &*layout,
                 firstSet as _,
                 descriptor_sets,
             );
@@ -2113,15 +2110,14 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
         .into_iter()
         .zip(offsets.into_iter())
         .map(|(buffer, offset)| {
-            let offset = *offset as _;
             let buffer = match **buffer {
                 Buffer::Buffer(ref buffer) => buffer,
                 Buffer::Unbound(_) => panic!("Non-sparse buffers need to be bound to device memory."),
             };
 
-            (buffer, offset)
+            (buffer, *offset as _)
         })
-        .collect::<Vec<_>>();
+        .collect();
 
     commandBuffer.bind_vertex_buffers(pso::VertexBufferSet(views));
 }
@@ -2864,7 +2860,7 @@ pub extern "C" fn gfxQueuePresentKHR(
     let wait_semaphores = unsafe {
         slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)
             .into_iter()
-            .map(|semaphore| semaphore.deref())
+            .map(|semaphore| &**semaphore)
     };
 
     queue.present(swapchains, wait_semaphores);
