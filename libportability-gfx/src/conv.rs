@@ -346,7 +346,7 @@ pub fn map_stage_flags(stages: VkShaderStageFlags) -> pso::ShaderStageFlags {
 pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineStage {
     let max_flag = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_HOST_BIT as u32;
 
-    if (stages & 1 << (max_flag + 1) - 1) == 0 {
+    if (stages & !((max_flag << 1) - 1)) == 0 {
         // HAL flags have the same numeric representation as Vulkan flags
         unsafe { mem::transmute(stages) }
     } else {

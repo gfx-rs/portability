@@ -5,7 +5,7 @@ use hal::{
 };
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
-use hal::command::{ClearValueRaw, RawCommandBuffer, Rect};
+use hal::command::{ClearValueRaw, RawCommandBuffer, Rect, Viewport};
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
@@ -919,7 +919,10 @@ pub extern "C" fn gfxCreatePipelineCache(
     pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    unimplemented!()
+    // unimplemented!()
+    // TODO
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipelineCache(
@@ -1275,15 +1278,16 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
     let pipelines = gpu.device.create_graphics_pipelines(&descs);
 
-    unsafe {
+    let pipelines = unsafe {
         slice::from_raw_parts_mut(pPipelines, descs.len())
             .into_iter()
             .zip(pipelines.into_iter())
-            .map(|(pipeline, raw)| {
-                if let Ok(raw) = raw {
-                    *pipeline = Handle::new(Pipeline::Graphics(raw));
-                }
-            });
+    };
+
+    for (pipeline, raw) in pipelines {
+        if let Ok(raw) = raw {
+            *pipeline = Handle::new(Pipeline::Graphics(raw));
+        }
     }
 
     VkResult::VK_SUCCESS
@@ -1930,29 +1934,65 @@ pub extern "C" fn gfxResetCommandBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindPipeline(
-    commandBuffer: VkCommandBuffer,
-    pipelineBindPoint: VkPipelineBindPoint,
+    mut commandBuffer: VkCommandBuffer,
+    _pipelineBindPoint: VkPipelineBindPoint, // ignore, needs to match by spec
     pipeline: VkPipeline,
 ) {
-    unimplemented!()
+    match *pipeline {
+        Pipeline::Graphics(ref pipeline) => commandBuffer.bind_graphics_pipeline(pipeline),
+        Pipeline::Compute(ref pipeline) => commandBuffer.bind_compute_pipeline(pipeline),
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetViewport(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     firstViewport: u32,
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    unimplemented!()
+    assert_eq!(firstViewport, 0); // TODO
+
+    let viewports = unsafe {
+        slice::from_raw_parts(pViewports, viewportCount as _)
+            .into_iter()
+            .map(|viewport| {
+                Viewport {
+                    rect: Rect {
+                        x: viewport.x as _,
+                        y: viewport.y as _,
+                        w: viewport.width as _,
+                        h: viewport.height as _,
+                    },
+                    depth: viewport.minDepth .. viewport.maxDepth,
+                }
+            })
+    };
+
+    commandBuffer.set_viewports(viewports);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetScissor(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     firstScissor: u32,
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    unimplemented!()
+    assert_eq!(firstScissor, 0); // TODO
+
+    let scissors = unsafe {
+        slice::from_raw_parts(pScissors, scissorCount as _)
+            .into_iter()
+            .map(|scissor| {
+                Rect {
+                    x: scissor.offset.x as _,
+                    y: scissor.offset.y as _,
+                    w: scissor.extent.width as _,
+                    h: scissor.extent.height as _,
+                }
+            })
+    };
+
+    commandBuffer.set_scissors(scissors);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {
@@ -2008,7 +2048,7 @@ pub extern "C" fn gfxCmdSetStencilReference(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindDescriptorSets(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     pipelineBindPoint: VkPipelineBindPoint,
     layout: VkPipelineLayout,
     firstSet: u32,
@@ -2017,7 +2057,31 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     dynamicOffsetCount: u32,
     pDynamicOffsets: *const u32,
 ) {
-    unimplemented!()
+    assert_eq!(dynamicOffsetCount, 0); // TODO
+
+    let descriptor_sets = unsafe {
+        slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
+            .into_iter()
+            .map(|set| set.deref())
+    };
+
+    match pipelineBindPoint {
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => {
+            commandBuffer.bind_graphics_descriptor_sets(
+                layout.deref(),
+                firstSet as _,
+                descriptor_sets,
+            );
+        }
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => {
+            commandBuffer.bind_compute_descriptor_sets(
+                layout.deref(),
+                firstSet as _,
+                descriptor_sets,
+            );
+        }
+        _ => panic!("Unexpected pipeline bind point: {:?}", pipelineBindPoint),
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdBindIndexBuffer(
@@ -2063,13 +2127,16 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
 }
 #[inline]
 pub extern "C" fn gfxCmdDraw(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     vertexCount: u32,
     instanceCount: u32,
     firstVertex: u32,
     firstInstance: u32,
 ) {
-    unimplemented!()
+    commandBuffer.draw(
+        firstVertex .. firstVertex + vertexCount,
+        firstInstance .. firstInstance + instanceCount,
+    )
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexed(
@@ -2784,8 +2851,23 @@ pub extern "C" fn gfxAcquireNextImageKHR(
 }
 #[inline]
 pub extern "C" fn gfxQueuePresentKHR(
-    queue: VkQueue,
+    mut queue: VkQueue,
     pPresentInfo: *const VkPresentInfoKHR,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pPresentInfo };
+
+    let swapchains = unsafe {
+        slice::from_raw_parts_mut(info.pSwapchains as *mut VkSwapchainKHR, info.swapchainCount as _)
+            .into_iter()
+            .map(|swapchain| &mut swapchain.raw)
+    };
+    let wait_semaphores = unsafe {
+        slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)
+            .into_iter()
+            .map(|semaphore| semaphore.deref())
+    };
+
+    queue.present(swapchains, wait_semaphores);
+
+    VkResult::VK_SUCCESS
 }
