@@ -4,6 +4,10 @@ extern crate portability_gfx;
 
 use portability_gfx::*;
 
+// These are only shims, reexporting the gfx functions with an vk prefix.
+// IMPORTANT: These should only foward parameters to the gfx implementation,
+//            don't include any further logic.
+
 #[no_mangle]
 pub extern "C" fn vkCreateInstance(
     pCreateInfo: *const VkInstanceCreateInfo,

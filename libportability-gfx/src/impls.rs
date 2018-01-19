@@ -17,6 +17,25 @@ use super::*;
 const VERSION: (u32, u32, u32) = (1, 0, 66);
 const DRIVER_VERSION: u32 = 1;
 
+pub type PFN_vkCreateInstance = ::std::option::Option<unsafe extern "C" fn(
+    pCreateInfo: *const VkInstanceCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pInstance: *mut VkInstance,
+) -> VkResult>;
+
+macro_rules! proc_addr {
+    ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr),*) => (
+        match $name {
+            $(
+                stringify!($vk) => unsafe {
+                    mem::transmute::<$pfn_vk, _>(Some(*&$gfx))
+                }
+            ),*
+            _ => None
+        }
+    );
+}
+
 #[inline]
 pub extern "C" fn gfxCreateInstance(
     _pCreateInfo: *const VkInstanceCreateInfo,
@@ -109,7 +128,9 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures(
     adapter: VkPhysicalDevice,
     pFeatures: *mut VkPhysicalDeviceFeatures,
 ) {
-    unimplemented!()
+    let features = adapter.physical_device.get_features();
+
+    // TODO: fill in information
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
@@ -201,7 +222,21 @@ pub extern "C" fn gfxGetInstanceProcAddr(
     instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    unimplemented!()
+    let name = unsafe { CStr::from_ptr(pName) };
+    let name = match name.to_str() {
+        Ok(name) => name,
+        Err(_) => return None,
+    };
+
+    proc_addr!{ name,
+        vkCreateInstance, PFN_vkCreateInstance => gfxCreateInstance,
+        vkEnumerateInstanceExtensionProperties, PFN_vkEnumerateInstanceExtensionProperties => gfxEnumerateInstanceExtensionProperties,
+
+        vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR => gfxGetPhysicalDeviceSurfaceSupportKHR,
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
+        vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR => gfxGetPhysicalDeviceSurfaceFormatsKHR,
+        vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR
+    }
 }
 
 #[inline]
@@ -209,7 +244,19 @@ pub extern "C" fn gfxGetDeviceProcAddr(
     device: VkDevice,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    unimplemented!()
+    let name = unsafe { CStr::from_ptr(pName) };
+    let name = match name.to_str() {
+        Ok(name) => name,
+        Err(_) => return None,
+    };
+
+    proc_addr!{ name,
+        vkCreateSwapchainKHR, PFN_vkCreateSwapchainKHR => gfxCreateSwapchainKHR,
+        vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR => gfxDestroySwapchainKHR,
+        vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR => gfxGetSwapchainImagesKHR,
+        vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR => gfxAcquireNextImageKHR,
+        vkQueuePresentKHR, PFN_vkQueuePresentKHR => gfxQueuePresentKHR
+    }
 }
 
 #[inline]
@@ -321,17 +368,20 @@ pub extern "C" fn gfxEnumerateInstanceExtensionProperties(
 
 #[inline]
 pub extern "C" fn gfxEnumerateDeviceExtensionProperties(
-    physicalDevice: VkPhysicalDevice,
-    pLayerName: *const ::std::os::raw::c_char,
+    _physicalDevice: VkPhysicalDevice,
+    _pLayerName: *const ::std::os::raw::c_char,
     pPropertyCount: *mut u32,
-    pProperties: *mut VkExtensionProperties,
+    _pProperties: *mut VkExtensionProperties,
 ) -> VkResult {
-    unimplemented!()
+    // TODO: dummy implementation
+    unsafe { *pPropertyCount = 0; }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxEnumerateInstanceLayerProperties(
     pPropertyCount: *mut u32,
-    pProperties: *mut VkLayerProperties,
+    _pProperties: *mut VkLayerProperties,
 ) -> VkResult {
     // TODO: dummy implementation
     unsafe { *pPropertyCount = 0; }
@@ -2476,7 +2526,7 @@ pub extern "C" fn gfxDestroySurfaceKHR(
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceSupportKHR(
+pub extern fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     adapter: VkPhysicalDevice,
     queueFamilyIndex: u32,
     surface: VkSurfaceKHR,
