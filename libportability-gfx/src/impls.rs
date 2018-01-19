@@ -44,6 +44,13 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     pPhysicalDevices: *mut VkPhysicalDevice,
 ) -> VkResult {
     let adapters = instance.enumerate_adapters();
+
+    // If NULL, number of devices is returned.
+    if pPhysicalDevices.is_null() {
+        unsafe { *pPhysicalDeviceCount = adapters.len() as _ };
+        return VkResult::VK_SUCCESS;
+    }
+
     let output = unsafe { slice::from_raw_parts_mut(pPhysicalDevices, *pPhysicalDeviceCount as _) };
     let count = cmp::min(adapters.len(), output.len());
 
@@ -1118,6 +1125,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             let input_state = unsafe { &*info.pInputAssemblyState };
             let tessellation_state = shaders
                 .hull
+                .as_ref()
                 .map(|_| unsafe { &*info.pTessellationState });
 
             assert_eq!(input_state.primitiveRestartEnable, VK_FALSE); // TODO
