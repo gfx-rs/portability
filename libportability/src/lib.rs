@@ -906,7 +906,7 @@ pub extern "C" fn vkResetCommandBuffer(
     commandBuffer: VkCommandBuffer,
     flags: VkCommandBufferResetFlags,
 ) -> VkResult {
-    unimplemented!()
+    gfxResetCommandBuffer(commandBuffer, flags)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBindPipeline(
@@ -914,7 +914,7 @@ pub extern "C" fn vkCmdBindPipeline(
     pipelineBindPoint: VkPipelineBindPoint,
     pipeline: VkPipeline,
 ) {
-    unimplemented!()
+    gfxCmdBindPipeline(commandBuffer, pipelineBindPoint, pipeline)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetViewport(
@@ -923,7 +923,7 @@ pub extern "C" fn vkCmdSetViewport(
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    unimplemented!()
+    gfxCmdSetViewport(commandBuffer, firstViewport, viewportCount, pViewports)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetScissor(
@@ -932,11 +932,11 @@ pub extern "C" fn vkCmdSetScissor(
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    unimplemented!()
+    gfxCmdSetScissor(commandBuffer, firstScissor, scissorCount, pScissors)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {
-    unimplemented!()
+    gfxCmdSetLineWidth(commandBuffer, lineWidth)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetDepthBias(
@@ -945,14 +945,19 @@ pub extern "C" fn vkCmdSetDepthBias(
     depthBiasClamp: f32,
     depthBiasSlopeFactor: f32,
 ) {
-    unimplemented!()
+    gfxCmdSetDepthBias(
+        commandBuffer,
+        depthBiasConstantFactor,
+        depthBiasClamp,
+        depthBiasSlopeFactor,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetBlendConstants(
     commandBuffer: VkCommandBuffer,
     blendConstants: *const f32,
 ) {
-    unimplemented!()
+    gfxCmdSetBlendConstants(commandBuffer, blendConstants)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetDepthBounds(
@@ -960,7 +965,7 @@ pub extern "C" fn vkCmdSetDepthBounds(
     minDepthBounds: f32,
     maxDepthBounds: f32,
 ) {
-    unimplemented!()
+    gfxCmdSetDepthBounds(commandBuffer, minDepthBounds, maxDepthBounds)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetStencilCompareMask(
@@ -968,7 +973,7 @@ pub extern "C" fn vkCmdSetStencilCompareMask(
     faceMask: VkStencilFaceFlags,
     compareMask: u32,
 ) {
-    unimplemented!()
+    gfxCmdSetStencilCompareMask(commandBuffer, faceMask, compareMask)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetStencilWriteMask(
@@ -997,7 +1002,16 @@ pub extern "C" fn vkCmdBindDescriptorSets(
     dynamicOffsetCount: u32,
     pDynamicOffsets: *const u32,
 ) {
-    unimplemented!()
+    gfxCmdBindDescriptorSets(
+        commandBuffer,
+        pipelineBindPoint,
+        layout,
+        firstSet,
+        descriptorSetCount,
+        pDescriptorSets,
+        dynamicOffsetCount,
+        pDynamicOffsets,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBindIndexBuffer(
@@ -1006,7 +1020,7 @@ pub extern "C" fn vkCmdBindIndexBuffer(
     offset: VkDeviceSize,
     indexType: VkIndexType,
 ) {
-    unimplemented!()
+    gfxCmdBindIndexBuffer(commandBuffer, buffer, offset, indexType)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBindVertexBuffers(
@@ -1016,7 +1030,13 @@ pub extern "C" fn vkCmdBindVertexBuffers(
     pBuffers: *const VkBuffer,
     pOffsets: *const VkDeviceSize,
 ) {
-    unimplemented!()
+    gfxCmdBindVertexBuffers(
+        commandBuffer,
+        firstBinding,
+        bindingCount,
+        pBuffers,
+        pOffsets,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDraw(
@@ -1026,7 +1046,7 @@ pub extern "C" fn vkCmdDraw(
     firstVertex: u32,
     firstInstance: u32,
 ) {
-    unimplemented!()
+    gfxCmdDraw(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDrawIndexed(
@@ -1037,7 +1057,14 @@ pub extern "C" fn vkCmdDrawIndexed(
     vertexOffset: i32,
     firstInstance: u32,
 ) {
-    unimplemented!()
+    gfxCmdDrawIndexed(
+        commandBuffer,
+        indexCount,
+        instanceCount,
+        firstIndex,
+        vertexOffset,
+        firstInstance,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDrawIndirect(
@@ -1290,7 +1317,16 @@ pub extern "C" fn vkCmdCopyQueryPoolResults(
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) {
-    unimplemented!()
+    gfxCmdCopyQueryPoolResults(
+        commandBuffer,
+        queryPool,
+        firstQuery,
+        queryCount,
+        dstBuffer,
+        dstOffset,
+        stride,
+        flags,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdPushConstants(
@@ -1301,7 +1337,7 @@ pub extern "C" fn vkCmdPushConstants(
     size: u32,
     pValues: *const ::std::os::raw::c_void,
 ) {
-    unimplemented!()
+    gfxCmdPushConstants(commandBuffer, layout, stageFlags, offset, size, pValues)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBeginRenderPass(
@@ -1309,15 +1345,15 @@ pub extern "C" fn vkCmdBeginRenderPass(
     pRenderPassBegin: *const VkRenderPassBeginInfo,
     contents: VkSubpassContents,
 ) {
-    unimplemented!()
+    gfxCmdBeginRenderPass(commandBuffer, pRenderPassBegin, contents)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: VkSubpassContents) {
-    unimplemented!()
+    gfxCmdNextSubpass(commandBuffer, contents)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdEndRenderPass(commandBuffer: VkCommandBuffer) {
-    unimplemented!()
+    gfxCmdEndRenderPass(commandBuffer)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdExecuteCommands(
@@ -1325,7 +1361,7 @@ pub extern "C" fn vkCmdExecuteCommands(
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    unimplemented!()
+    gfxCmdExecuteCommands(commandBuffer, commandBufferCount, pCommandBuffers)
 }
 #[no_mangle]
 pub extern "C" fn vkAcquireNextImageKHR(
@@ -1350,7 +1386,7 @@ pub extern "C" fn vkQueuePresentKHR(
     queue: VkQueue,
     pPresentInfo: *const VkPresentInfoKHR,
 ) -> VkResult {
-    unimplemented!()
+    gfxQueuePresentKHR(queue, pPresentInfo)
 }
 #[no_mangle]
 pub extern "C" fn vkEnumerateInstanceExtensionProperties(

@@ -1,4 +1,5 @@
-use hal::{adapter, buffer, format, image, memory, pass, pso, window};
+use hal::{adapter, buffer, command, format, image, memory, pass, pso, window};
+use hal::{PatchSize, Primitive};
 
 use std::mem;
 
@@ -345,7 +346,7 @@ pub fn map_stage_flags(stages: VkShaderStageFlags) -> pso::ShaderStageFlags {
 pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineStage {
     let max_flag = VkPipelineStageFlagBits::VK_PIPELINE_STAGE_HOST_BIT as u32;
 
-    if (stages & 1 << (max_flag + 1) - 1) == 0 {
+    if (stages & !((max_flag << 1) - 1)) == 0 {
         // HAL flags have the same numeric representation as Vulkan flags
         unsafe { mem::transmute(stages) }
     } else {
@@ -429,4 +430,96 @@ pub fn map_image_acces(access: VkAccessFlags) -> image::Access {
     }
 
     mask
+}
+
+pub fn map_subpass_contents(contents: VkSubpassContents) -> command::SubpassContents {
+    match contents {
+        VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE => command::SubpassContents::Inline,
+        VkSubpassContents::VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS =>
+            command::SubpassContents::SecondaryBuffers,
+
+        _ => panic!("Unexpected subpass contents: {:?}", contents),
+    }
+}
+
+pub fn map_polygon_mode(mode: VkPolygonMode, line_width: f32) -> pso::PolygonMode {
+    match mode {
+        VkPolygonMode::VK_POLYGON_MODE_FILL => pso::PolygonMode::Fill,
+        VkPolygonMode::VK_POLYGON_MODE_LINE => pso::PolygonMode::Line(line_width),
+        VkPolygonMode::VK_POLYGON_MODE_POINT => pso::PolygonMode::Point,
+        _ => panic!("Unexpected polygon mode: {:?}", mode),
+    }
+}
+
+pub fn map_cull_face(cull: VkCullModeFlags) -> Option<pso::CullFace> {
+    use super::VkCullModeFlagBits::*;
+
+    if cull == VK_CULL_MODE_NONE as _ { None }
+    else if cull == VK_CULL_MODE_FRONT_BIT as _ { Some(pso::CullFace::Front) }
+    else if cull == VK_CULL_MODE_BACK_BIT as _ { Some(pso::CullFace::Back) }
+    else if cull == VK_CULL_MODE_FRONT_AND_BACK as _ { unimplemented!() } // TODO: can we support it?
+    else { panic!("Unexpected cull mode: {:?}", cull) }
+}
+
+pub fn map_front_face(face: VkFrontFace) -> pso::FrontFace {
+    match face {
+        VkFrontFace::VK_FRONT_FACE_COUNTER_CLOCKWISE => pso::FrontFace::CounterClockwise,
+        VkFrontFace::VK_FRONT_FACE_CLOCKWISE => pso::FrontFace::Clockwise,
+        _ => panic!("Unexpected front face: {:?}", face),
+    }
+}
+
+pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSize) -> hal::Primitive {
+    use super::VkPrimitiveTopology::*;
+
+    match topology {
+        VK_PRIMITIVE_TOPOLOGY_POINT_LIST => Primitive::PointList,
+        VK_PRIMITIVE_TOPOLOGY_LINE_LIST => Primitive::LineList,
+        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP => Primitive::LineStrip,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST => Primitive::TriangleList,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP => Primitive::TriangleStrip,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN =>
+            panic!("`VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN` not supported in portability"),
+        VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY => Primitive::LineListAdjacency,
+        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY => Primitive::LineStripAdjacency,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY => Primitive::TriangleListAdjacency,
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY => Primitive::TriangleStripAdjacency,
+        VK_PRIMITIVE_TOPOLOGY_PATCH_LIST => Primitive::PatchList(patch_size),
+        _ => panic!("Unexpected primitive topology: {:?}", topology),
+    }
+}
+
+pub fn map_compare_op(op: VkCompareOp) -> pso::Comparison {
+    use super::VkCompareOp::*;
+
+    match op {
+        VK_COMPARE_OP_NEVER => pso::Comparison::Never,
+        VK_COMPARE_OP_LESS => pso::Comparison::Less,
+        VK_COMPARE_OP_EQUAL => pso::Comparison::Equal,
+        VK_COMPARE_OP_LESS_OR_EQUAL => pso::Comparison::LessEqual,
+        VK_COMPARE_OP_GREATER => pso::Comparison::Greater,
+        VK_COMPARE_OP_NOT_EQUAL => pso::Comparison::NotEqual,
+        VK_COMPARE_OP_GREATER_OR_EQUAL => pso::Comparison::GreaterEqual,
+        VK_COMPARE_OP_ALWAYS => pso::Comparison::Always,
+        _ => panic!("Unexpected compare op: {:?}", op),
+    }
+}
+
+pub fn map_logic_op(op: VkLogicOp) -> pso::LogicOp {
+    unimplemented!()
+}
+
+pub fn map_stencil_op(op: VkStencilOp) -> pso::StencilOp {
+    unimplemented!()
+}
+
+pub fn map_color_components(mask: VkColorComponentFlags) -> pso::ColorMask {
+    // Vulkan and HAL flags are equal
+    unsafe { mem::transmute(mask as u8) }
+}
+
+pub fn map_blend_op(
+    blend_op: VkBlendOp, src_factor: VkBlendFactor, dst_factor: VkBlendFactor,
+) -> pso::BlendOp {
+    unimplemented!()
 }

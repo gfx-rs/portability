@@ -5,12 +5,12 @@ use hal::{
 };
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
-use hal::command::RawCommandBuffer;
+use hal::command::{ClearValueRaw, RawCommandBuffer, Rect, Viewport};
 use hal::queue::RawCommandQueue;
 
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::mem;
-use std::ops::{Deref, Range};
+use std::ops::Range;
 
 use super::*;
 
@@ -44,6 +44,13 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     pPhysicalDevices: *mut VkPhysicalDevice,
 ) -> VkResult {
     let adapters = instance.enumerate_adapters();
+
+    // If NULL, number of devices is returned.
+    if pPhysicalDevices.is_null() {
+        unsafe { *pPhysicalDeviceCount = adapters.len() as _ };
+        return VkResult::VK_SUCCESS;
+    }
+
     let output = unsafe { slice::from_raw_parts_mut(pPhysicalDevices, *pPhysicalDeviceCount as _) };
     let count = cmp::min(adapters.len(), output.len());
 
@@ -372,13 +379,13 @@ pub extern "C" fn gfxQueueSubmit(
 
         stages.into_iter()
             .zip(semaphores.into_iter())
-            .map(|(stage, semaphore)| (semaphore.deref(), conv::map_pipeline_stage_flags(*stage)))
+            .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
             .collect::<Vec<_>>()
     };
     let signal_semaphores = unsafe {
         slice::from_raw_parts(submission.pSignalSemaphores, submission.signalSemaphoreCount as _)
             .into_iter()
-            .map(|semaphore| semaphore.deref())
+            .map(|semaphore| &**semaphore)
             .collect::<Vec<_>>()
     };
 
@@ -530,7 +537,7 @@ pub extern "C" fn gfxGetBufferMemoryRequirements(
     buffer: VkBuffer,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = match *buffer.deref() {
+    let req = match *buffer {
         Buffer::Buffer(ref buffer) => unimplemented!(),
         Buffer::Unbound(ref buffer) => gpu.device.get_buffer_requirements(buffer),
     };
@@ -547,7 +554,7 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = match *image.deref() {
+    let req = match *image {
         Image::Image(ref image) => unimplemented!(),
         Image::Unbound(ref image) => gpu.device.get_image_requirements(image),
     };
@@ -641,7 +648,7 @@ pub extern "C" fn gfxWaitForFences(
     let fences = unsafe {
         slice::from_raw_parts(pFences, fenceCount as _)
             .into_iter()
-            .map(|fence| fence.deref())
+            .map(|fence| &**fence)
             .collect::<Vec<_>>()
     };
 
@@ -853,7 +860,7 @@ pub extern "C" fn gfxCreateImageView(
     assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
     assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
 
-    let image = match *info.image.deref() {
+    let image = match *info.image {
         Image::Image(ref image) => image,
         // Non-sparse images must be bound prior.
         Image::Unbound(_) => panic!("Can't create view for unbound image"),
@@ -919,7 +926,10 @@ pub extern "C" fn gfxCreatePipelineCache(
     pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    unimplemented!()
+    // unimplemented!()
+    // TODO
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipelineCache(
@@ -949,14 +959,343 @@ pub extern "C" fn gfxMergePipelineCaches(
 }
 #[inline]
 pub extern "C" fn gfxCreateGraphicsPipelines(
-    device: VkDevice,
+    gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkGraphicsPipelineCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    unimplemented!()
+    assert!(pipelineCache.is_null());
+
+    let infos = unsafe {
+        slice::from_raw_parts(pCreateInfos, createInfoCount as _)
+    };
+
+    const NUM_SHADER_STAGES: usize = 5;
+    let mut shader_stages = Vec::with_capacity(infos.len() * NUM_SHADER_STAGES);
+
+    // Collect all information which we will borrow later. Need to work around
+    // the borrow checker here.
+    // TODO: try to refactor it once we have a more generic API
+    for info in infos {
+        let stages = unsafe {
+            slice::from_raw_parts(info.pStages, info.stageCount as _)
+        };
+
+        for stage in stages {
+            let name = unsafe { CStr::from_ptr(stage.pName).to_owned() };
+            let specialization = unsafe { stage
+                .pSpecializationInfo
+                .as_ref()
+                .map(|specialization| {
+                    let data = slice::from_raw_parts(
+                        specialization.pData,
+                        specialization.dataSize as _,
+                    );
+                    let entries = slice::from_raw_parts(
+                        specialization.pMapEntries,
+                        specialization.mapEntryCount as _,
+                    );
+
+                    entries
+                        .into_iter()
+                        .map(|entry| {
+                            // Currently blocked due to lack of specialization type knowledge
+                            unimplemented!()
+                        })
+                        .collect::<Vec<pso::Specialization>>()
+                })
+                .unwrap_or(vec![])
+            };
+
+            shader_stages.push((
+                name.into_string().unwrap(),
+                specialization,
+            ));
+        }
+    }
+
+    let mut cur_shader_stage = 0;
+
+    let descs = infos.into_iter().map(|info| {
+        // TODO: handle dynamic states and viewports
+
+        let shaders = {
+            let mut set: pso::GraphicsShaderSet<_> = unsafe { mem::zeroed() };
+
+            let stages = unsafe {
+                slice::from_raw_parts(info.pStages, info.stageCount as _)
+            };
+
+            for stage in stages {
+                use super::VkShaderStageFlagBits::*;
+
+                let (ref name, ref specialization) = shader_stages[cur_shader_stage];
+                cur_shader_stage += 1;
+
+                let entry_point = pso::EntryPoint {
+                    entry: &name,
+                    module: &*stage.module,
+                    specialization: &specialization,
+                };
+
+                match stage.stage {
+                    VK_SHADER_STAGE_VERTEX_BIT => { set.vertex = entry_point; }
+                    VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => { set.hull = Some(entry_point); }
+                    VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => { set.domain = Some(entry_point); }
+                    VK_SHADER_STAGE_GEOMETRY_BIT => { set.geometry = Some(entry_point); }
+                    VK_SHADER_STAGE_FRAGMENT_BIT => { set.fragment = Some(entry_point); }
+                    stage => panic!("Unexpected shader stage: {:?}", stage),
+                }
+            }
+
+            set
+        };
+
+        let rasterizer = {
+            let state = unsafe { &*info.pRasterizationState };
+
+            assert_eq!(state.rasterizerDiscardEnable, VK_FALSE); // TODO
+            assert_eq!(state.depthBiasEnable, VK_FALSE); // TODO: ready for work
+
+            pso::Rasterizer {
+                polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
+                cull_face: conv::map_cull_face(state.cullMode),
+                front_face: conv::map_front_face(state.frontFace),
+                depth_clamping: state.depthClampEnable == VK_TRUE,
+                depth_bias: None, // TODO
+                conservative: false,
+            }
+        };
+
+        let (vertex_buffers, attributes) = {
+            let input_state = unsafe { &*info.pVertexInputState };
+
+            let bindings = unsafe {
+                slice::from_raw_parts(
+                    input_state.pVertexBindingDescriptions,
+                    input_state.vertexBindingDescriptionCount as _,
+                )
+            };
+            let attributes = unsafe {
+                slice::from_raw_parts(
+                    input_state.pVertexAttributeDescriptions,
+                    input_state.vertexAttributeDescriptionCount as _,
+                )
+            };
+
+            let bindings = bindings
+                .into_iter()
+                .enumerate()
+                .map(|(i, binding)| {
+                    assert_eq!(i, binding.binding as _); // TODO: currently need to be in order
+
+                    let rate = match binding.inputRate {
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => 0,
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => 1,
+                        rate => panic!("Unexpected input rate: {:?}", rate),
+                    };
+
+                    pso::VertexBufferDesc {
+                        stride: binding.stride,
+                        rate,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let attributes = attributes
+                .into_iter()
+                .map(|attrib| {
+                    pso::AttributeDesc {
+                        location: attrib.location,
+                        binding: attrib.binding,
+                        element: pso::Element {
+                            format: conv::map_format(attrib.format).unwrap(), // TODO: undefined allowed?
+                            offset: attrib.offset,
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            (bindings, attributes)
+        };
+
+        let input_assembler = {
+            let input_state = unsafe { &*info.pInputAssemblyState };
+            let tessellation_state = shaders
+                .hull
+                .as_ref()
+                .map(|_| unsafe { &*info.pTessellationState });
+
+            assert_eq!(input_state.primitiveRestartEnable, VK_FALSE); // TODO
+
+            pso::InputAssemblerDesc {
+                primitive: conv::map_primitive_topology(
+                    input_state.topology,
+                    tessellation_state
+                        .map(|state| state.patchControlPoints as _)
+                        .unwrap_or(0),
+                ),
+                primitive_restart: pso::PrimitiveRestart::Disabled, // TODO
+            }
+        };
+
+        // TODO: `pColorBlendState` could contain garbage, but implementations
+        //        can ignore it in some circumstances. How to handle it?
+        let blender = {
+            let mut blend_desc = pso::BlendDesc::default();
+
+            if let Some(state) = unsafe { info.pColorBlendState.as_ref() } {
+                if state.logicOpEnable == VK_TRUE {
+                    blend_desc.logic_op = Some(conv::map_logic_op(state.logicOp));
+                }
+
+                let attachments = unsafe {
+                    slice::from_raw_parts(state.pAttachments, state.attachmentCount as _)
+                };
+                blend_desc.targets = attachments
+                    .into_iter()
+                    .map(|attachment| {
+                        let color_mask = conv::map_color_components(attachment.colorWriteMask);
+
+                        let blend = if attachment.blendEnable == VK_TRUE {
+                            pso::BlendState::On {
+                                color: conv::map_blend_op(
+                                    attachment.colorBlendOp,
+                                    attachment.srcColorBlendFactor,
+                                    attachment.dstColorBlendFactor,
+                                ),
+                                alpha: conv::map_blend_op(
+                                    attachment.alphaBlendOp,
+                                    attachment.srcAlphaBlendFactor,
+                                    attachment.dstAlphaBlendFactor,
+                                ),
+                            }
+                        } else {
+                            pso::BlendState::Off
+                        };
+
+                        pso::ColorBlendDesc(color_mask, blend)
+                    })
+                    .collect();
+            }
+
+            assert!(info.pMultisampleState.is_null());
+
+            blend_desc
+        };
+
+        // TODO: `pDepthStencilState` could contain garbage, but implementations
+        //        can ignore it in some circumstances. How to handle it?
+        let depth_stencil = unsafe { info
+            .pDepthStencilState
+            .as_ref()
+            .map(|state| {
+                let depth_test = if state.depthTestEnable == VK_TRUE {
+                    pso::DepthTest::On {
+                        fun: conv::map_compare_op(state.depthCompareOp),
+                        write: state.depthWriteEnable == VK_TRUE,
+                    }
+                } else {
+                    pso::DepthTest::Off
+                };
+
+                fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
+                    // TODO: reference value
+                    pso::StencilFace {
+                        fun: conv::map_compare_op(state.compareOp),
+                        mask_read: state.compareMask,
+                        mask_write: state.writeMask,
+                        op_fail: conv::map_stencil_op(state.failOp),
+                        op_depth_fail: conv::map_stencil_op(state.depthFailOp),
+                        op_pass: conv::map_stencil_op(state.passOp),
+                    }
+                }
+
+                let stencil_test = if state.stencilTestEnable == VK_TRUE {
+                    pso::StencilTest::On {
+                        front: map_stencil_state(state.front),
+                        back: map_stencil_state(state.back),
+                    }
+                } else {
+                    pso::StencilTest::Off
+                };
+
+                // TODO: depth bounds
+
+                pso::DepthStencilDesc {
+                    depth: depth_test,
+                    depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
+                    stencil: stencil_test,
+                }
+            })
+        };
+
+        let layout = &*info.layout;
+        let subpass = pass::Subpass {
+            index: info.subpass as _,
+            main_pass: &*info.renderPass,
+        };
+
+        let flags = {
+            let mut flags = pso::PipelineCreationFlags::empty();
+
+            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT as u32 != 0 {
+                flags |= pso::PipelineCreationFlags::DISABLE_OPTIMIZATION;
+            }
+            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT as u32 != 0 {
+                flags |= pso::PipelineCreationFlags::ALLOW_DERIVATIVES;
+            }
+
+            flags
+        };
+
+        let parent = {
+            let is_derivative = info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DERIVATIVE_BIT as u32 != 0;
+
+            if !info.basePipelineHandle.is_null() {
+                match *info.basePipelineHandle {
+                    Pipeline::Graphics(ref graphics) => pso::BasePipeline::Pipeline(graphics),
+                    Pipeline::Compute(_) => panic!("Base pipeline handle must be a graphics pipeline"),
+                }
+            } else if is_derivative && info.basePipelineIndex > 0 {
+                pso::BasePipeline::Index(info.basePipelineIndex as _)
+            } else {
+                pso::BasePipeline::None // TODO
+            }
+        };
+
+        pso::GraphicsPipelineDesc {
+            shaders,
+            rasterizer,
+            vertex_buffers,
+            attributes,
+            input_assembler,
+            blender,
+            depth_stencil,
+            layout,
+            subpass,
+            flags,
+            parent,
+        }
+    }).collect::<Vec<_>>();
+
+    let pipelines = gpu.device.create_graphics_pipelines(&descs);
+
+    let pipelines = unsafe {
+        slice::from_raw_parts_mut(pPipelines, descs.len())
+            .into_iter()
+            .zip(pipelines.into_iter())
+    };
+
+    for (pipeline, raw) in pipelines {
+        if let Ok(raw) = raw {
+            *pipeline = Handle::new(Pipeline::Graphics(raw));
+        }
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxCreateComputePipelines(
@@ -971,11 +1310,16 @@ pub extern "C" fn gfxCreateComputePipelines(
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipeline(
-    device: VkDevice,
+    gpu: VkDevice,
     pipeline: VkPipeline,
     pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !pipeline.is_null() {
+        match *pipeline.unwrap() {
+            Pipeline::Graphics(pipeline) => gpu.device.destroy_graphics_pipeline(pipeline),
+            Pipeline::Compute(pipeline) => gpu.device.destroy_compute_pipeline(pipeline),
+        }
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineLayout(
@@ -994,7 +1338,7 @@ pub extern "C" fn gfxCreatePipelineLayout(
 
     let layouts = set_layouts
         .iter()
-        .map(|layout| layout.deref())
+        .map(|layout| &**layout)
         .collect::<Vec<&<B as Backend>::DescriptorSetLayout>>();
 
     let ranges = push_constants
@@ -1140,7 +1484,7 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     };
     let layouts = set_layouts
         .iter()
-        .map(|layout| layout.deref())
+        .map(|layout| &**layout)
         .collect::<Vec<_>>();
 
     let descriptor_sets = pool.allocate_sets(&layouts);
@@ -1185,11 +1529,11 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                     .map(|buffer| {
                         assert_ne!(buffer.range as i32, VK_WHOLE_SIZE);
                         (
-                            match buffer.buffer.deref() {
-                                &Buffer::Buffer(ref buf) => buf,
+                            match *buffer.buffer {
+                                Buffer::Buffer(ref buf) => buf,
                                 // Vulkan portability restriction:
                                 // Non-sparse buffer need to be bound to device memory.
-                                &Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
+                                Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
                             },
                             buffer.offset .. buffer.offset+buffer.range,
                         )
@@ -1230,13 +1574,13 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                 pso::DescriptorType::UniformTexelBuffer => pso::DescriptorWrite::UniformTexelBuffer(
                     texel_buffer_views
                         .into_iter()
-                        .map(|view| view.deref())
+                        .map(|view| &**view)
                         .collect()
                 ),
                 pso::DescriptorType::StorageTexelBuffer => pso::DescriptorWrite::StorageTexelBuffer(
                     texel_buffer_views
                         .into_iter()
-                        .map(|view| view.deref())
+                        .map(|view| &**view)
                         .collect()
                 ),
                 pso::DescriptorType::UniformBuffer => pso::DescriptorWrite::UniformBuffer(
@@ -1278,7 +1622,7 @@ pub extern "C" fn gfxCreateFramebuffer(
     };
     let attachments = attachments
         .into_iter()
-        .map(|attachment| attachment.deref())
+        .map(|attachment| &**attachment)
         .collect::<Vec<_>>();
 
     let extent = hal::device::Extent {
@@ -1595,29 +1939,65 @@ pub extern "C" fn gfxResetCommandBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindPipeline(
-    commandBuffer: VkCommandBuffer,
-    pipelineBindPoint: VkPipelineBindPoint,
+    mut commandBuffer: VkCommandBuffer,
+    _pipelineBindPoint: VkPipelineBindPoint, // ignore, needs to match by spec
     pipeline: VkPipeline,
 ) {
-    unimplemented!()
+    match *pipeline {
+        Pipeline::Graphics(ref pipeline) => commandBuffer.bind_graphics_pipeline(pipeline),
+        Pipeline::Compute(ref pipeline) => commandBuffer.bind_compute_pipeline(pipeline),
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetViewport(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     firstViewport: u32,
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    unimplemented!()
+    assert_eq!(firstViewport, 0); // TODO
+
+    let viewports = unsafe {
+        slice::from_raw_parts(pViewports, viewportCount as _)
+            .into_iter()
+            .map(|viewport| {
+                Viewport {
+                    rect: Rect {
+                        x: viewport.x as _,
+                        y: viewport.y as _,
+                        w: viewport.width as _,
+                        h: viewport.height as _,
+                    },
+                    depth: viewport.minDepth .. viewport.maxDepth,
+                }
+            })
+    };
+
+    commandBuffer.set_viewports(viewports);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetScissor(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     firstScissor: u32,
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    unimplemented!()
+    assert_eq!(firstScissor, 0); // TODO
+
+    let scissors = unsafe {
+        slice::from_raw_parts(pScissors, scissorCount as _)
+            .into_iter()
+            .map(|scissor| {
+                Rect {
+                    x: scissor.offset.x as _,
+                    y: scissor.offset.y as _,
+                    w: scissor.extent.width as _,
+                    h: scissor.extent.height as _,
+                }
+            })
+    };
+
+    commandBuffer.set_scissors(scissors);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {
@@ -1673,7 +2053,7 @@ pub extern "C" fn gfxCmdSetStencilReference(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindDescriptorSets(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     pipelineBindPoint: VkPipelineBindPoint,
     layout: VkPipelineLayout,
     firstSet: u32,
@@ -1682,7 +2062,31 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     dynamicOffsetCount: u32,
     pDynamicOffsets: *const u32,
 ) {
-    unimplemented!()
+    assert_eq!(dynamicOffsetCount, 0); // TODO
+
+    let descriptor_sets = unsafe {
+        slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
+            .into_iter()
+            .map(|set| &**set)
+    };
+
+    match pipelineBindPoint {
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => {
+            commandBuffer.bind_graphics_descriptor_sets(
+                &*layout,
+                firstSet as _,
+                descriptor_sets,
+            );
+        }
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => {
+            commandBuffer.bind_compute_descriptor_sets(
+                &*layout,
+                firstSet as _,
+                descriptor_sets,
+            );
+        }
+        _ => panic!("Unexpected pipeline bind point: {:?}", pipelineBindPoint),
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdBindIndexBuffer(
@@ -1695,23 +2099,48 @@ pub extern "C" fn gfxCmdBindIndexBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindVertexBuffers(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     firstBinding: u32,
     bindingCount: u32,
     pBuffers: *const VkBuffer,
     pOffsets: *const VkDeviceSize,
 ) {
-    unimplemented!()
+    assert_eq!(firstBinding, 0); // TODO
+
+    let buffers = unsafe {
+        slice::from_raw_parts(pBuffers, bindingCount as _)
+    };
+    let offsets = unsafe {
+        slice::from_raw_parts(pOffsets, bindingCount as _)
+    };
+
+    let views = buffers
+        .into_iter()
+        .zip(offsets.into_iter())
+        .map(|(buffer, offset)| {
+            let buffer = match **buffer {
+                Buffer::Buffer(ref buffer) => buffer,
+                Buffer::Unbound(_) => panic!("Non-sparse buffers need to be bound to device memory."),
+            };
+
+            (buffer, *offset as _)
+        })
+        .collect();
+
+    commandBuffer.bind_vertex_buffers(pso::VertexBufferSet(views));
 }
 #[inline]
 pub extern "C" fn gfxCmdDraw(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     vertexCount: u32,
     instanceCount: u32,
     firstVertex: u32,
     firstInstance: u32,
 ) {
-    unimplemented!()
+    commandBuffer.draw(
+        firstVertex .. firstVertex + vertexCount,
+        firstInstance .. firstInstance + instanceCount,
+    )
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexed(
@@ -1990,19 +2419,43 @@ pub extern "C" fn gfxCmdPushConstants(
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginRenderPass(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     pRenderPassBegin: *const VkRenderPassBeginInfo,
     contents: VkSubpassContents,
 ) {
-    unimplemented!()
+    let info = unsafe { &*pRenderPassBegin };
+
+    let render_area = Rect {
+        x: info.renderArea.offset.x as _,
+        y: info.renderArea.offset.y as _,
+        w: info.renderArea.extent.width as _,
+        h: info.renderArea.extent.height as _,
+    };
+    let clear_values = unsafe {
+        slice::from_raw_parts(info.pClearValues, info.clearValueCount as _)
+            .into_iter()
+            .map(|cv| {
+                // HAL and Vulkan clear value union sharing same memory representation
+                mem::transmute::<_, ClearValueRaw>(*cv)
+            })
+    };
+    let contents = conv::map_subpass_contents(contents);
+
+    commandBuffer.begin_renderpass_raw(
+        &*info.renderPass,
+        &*info.framebuffer,
+        render_area,
+        clear_values,
+        contents,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: VkSubpassContents) {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCmdEndRenderPass(commandBuffer: VkCommandBuffer) {
-    unimplemented!()
+pub extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
+    commandBuffer.end_renderpass();
 }
 #[inline]
 pub extern "C" fn gfxCmdExecuteCommands(
@@ -2402,8 +2855,23 @@ pub extern "C" fn gfxAcquireNextImageKHR(
 }
 #[inline]
 pub extern "C" fn gfxQueuePresentKHR(
-    queue: VkQueue,
+    mut queue: VkQueue,
     pPresentInfo: *const VkPresentInfoKHR,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pPresentInfo };
+
+    let swapchains = unsafe {
+        slice::from_raw_parts_mut(info.pSwapchains as *mut VkSwapchainKHR, info.swapchainCount as _)
+            .into_iter()
+            .map(|swapchain| &mut swapchain.raw)
+    };
+    let wait_semaphores = unsafe {
+        slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)
+            .into_iter()
+            .map(|semaphore| &**semaphore)
+    };
+
+    queue.present(swapchains, wait_semaphores);
+
+    VkResult::VK_SUCCESS
 }
