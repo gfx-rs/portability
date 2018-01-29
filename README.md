@@ -26,3 +26,13 @@ cd build
 cmake ..
 cmake --build . --target native_test
 ```
+
+## Running Samples
+
+### LunarG (API-Samples)
+After building `portability` as shown above, grab a copy from https://github.com/LunarG/VulkanSamples.
+Manually override the [`VULKAN_LOADER`](https://github.com/LunarG/VulkanSamples/blob/master/API-Samples/CMakeLists.txt#L189-L194) variable and set it to the portability library.
+```
+set (VULKAN_LOADER "path/to/portability/library")
+```
+Then proceed with the normal build instructions.
