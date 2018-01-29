@@ -10,32 +10,12 @@ use std::ptr;
 
 const ICD_VERSION: u32 = 5;
 
-macro_rules! proc_addr {
-    ($name:expr, $($vk:pat => $gfx:expr),*) => (
-        match $name {
-            $(
-                stringify!($vk) => unsafe { mem::transmute::<_, PFN_vkVoidFunction>($gfx as *const ()) }
-            ),*
-            _ => None
-        }
-    );
-}
-
 #[no_mangle]
 pub extern "C" fn vk_icdGetInstanceProcAddr(
     instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    let name = unsafe { CStr::from_ptr(pName) };
-    let name = match name.to_str() {
-        Ok(name) => name,
-        Err(_) => return None,
-    };
-
-    proc_addr!{ name,
-        vkCreateInstance => gfxCreateInstance,
-        vkEnumerateInstanceExtensionProperties => gfxEnumerateInstanceExtensionProperties
-    }
+    gfxGetInstanceProcAddr(instance, pName)
 }
 
 #[no_mangle]
@@ -55,5 +35,5 @@ pub extern "C" fn vk_icdGetPhysicalDeviceProcAddr(
     instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    unimplemented!()
+    gfxGetPhysicslDeviceProcAddr(instance, pName)
 }

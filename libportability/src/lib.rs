@@ -4,6 +4,10 @@ extern crate portability_gfx;
 
 use portability_gfx::*;
 
+// These are only shims, reexporting the gfx functions with an vk prefix.
+// IMPORTANT: These should only foward parameters to the gfx implementation,
+//            don't include any further logic.
+
 #[no_mangle]
 pub extern "C" fn vkCreateInstance(
     pCreateInfo: *const VkInstanceCreateInfo,
@@ -981,7 +985,7 @@ pub extern "C" fn vkCmdSetStencilWriteMask(
     faceMask: VkStencilFaceFlags,
     writeMask: u32,
 ) {
-    unimplemented!()
+    gfxCmdSetStencilWriteMask(commandBuffer, faceMask, writeMask)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetStencilReference(
@@ -989,7 +993,7 @@ pub extern "C" fn vkCmdSetStencilReference(
     faceMask: VkStencilFaceFlags,
     reference: u32,
 ) {
-    unimplemented!()
+    gfxCmdSetStencilReference(commandBuffer, faceMask, reference)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBindDescriptorSets(
@@ -1074,7 +1078,7 @@ pub extern "C" fn vkCmdDrawIndirect(
     drawCount: u32,
     stride: u32,
 ) {
-    unimplemented!()
+    gfxCmdDrawIndirect(commandBuffer, buffer, offset, drawCount, stride)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDrawIndexedIndirect(
@@ -1084,7 +1088,7 @@ pub extern "C" fn vkCmdDrawIndexedIndirect(
     drawCount: u32,
     stride: u32,
 ) {
-    unimplemented!()
+    gfxCmdDrawIndexedIndirect(commandBuffer, buffer, offset, drawCount, stride)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDispatch(
@@ -1093,7 +1097,7 @@ pub extern "C" fn vkCmdDispatch(
     groupCountY: u32,
     groupCountZ: u32,
 ) {
-    unimplemented!()
+    gfxCmdDispatch(commandBuffer, groupCountX, groupCountY, groupCountZ)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDispatchIndirect(
@@ -1101,7 +1105,7 @@ pub extern "C" fn vkCmdDispatchIndirect(
     buffer: VkBuffer,
     offset: VkDeviceSize,
 ) {
-    unimplemented!()
+    gfxCmdDispatchIndirect(commandBuffer, buffer, offset)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdCopyBuffer(
@@ -1111,7 +1115,7 @@ pub extern "C" fn vkCmdCopyBuffer(
     regionCount: u32,
     pRegions: *const VkBufferCopy,
 ) {
-    unimplemented!()
+    gfxCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, regionCount, pRegions)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdCopyImage(
@@ -1123,7 +1127,15 @@ pub extern "C" fn vkCmdCopyImage(
     regionCount: u32,
     pRegions: *const VkImageCopy,
 ) {
-    unimplemented!()
+    gfxCmdCopyImage(
+        commandBuffer,
+        srcImage,
+        srcImageLayout,
+        dstImage,
+        dstImageLayout,
+        regionCount,
+        pRegions,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBlitImage(
@@ -1136,7 +1148,16 @@ pub extern "C" fn vkCmdBlitImage(
     pRegions: *const VkImageBlit,
     filter: VkFilter,
 ) {
-    unimplemented!()
+    gfxCmdBlitImage(
+        commandBuffer,
+        srcImage,
+        srcImageLayout,
+        dstImage,
+        dstImageLayout,
+        regionCount,
+        pRegions,
+        filter,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdCopyBufferToImage(
@@ -1147,7 +1168,14 @@ pub extern "C" fn vkCmdCopyBufferToImage(
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
-    unimplemented!()
+    gfxCmdCopyBufferToImage(
+        commandBuffer,
+        srcBuffer,
+        dstImage,
+        dstImageLayout,
+        regionCount,
+        pRegions,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdCopyImageToBuffer(
@@ -1158,7 +1186,14 @@ pub extern "C" fn vkCmdCopyImageToBuffer(
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
-    unimplemented!()
+    gfxCmdCopyImageToBuffer(
+        commandBuffer,
+        srcImage,
+        srcImageLayout,
+        dstBuffer,
+        regionCount,
+        pRegions,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdUpdateBuffer(
@@ -1168,7 +1203,13 @@ pub extern "C" fn vkCmdUpdateBuffer(
     dataSize: VkDeviceSize,
     pData: *const ::std::os::raw::c_void,
 ) {
-    unimplemented!()
+    gfxCmdUpdateBuffer(
+        commandBuffer,
+        dstBuffer,
+        dstOffset,
+        dataSize,
+        pData,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdFillBuffer(
@@ -1178,7 +1219,7 @@ pub extern "C" fn vkCmdFillBuffer(
     size: VkDeviceSize,
     data: u32,
 ) {
-    unimplemented!()
+    gfxCmdFillBuffer(commandBuffer, dstBuffer, dstOffset, size, data)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdClearColorImage(
@@ -1189,7 +1230,14 @@ pub extern "C" fn vkCmdClearColorImage(
     rangeCount: u32,
     pRanges: *const VkImageSubresourceRange,
 ) {
-    unimplemented!()
+    gfxCmdClearColorImage(
+        commandBuffer,
+        image,
+        imageLayout,
+        pColor,
+        rangeCount,
+        pRanges,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdClearDepthStencilImage(
@@ -1200,7 +1248,14 @@ pub extern "C" fn vkCmdClearDepthStencilImage(
     rangeCount: u32,
     pRanges: *const VkImageSubresourceRange,
 ) {
-    unimplemented!()
+    gfxCmdClearDepthStencilImage(
+        commandBuffer,
+        image,
+        imageLayout,
+        pDepthStencil,
+        rangeCount,
+        pRanges,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdClearAttachments(
@@ -1210,7 +1265,13 @@ pub extern "C" fn vkCmdClearAttachments(
     rectCount: u32,
     pRects: *const VkClearRect,
 ) {
-    unimplemented!()
+    gfxCmdClearAttachments(
+        commandBuffer,
+        attachmentCount,
+        pAttachments,
+        rectCount,
+        pRects,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdResolveImage(
@@ -1222,7 +1283,15 @@ pub extern "C" fn vkCmdResolveImage(
     regionCount: u32,
     pRegions: *const VkImageResolve,
 ) {
-    unimplemented!()
+    gfxCmdResolveImage(
+        commandBuffer,
+        srcImage,
+        srcImageLayout,
+        dstImage,
+        dstImageLayout,
+        regionCount,
+        pRegions,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdSetEvent(
@@ -1230,7 +1299,11 @@ pub extern "C" fn vkCmdSetEvent(
     event: VkEvent,
     stageMask: VkPipelineStageFlags,
 ) {
-    unimplemented!()
+    gfxCmdSetEvent(
+        commandBuffer,
+        event,
+        stageMask,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdResetEvent(
@@ -1238,7 +1311,11 @@ pub extern "C" fn vkCmdResetEvent(
     event: VkEvent,
     stageMask: VkPipelineStageFlags,
 ) {
-    unimplemented!()
+    gfxCmdResetEvent(
+        commandBuffer,
+        event,
+        stageMask,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdWaitEvents(
@@ -1254,7 +1331,19 @@ pub extern "C" fn vkCmdWaitEvents(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    unimplemented!()
+    gfxCmdWaitEvents(
+        commandBuffer,
+        eventCount,
+        pEvents,
+        srcStageMask,
+        dstStageMask,
+        memoryBarrierCount,
+        pMemoryBarriers,
+        bufferMemoryBarrierCount,
+        pBufferMemoryBarriers,
+        imageMemoryBarrierCount,
+        pImageMemoryBarriers,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdPipelineBarrier(
@@ -1269,7 +1358,18 @@ pub extern "C" fn vkCmdPipelineBarrier(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    unimplemented!()
+    gfxCmdPipelineBarrier(
+        commandBuffer,
+        srcStageMask,
+        dstStageMask,
+        dependencyFlags,
+        memoryBarrierCount,
+        pMemoryBarriers,
+        bufferMemoryBarrierCount,
+        pBufferMemoryBarriers,
+        imageMemoryBarrierCount,
+        pImageMemoryBarriers,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdBeginQuery(
@@ -1278,7 +1378,7 @@ pub extern "C" fn vkCmdBeginQuery(
     query: u32,
     flags: VkQueryControlFlags,
 ) {
-    unimplemented!()
+    gfxCmdBeginQuery(commandBuffer, queryPool, query, flags)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdEndQuery(
@@ -1286,7 +1386,7 @@ pub extern "C" fn vkCmdEndQuery(
     queryPool: VkQueryPool,
     query: u32,
 ) {
-    unimplemented!()
+    gfxCmdEndQuery(commandBuffer, queryPool, query)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdResetQueryPool(
@@ -1295,7 +1395,7 @@ pub extern "C" fn vkCmdResetQueryPool(
     firstQuery: u32,
     queryCount: u32,
 ) {
-    unimplemented!()
+    gfxCmdResetQueryPool(commandBuffer, queryPool, firstQuery, queryCount)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdWriteTimestamp(
@@ -1304,7 +1404,7 @@ pub extern "C" fn vkCmdWriteTimestamp(
     queryPool: VkQueryPool,
     query: u32,
 ) {
-    unimplemented!()
+    gfxCmdWriteTimestamp(commandBuffer, pipelineStage, queryPool, query)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdCopyQueryPoolResults(
