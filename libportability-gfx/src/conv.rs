@@ -1,4 +1,4 @@
-use hal::{adapter, buffer, command, format, image, memory, pass, pso, window};
+use hal::{buffer, command, error, format, image, memory, pass, pso, window};
 use hal::{PatchSize, Primitive};
 
 use std::mem;
@@ -355,8 +355,8 @@ pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineSt
     }
 }
 
-pub fn map_err_device_creation(err: adapter::DeviceCreationError) -> VkResult {
-    use hal::adapter::DeviceCreationError::*;
+pub fn map_err_device_creation(err: error::DeviceCreationError) -> VkResult {
+    use hal::error::DeviceCreationError::*;
 
     match err {
         OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
@@ -522,4 +522,10 @@ pub fn map_blend_op(
     blend_op: VkBlendOp, src_factor: VkBlendFactor, dst_factor: VkBlendFactor,
 ) -> pso::BlendOp {
     unimplemented!()
+}
+
+#[inline]
+pub fn map_cmd_buffer_usage(flags: VkCommandBufferUsageFlags) -> command::CommandBufferFlags {
+    // Vulkan and HAL flags are equal
+    unsafe { mem::transmute(flags as u16) }
 }

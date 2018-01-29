@@ -5,7 +5,7 @@ use hal::{
 };
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
-use hal::command::{ClearValueRaw, RawCommandBuffer, Rect, Viewport};
+use hal::command::{ClearValueRaw, RawCommandBuffer, RawLevel, Rect, Viewport};
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
@@ -1934,13 +1934,15 @@ pub extern "C" fn gfxAllocateCommandBuffers(
     pCommandBuffers: *mut VkCommandBuffer,
 ) -> VkResult {
     let info = unsafe { &mut *(pAllocateInfo as *mut VkCommandBufferAllocateInfo) };
-    assert_eq!(
-        info.level,
-        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY
-    ); //TODO
+    let level = match info.level {
+        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY => RawLevel::Primary,
+        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_SECONDARY => RawLevel::Secondary,
+        level => panic!("Unexpected command buffer lvel: {:?}", level),
+    };
+
     let count = info.commandBufferCount as usize;
 
-    let cmd_bufs = info.commandPool.allocate(count);
+    let cmd_bufs = info.commandPool.allocate(count, level);
 
     let output = unsafe { slice::from_raw_parts_mut(pCommandBuffers, count) };
     for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
@@ -1968,9 +1970,7 @@ pub extern "C" fn gfxBeginCommandBuffer(
     mut commandBuffer: VkCommandBuffer,
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
-    assert_eq!(unsafe { (*pBeginInfo).flags }, 0); // TODO
-
-    commandBuffer.begin();
+    commandBuffer.begin(conv::map_cmd_buffer_usage(unsafe { (*pBeginInfo).flags }));
 
     VkResult::VK_SUCCESS
 }
