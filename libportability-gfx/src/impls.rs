@@ -2856,17 +2856,18 @@ pub extern "C" fn gfxCmdSetDiscardRectangleEXT(
 #[inline]
 pub extern "C" fn gfxCreateWin32SurfaceKHR(
     instance: VkInstance,
-    pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
+    pCreateInfo: *const VkWin32SurfaceCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
     #[cfg(all(feature = "vulkan", target_os = "windows"))]
     {
         unsafe {
-            assert_eq!((*pCreateInfos).flags, 0);
+            assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
             *pSurface = Handle::new(
-                instance.create_surface_from_hwnd((*pCreateInfos).hinstance, (*pCreateInfos).hwnd),
+                instance.create_surface_from_hwnd(info.hinstance, info.hwnd),
             );
             VkResult::VK_SUCCESS
         }
@@ -2874,13 +2875,34 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
     #[cfg(feature = "dx12")]
     {
         unsafe {
-            assert_eq!((*pCreateInfos).flags, 0);
+            assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
-            *pSurface = Handle::new(instance.create_surface_from_hwnd((*pCreateInfos).hwnd));
+            *pSurface = Handle::new(instance.create_surface_from_hwnd(info.hwnd));
             VkResult::VK_SUCCESS
         }
     }
     #[cfg(not(target_os = "windows"))]
+    unreachable!()
+}
+pub extern "C" fn gfxCreateXcbSurfaceKHR(
+    instance: VkInstance,
+    pCreateInfo: *const VkXcbSurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    #[cfg(feature = "vulkan")]
+    {
+        unsafe {
+            assert_eq!(info.flags, 0);
+            assert!(pAllocator.is_null());
+            *pSurface = Handle::new(
+                instance.create_surface_from_xcb(info.connection as _, info.window),
+            );
+            VkResult::VK_SUCCESS
+        }
+    }
+    #[cfg(not(feature = "vulkan"))]
     unreachable!()
 }
 #[inline]

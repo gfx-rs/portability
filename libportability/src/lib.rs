@@ -277,6 +277,16 @@ pub extern "C" fn vkCreateWin32SurfaceKHR(
 }
 
 #[no_mangle]
+pub extern "C" fn vkCreateXcbSurfaceKHR(
+    instance: VkInstance,
+    pCreateInfos: *const VkXcbSurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    gfxCreateXcbSurfaceKHR(instance, pCreateInfos, pAllocator, pSurface)
+}
+
+#[no_mangle]
 pub extern "C" fn vkMapMemory(
     device: VkDevice,
     memory: VkDeviceMemory,

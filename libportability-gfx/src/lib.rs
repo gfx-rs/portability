@@ -4753,6 +4753,19 @@ pub struct VkWin32SurfaceCreateInfoKHR {
 impl Clone for VkWin32SurfaceCreateInfoKHR {
     fn clone(&self) -> Self { *self }
 }
+pub type VkXcbSurfaceCreateFlagsKHR = VkFlags;
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkXcbSurfaceCreateInfoKHR {
+    pub sType: VkStructureType,
+    pub pNext: *mut ::std::os::raw::c_void,
+    pub flags: VkXcbSurfaceCreateFlagsKHR,
+    pub connection: *mut ::std::os::raw::c_void,
+    pub window: u32,
+}
+impl Clone for VkXcbSurfaceCreateInfoKHR {
+    fn clone(&self) -> Self { *self }
+}
 #[repr(C)]
 #[derive(Debug, Copy)]
 pub struct VkPhysicalDeviceFeatures2KHR {
