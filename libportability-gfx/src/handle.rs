@@ -1,5 +1,5 @@
 use VK_NULL_HANDLE;
-use std::{fmt, ops};
+use std::{borrow, fmt, ops};
 
 #[repr(C)]
 pub struct Handle<T>(*mut T);
@@ -37,6 +37,12 @@ impl<T> ops::Deref for Handle<T> {
 impl<T> ops::DerefMut for Handle<T> {
     fn deref_mut(&mut self) -> &mut T {
         unsafe { &mut *self.0 }
+    }
+}
+
+impl<T> borrow::Borrow<T> for Handle<T> {
+    fn borrow(&self) -> &T {
+        unsafe { &*self.0 }
     }
 }
 

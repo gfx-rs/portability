@@ -276,7 +276,7 @@ pub extern "C" fn gfxCreateDevice(
     let request_infos = queue_infos
         .iter()
         .map(|info| {
-            let family = adapter.queue_families[info.queueFamilyIndex as usize].clone();
+            let family = &adapter.queue_families[info.queueFamilyIndex as usize];
             (family, vec![1.0; info.queueCount as usize])
         })
         .collect::<Vec<_>>();
@@ -417,11 +417,8 @@ pub extern "C" fn gfxQueueSubmit(
     assert_eq!(submitCount, 1); // TODO;
 
     let submission = unsafe { *pSubmits };
-    let cmd_buffers = unsafe {
+    let cmd_slice = unsafe {
         slice::from_raw_parts(submission.pCommandBuffers, submission.commandBufferCount as _)
-            .into_iter()
-            .map(|cmd_buffer| **cmd_buffer)
-            .collect::<Vec<_>>()
     };
     let wait_semaphores = unsafe {
         let semaphores = slice::from_raw_parts(submission.pWaitSemaphores, submission.waitSemaphoreCount as _);
@@ -440,7 +437,7 @@ pub extern "C" fn gfxQueueSubmit(
     };
 
     let submission = hal::queue::RawSubmission {
-        cmd_buffers: &cmd_buffers,
+        cmd_buffers: cmd_slice.iter().cloned(),
         wait_semaphores: &wait_semaphores,
         signal_semaphores: &signal_semaphores,
     };
