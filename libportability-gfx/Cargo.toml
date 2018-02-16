@@ -16,15 +16,14 @@ lazy_static = "1.0"
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
-branch = "portable"
+rev = "14a0d6c0976cdbc882a6f63bced18a9b2bf13f5f"
 
 [dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
-branch = "portable"
-features = ["portable"]
+rev = "14a0d6c0976cdbc882a6f63bced18a9b2bf13f5f"
 optional = true
 
 [target.'cfg(windows)'.dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
-branch = "portable"
+rev = "14a0d6c0976cdbc882a6f63bced18a9b2bf13f5f"
 optional = true
