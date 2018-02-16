@@ -155,7 +155,7 @@ pub fn map_image_kind(
     assert!(!is_cube || array_layers % 6 == 0);
 
     match ty {
-        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width as _),
+        VkImageType::VK_IMAGE_TYPE_1D if array_layers == 1 => image::Kind::D1(extent.width as _),
         VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1Array(extent.width as _, array_layers as _),
         VkImageType::VK_IMAGE_TYPE_2D if array_layers == 1 => {
             image::Kind::D2(extent.width as _, extent.height as _, map_aa_mode(samples))
