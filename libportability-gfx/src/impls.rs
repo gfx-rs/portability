@@ -695,19 +695,19 @@ pub extern "C" fn gfxWaitForFences(
     waitAll: VkBool32,
     timeout: u64,
 ) -> VkResult {
-    let fences = unsafe {
+    let fence_slice = unsafe {
         slice::from_raw_parts(pFences, fenceCount as _)
-            .into_iter()
-            .map(|fence| &**fence)
-            .collect::<Vec<_>>()
     };
+    let fences = fence_slice
+        .into_iter()
+        .map(|fence| &**fence);
 
     let wait_for = match waitAll {
         VK_FALSE => WaitFor::Any,
         _ => WaitFor::All,
     };
 
-    if gpu.device.wait_for_fences(&fences, wait_for, timeout as _) {
+    if gpu.device.wait_for_fences(fences, wait_for, timeout as _) {
         VkResult::VK_SUCCESS
     } else {
         VkResult::VK_TIMEOUT
@@ -1388,8 +1388,7 @@ pub extern "C" fn gfxCreatePipelineLayout(
 
     let layouts = set_layouts
         .iter()
-        .map(|layout| &**layout)
-        .collect::<Vec<&<B as Backend>::DescriptorSetLayout>>();
+        .map(|layout| &**layout);
 
     let ranges = push_constants
         .iter()
@@ -1399,11 +1398,10 @@ pub extern "C" fn gfxCreatePipelineLayout(
             let size = constant.size / 4;
 
             (stages, start .. start+size)
-        })
-        .collect::<Vec<_>>();
+        });
 
     let pipeline_layout = gpu.device
-        .create_pipeline_layout(&layouts, &ranges);
+        .create_pipeline_layout(layouts, ranges);
 
     unsafe { *pPipelineLayout = Handle::new(pipeline_layout); }
     VkResult::VK_SUCCESS
@@ -1534,10 +1532,9 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     };
     let layouts = set_layouts
         .iter()
-        .map(|layout| &**layout)
-        .collect::<Vec<_>>();
+        .map(|layout| &**layout);
 
-    let descriptor_sets = pool.allocate_sets(&layouts);
+    let descriptor_sets = pool.allocate_sets(layouts);
     let sets = unsafe {
         slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
     };
@@ -1645,6 +1642,16 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                         .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
                         .collect()
                 ),
+                pso::DescriptorType::CombinedImageSampler => pso::DescriptorWrite::CombinedImageSampler(
+                    image_info
+                        .into_iter()
+                        .map(|image| (
+                            &*image.sampler,
+                            &*image.imageView,
+                            conv::map_image_layout(image.imageLayout),
+                        ))
+                        .collect()
+                ),
             };
 
             pso::DescriptorSetWrite {
@@ -1667,13 +1674,12 @@ pub extern "C" fn gfxCreateFramebuffer(
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
 
-    let attachments = unsafe {
+    let attachments_slice = unsafe {
         slice::from_raw_parts(info.pAttachments, info.attachmentCount as _)
     };
-    let attachments = attachments
+    let attachments = attachments_slice
         .into_iter()
-        .map(|attachment| &**attachment)
-        .collect::<Vec<_>>();
+        .map(|attachment| &**attachment);
 
     let extent = hal::device::Extent {
         width: info.width,
@@ -1683,7 +1689,7 @@ pub extern "C" fn gfxCreateFramebuffer(
 
     let framebuffer = gpu
         .device
-        .create_framebuffer(&*info.renderPass, &attachments, extent)
+        .create_framebuffer(&*info.renderPass, attachments, extent)
         .unwrap();
 
     unsafe {
@@ -2856,17 +2862,18 @@ pub extern "C" fn gfxCmdSetDiscardRectangleEXT(
 #[inline]
 pub extern "C" fn gfxCreateWin32SurfaceKHR(
     instance: VkInstance,
-    pCreateInfos: *const VkWin32SurfaceCreateInfoKHR,
+    pCreateInfo: *const VkWin32SurfaceCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
     #[cfg(all(feature = "vulkan", target_os = "windows"))]
     {
         unsafe {
-            assert_eq!((*pCreateInfos).flags, 0);
+            assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
             *pSurface = Handle::new(
-                instance.create_surface_from_hwnd((*pCreateInfos).hinstance, (*pCreateInfos).hwnd),
+                instance.create_surface_from_hwnd(info.hinstance, info.hwnd),
             );
             VkResult::VK_SUCCESS
         }
@@ -2874,13 +2881,34 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
     #[cfg(feature = "dx12")]
     {
         unsafe {
-            assert_eq!((*pCreateInfos).flags, 0);
+            assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
-            *pSurface = Handle::new(instance.create_surface_from_hwnd((*pCreateInfos).hwnd));
+            *pSurface = Handle::new(instance.create_surface_from_hwnd(info.hwnd));
             VkResult::VK_SUCCESS
         }
     }
     #[cfg(not(target_os = "windows"))]
+    unreachable!()
+}
+pub extern "C" fn gfxCreateXcbSurfaceKHR(
+    instance: VkInstance,
+    pCreateInfo: *const VkXcbSurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    let info = unsafe { &*pCreateInfo };
+    #[cfg(feature = "vulkan")]
+    {
+        unsafe {
+            assert_eq!(info.flags, 0);
+            assert!(pAllocator.is_null());
+            *pSurface = Handle::new(
+                instance.create_surface_from_xcb(info.connection as _, info.window),
+            );
+            VkResult::VK_SUCCESS
+        }
+    }
+    #[cfg(not(feature = "vulkan"))]
     unreachable!()
 }
 #[inline]
