@@ -3158,7 +3158,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    #[cfg(feature = "vulkan")]
+    #[cfg(all(feature = "vulkan", target_os = "linux"))]
     {
         unsafe {
             assert_eq!(info.flags, 0);
@@ -3169,7 +3169,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
             VkResult::VK_SUCCESS
         }
     }
-    #[cfg(not(feature = "vulkan"))]
+    #[cfg(not(all(feature = "vulkan", target_os = "linux")))]
     unreachable!()
 }
 #[inline]
