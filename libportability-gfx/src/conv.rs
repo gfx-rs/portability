@@ -529,3 +529,17 @@ pub fn map_cmd_buffer_usage(flags: VkCommandBufferUsageFlags) -> command::Comman
     // Vulkan and HAL flags are equal
     unsafe { mem::transmute(flags as u16) }
 }
+
+pub fn map_wrap_mode(mode: VkSamplerAddressMode) -> image::WrapMode {
+    use super::VkSamplerAddressMode::*;
+    match mode {
+        VK_SAMPLER_ADDRESS_MODE_REPEAT => image::WrapMode::Tile,
+        VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT => image::WrapMode::Mirror,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE => image::WrapMode::Clamp,
+        VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER => image::WrapMode::Border,
+        other => {
+            //warn!("Non-covered sampler address mode: {:?}", mode);
+            image::WrapMode::Clamp
+        }
+    }
+}
