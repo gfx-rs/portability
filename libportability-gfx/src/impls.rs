@@ -1,11 +1,11 @@
-use hal::{pass, pso, queue};
+use hal::{command as com, memory, pass, pso, queue};
 use hal::{
     Backend, DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily,
     Surface, Swapchain as HalSwapchain, FrameSync,
 };
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
-use hal::command::{ClearValueRaw, RawCommandBuffer, RawLevel, Rect, Viewport};
+use hal::command::RawCommandBuffer;
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
@@ -30,13 +30,13 @@ pub type PFN_vkEnumeratePhysicalDevices = ::std::option::Option<unsafe extern "C
 ) -> VkResult>;
 
 macro_rules! proc_addr {
-    ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr),*) => (
+    ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr,)*) => (
         match $name {
             $(
                 stringify!($vk) => unsafe {
                     mem::transmute::<$pfn_vk, _>(Some(*&$gfx))
-                }
-            ),*
+                },
+            )*
             _ => None
         }
     );
@@ -251,7 +251,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR => gfxGetPhysicalDeviceSurfaceSupportKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
         vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR => gfxGetPhysicalDeviceSurfaceFormatsKHR,
-        vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR
+        vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
     }
 }
 
@@ -272,8 +272,63 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR => gfxGetSwapchainImagesKHR,
         vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR => gfxAcquireNextImageKHR,
         vkQueuePresentKHR, PFN_vkQueuePresentKHR => gfxQueuePresentKHR,
+
         vkCreateSampler, PFN_vkCreateSampler => gfxCreateSampler,
-        vkDestroySampler, PFN_vkDestroySampler => gfxDestroySampler
+        vkDestroySampler, PFN_vkDestroySampler => gfxDestroySampler,
+        vkCreateShaderModule, PFN_vkCreateShaderModule => gfxCreateShaderModule,
+        vkDestroyShaderModule, PFN_vkDestroyShaderModule => gfxDestroyShaderModule,
+        vkGetDeviceQueue, PFN_vkGetDeviceQueue => gfxGetDeviceQueue,
+
+        vkAllocateMemory, PFN_vkAllocateMemory => gfxAllocateMemory,
+        vkFreeMemory, PFN_vkFreeMemory => gfxFreeMemory,
+        vkMapMemory, PFN_vkMapMemory => gfxMapMemory,
+        vkUnmapMemory, PFN_vkUnmapMemory => gfxUnmapMemory,
+        vkFlushMappedMemoryRanges, PFN_vkFlushMappedMemoryRanges => gfxFlushMappedMemoryRanges,
+        vkInvalidateMappedMemoryRanges, PFN_vkInvalidateMappedMemoryRanges => gfxInvalidateMappedMemoryRanges,
+
+        vkCreateBuffer, PFN_vkCreateBuffer => gfxCreateBuffer,
+        vkDestroyBuffer, PFN_vkDestroyBuffer => gfxDestroyBuffer,
+        vkGetBufferMemoryRequirements, PFN_vkGetBufferMemoryRequirements => gfxGetBufferMemoryRequirements,
+        vkBindBufferMemory, PFN_vkBindBufferMemory => gfxBindBufferMemory,
+
+        vkCreateImage, PFN_vkCreateImage => gfxCreateImage,
+        vkDestroyImage, PFN_vkDestroyImage => gfxDestroyImage,
+        vkGetImageMemoryRequirements, PFN_vkGetImageMemoryRequirements => gfxGetImageMemoryRequirements,
+        vkBindImageMemory, PFN_vkBindImageMemory => gfxBindImageMemory,
+        vkCreateImageView, PFN_vkCreateImageView => gfxCreateImageView,
+        vkDestroyImageView, PFN_vkDestroyImageView => gfxDestroyImageView,
+
+        vkCreateRenderPass, PFN_vkCreateRenderPass => gfxCreateRenderPass,
+        vkDestroyRenderPass, PFN_vkDestroyRenderPass => gfxDestroyRenderPass,
+        vkCreateFramebuffer, PFN_vkCreateFramebuffer => gfxCreateFramebuffer,
+        vkDestroyFramebuffer, PFN_vkDestroyFramebuffer => gfxDestroyFramebuffer,
+
+        vkCreatePipelineLayout, PFN_vkCreatePipelineLayout => gfxCreatePipelineLayout,
+        vkDestroyPipelineLayout, PFN_vkDestroyPipelineLayout => gfxDestroyPipelineLayout,
+        vkCreateGraphicsPipelines, PFN_vkCreateGraphicsPipelines => gfxCreateGraphicsPipelines,
+        vkDestroyPipeline, PFN_vkDestroyPipeline => gfxDestroyPipeline,
+
+        vkCreateCommandPool, PFN_vkCreateCommandPool => gfxCreateCommandPool,
+        vkDestroyCommandPool, PFN_vkDestroyCommandPool => gfxDestroyCommandPool,
+        vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers => gfxAllocateCommandBuffers,
+        vkFreeCommandBuffers, PFN_vkFreeCommandBuffers => gfxFreeCommandBuffers,
+        vkBeginCommandBuffer, PFN_vkBeginCommandBuffer => gfxBeginCommandBuffer,
+        vkEndCommandBuffer, PFN_vkEndCommandBuffer => gfxEndCommandBuffer,
+
+        vkCreateFence, PFN_vkCreateFence => gfxCreateFence,
+        vkDestroyFence, PFN_vkDestroyFence => gfxDestroyFence,
+        vkWaitForFences, PFN_vkWaitForFences => gfxWaitForFences,
+        vkResetFences, PFN_vkResetFences => gfxResetFences,
+
+        vkQueueSubmit, PFN_vkQueueSubmit => gfxQueueSubmit,
+
+        vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier => gfxCmdPipelineBarrier,
+        vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass => gfxCmdBeginRenderPass,
+        vkCmdEndRenderPass, PFN_vkCmdEndRenderPass => gfxCmdEndRenderPass,
+        vkCmdBindPipeline, PFN_vkCmdBindPipeline => gfxCmdBindPipeline,
+        vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers => gfxCmdBindVertexBuffers,
+        vkCmdDraw, PFN_vkCmdDraw => gfxCmdDraw,
+        vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer => gfxCmdCopyImageToBuffer,
     }
 }
 
@@ -530,25 +585,39 @@ pub extern "C" fn gfxUnmapMemory(gpu: VkDevice, memory: VkDeviceMemory) {
 }
 #[inline]
 pub extern "C" fn gfxFlushMappedMemoryRanges(
-    device: VkDevice,
+    gpu: VkDevice,
     memoryRangeCount: u32,
     pMemoryRanges: *const VkMappedMemoryRange,
 ) -> VkResult {
-    unimplemented!()
+    let ranges = unsafe {
+            slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
+        }
+        .iter()
+        .map(|r| (&*r.memory, r.offset .. r.offset + r.size));
+
+    gpu.device.flush_mapped_memory_ranges(ranges);
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxInvalidateMappedMemoryRanges(
-    device: VkDevice,
+    gpu: VkDevice,
     memoryRangeCount: u32,
     pMemoryRanges: *const VkMappedMemoryRange,
 ) -> VkResult {
-    unimplemented!()
+    let ranges = unsafe {
+            slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
+        }
+        .iter()
+        .map(|r| (&*r.memory, r.offset .. r.offset + r.size));
+
+    gpu.device.invalidate_mapped_memory_ranges(ranges);
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxGetDeviceMemoryCommitment(
-    device: VkDevice,
-    memory: VkDeviceMemory,
-    pCommittedMemoryInBytes: *mut VkDeviceSize,
+    _device: VkDevice,
+    _memory: VkDeviceMemory,
+    _pCommittedMemoryInBytes: *mut VkDeviceSize,
 ) {
     unimplemented!()
 }
@@ -1246,10 +1315,12 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     .collect();
             }
 
-            assert!(info.pMultisampleState.is_null());
-
             blend_desc
         };
+
+        if !info.pMultisampleState.is_null() {
+            warn!("Multisampling is not supported yet");
+        }
 
         // TODO: `pDepthStencilState` could contain garbage, but implementations
         //        can ignore it in some circumstances. How to handle it?
@@ -1808,7 +1879,8 @@ pub extern "C" fn gfxCreateRenderPass(
         let resolve = if subpass.pResolveAttachments.is_null() {
             Vec::new()
         } else {
-            unimplemented!()
+            warn!("TODO: implement resolve attachments");
+            Vec::new()
             /*
             unsafe {
                 slice::from_raw_parts(subpass.pResolveAttachments, subpass.colorAttachmentCount as _)
@@ -1879,8 +1951,8 @@ pub extern "C" fn gfxCreateRenderPass(
 
             // Our portability implementation only supports image access flags atm.
             // Global buffer barriers can't be handled currently.
-            let src_access = conv::map_image_acces(dependency.srcAccessMask);
-            let dst_access = conv::map_image_acces(dependency.dstAccessMask);
+            let src_access = conv::map_image_access(dependency.srcAccessMask);
+            let dst_access = conv::map_image_access(dependency.dstAccessMask);
 
             pass::SubpassDependency {
                 passes: src_pass .. dst_pass,
@@ -1972,8 +2044,8 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 ) -> VkResult {
     let info = unsafe { &mut *(pAllocateInfo as *mut VkCommandBufferAllocateInfo) };
     let level = match info.level {
-        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY => RawLevel::Primary,
-        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_SECONDARY => RawLevel::Secondary,
+        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY => com::RawLevel::Primary,
+        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_SECONDARY => com::RawLevel::Secondary,
         level => panic!("Unexpected command buffer lvel: {:?}", level),
     };
 
@@ -2048,8 +2120,8 @@ pub extern "C" fn gfxCmdSetViewport(
         slice::from_raw_parts(pViewports, viewportCount as _)
             .into_iter()
             .map(|viewport| {
-                Viewport {
-                    rect: Rect {
+                com::Viewport {
+                    rect: com::Rect {
                         x: viewport.x as _,
                         y: viewport.y as _,
                         w: viewport.width as _,
@@ -2075,7 +2147,7 @@ pub extern "C" fn gfxCmdSetScissor(
         slice::from_raw_parts(pScissors, scissorCount as _)
             .into_iter()
             .map(|scissor| {
-                Rect {
+                com::Rect {
                     x: scissor.offset.x as _,
                     y: scissor.offset.y as _,
                     w: scissor.extent.width as _,
@@ -2314,25 +2386,73 @@ pub extern "C" fn gfxCmdBlitImage(
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBufferToImage(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     srcBuffer: VkBuffer,
     dstImage: VkImage,
     dstImageLayout: VkImageLayout,
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
-    unimplemented!()
+    let regions = unsafe {
+            slice::from_raw_parts(pRegions, regionCount as _)
+        }
+        .iter()
+        .map(|r| com::BufferImageCopy {
+            buffer_offset: r.bufferOffset,
+            buffer_width: r.bufferRowLength,
+            buffer_height: r.bufferImageHeight,
+            image_layers: conv::map_subresource_layers(r.imageSubresource),
+            image_offset: conv::map_offset(r.imageOffset),
+            image_extent: conv::map_extent(r.imageExtent),
+        });
+
+    commandBuffer.copy_buffer_to_image(
+        match *srcBuffer {
+            Buffer::Buffer(ref b) => b,
+            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
+        },
+        match *dstImage {
+            Image::Image(ref i) => i,
+            Image::Unbound(_) => panic!("Bound image expected!"),
+        },
+        conv::map_image_layout(dstImageLayout),
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyImageToBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
     dstBuffer: VkBuffer,
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
-    unimplemented!()
+    let regions = unsafe {
+            slice::from_raw_parts(pRegions, regionCount as _)
+        }
+        .iter()
+        .map(|r| com::BufferImageCopy {
+            buffer_offset: r.bufferOffset,
+            buffer_width: r.bufferRowLength,
+            buffer_height: r.bufferImageHeight,
+            image_layers: conv::map_subresource_layers(r.imageSubresource),
+            image_offset: conv::map_offset(r.imageOffset),
+            image_extent: conv::map_extent(r.imageExtent),
+        });
+
+    commandBuffer.copy_image_to_buffer(
+        match *srcImage {
+            Image::Image(ref i) => i,
+            Image::Unbound(_) => panic!("Bound image expected!"),
+        },
+        conv::map_image_layout(srcImageLayout),
+        match *dstBuffer {
+            Buffer::Buffer(ref b) => b,
+            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
+        },
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdUpdateBuffer(
@@ -2432,18 +2552,47 @@ pub extern "C" fn gfxCmdWaitEvents(
 }
 #[inline]
 pub extern "C" fn gfxCmdPipelineBarrier(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     srcStageMask: VkPipelineStageFlags,
     dstStageMask: VkPipelineStageFlags,
-    dependencyFlags: VkDependencyFlags,
-    memoryBarrierCount: u32,
-    pMemoryBarriers: *const VkMemoryBarrier,
+    _dependencyFlags: VkDependencyFlags,
+    _memoryBarrierCount: u32,
+    _pMemoryBarriers: *const VkMemoryBarrier,
     bufferMemoryBarrierCount: u32,
     pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    unimplemented!()
+    let buffer_barriers = unsafe {
+            slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _)
+        }
+        .iter()
+        .map(|b| memory::Barrier::Buffer {
+            states: conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask),
+            target: match *b.buffer {
+                Buffer::Buffer(ref b) => b,
+                Buffer::Unbound(_) => panic!("Bound buffer is needed here!"),
+            },
+        });
+    let image_barriers = unsafe {
+            slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _)
+        }
+        .iter()
+        .map(|b| memory::Barrier::Image {
+            states:
+                (conv::map_image_access(b.srcAccessMask), conv::map_image_layout(b.oldLayout)) ..
+                (conv::map_image_access(b.dstAccessMask), conv::map_image_layout(b.newLayout)),
+            target: match *b.image {
+                Image::Image(ref i) => i,
+                Image::Unbound(_) => panic!("Bound image is needed here!"),
+            },
+            range: conv::map_subresource_range(b.subresourceRange),
+        });
+
+    commandBuffer.pipeline_barrier(
+        conv::map_pipeline_stage_flags(srcStageMask) .. conv::map_pipeline_stage_flags(dstStageMask),
+        buffer_barriers.chain(image_barriers),
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginQuery(
@@ -2512,7 +2661,7 @@ pub extern "C" fn gfxCmdBeginRenderPass(
 ) {
     let info = unsafe { &*pRenderPassBegin };
 
-    let render_area = Rect {
+    let render_area = com::Rect {
         x: info.renderArea.offset.x as _,
         y: info.renderArea.offset.y as _,
         w: info.renderArea.extent.width as _,
@@ -2523,7 +2672,7 @@ pub extern "C" fn gfxCmdBeginRenderPass(
             .into_iter()
             .map(|cv| {
                 // HAL and Vulkan clear value union sharing same memory representation
-                mem::transmute::<_, ClearValueRaw>(*cv)
+                mem::transmute::<_, com::ClearValueRaw>(*cv)
             })
     };
     let contents = conv::map_subpass_contents(contents);
