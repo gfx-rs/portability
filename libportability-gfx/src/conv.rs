@@ -1,4 +1,5 @@
 use hal::{buffer, command, error, format, image, memory, pass, pso, window};
+use hal::device::Extent;
 use hal::{PatchSize, Primitive};
 
 use std::mem;
@@ -113,6 +114,15 @@ fn map_swizzle_component(
         VK_COMPONENT_SWIZZLE_B => format::Component::B,
         VK_COMPONENT_SWIZZLE_A => format::Component::A,
         _ => panic!("Unsupported swizzle component: {:?}", component),
+    }
+}
+
+pub fn map_subresource_layers(subresource: VkImageSubresourceLayers) -> image::SubresourceLayers {
+    image::SubresourceLayers {
+        aspects: map_aspect(subresource.aspectMask),
+        level: subresource.mipLevel as _,
+        layers: subresource.baseArrayLayer as _
+            ..(subresource.baseArrayLayer + subresource.layerCount) as _,
     }
 }
 
@@ -236,6 +246,52 @@ pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
     flags
 }
 
+pub fn map_image_access(access: VkAccessFlags) -> image::Access {
+    let mut mask = image::Access::empty();
+
+    if access & VkAccessFlagBits::VK_ACCESS_INPUT_ATTACHMENT_READ_BIT as u32 != 0 {
+        mask |= image::Access::INPUT_ATTACHMENT_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT as u32 != 0 {
+        mask |= image::Access::SHADER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::SHADER_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_READ_BIT as u32 != 0 {
+        mask |= image::Access::COLOR_ATTACHMENT_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::COLOR_ATTACHMENT_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT as u32 != 0 {
+        mask |= image::Access::DEPTH_STENCIL_ATTACHMENT_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_READ_BIT as u32 != 0 {
+        mask |= image::Access::TRANSFER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::TRANSFER_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_HOST_READ_BIT as u32 != 0 {
+        mask |= image::Access::HOST_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_HOST_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::HOST_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_READ_BIT as u32 != 0 {
+        mask |= image::Access::MEMORY_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_WRITE_BIT as u32 != 0 {
+        mask |= image::Access::MEMORY_WRITE;
+    }
+
+    mask
+}
+
 pub fn map_buffer_usage(usage: VkBufferUsageFlags) -> buffer::Usage {
     let mut flags = buffer::Usage::empty();
 
@@ -268,6 +324,46 @@ pub fn map_buffer_usage(usage: VkBufferUsageFlags) -> buffer::Usage {
     }
 
     flags
+}
+
+pub fn map_buffer_access(access: VkAccessFlags) -> buffer::Access {
+    let mut mask = buffer::Access::empty();
+
+    if access & VkAccessFlagBits::VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::VERTEX_BUFFER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_UNIFORM_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::CONSTANT_BUFFER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_INDIRECT_COMMAND_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::INDIRECT_COMMAND_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::SHADER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT as u32 != 0 {
+        mask |= buffer::Access::SHADER_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::TRANSFER_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_WRITE_BIT as u32 != 0 {
+        mask |= buffer::Access::TRANSFER_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_HOST_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::HOST_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_HOST_WRITE_BIT as u32 != 0 {
+        mask |= buffer::Access::HOST_WRITE;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_READ_BIT as u32 != 0 {
+        mask |= buffer::Access::MEMORY_READ;
+    }
+    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_WRITE_BIT as u32 != 0 {
+        mask |= buffer::Access::MEMORY_WRITE;
+    }
+
+    mask
 }
 
 pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPropertyFlags {
@@ -350,8 +446,9 @@ pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineSt
         // HAL flags have the same numeric representation as Vulkan flags
         unsafe { mem::transmute(stages) }
     } else {
-        // GRAPHICS and ALL missing
-        unimplemented!("Unsupported pipelinee stage flags: {:?}", stages)
+        // GRAPHICS and ALL are missing
+        warn!("Unsupported pipeline stage flags: {:?}", stages);
+        pso::PipelineStage::all()
     }
 }
 
@@ -384,52 +481,6 @@ pub fn map_attachment_store_op(op: VkAttachmentStoreOp) -> pass::AttachmentStore
         VkAttachmentStoreOp::VK_ATTACHMENT_STORE_OP_DONT_CARE => pass::AttachmentStoreOp::DontCare,
         _ => panic!("Unsupported attachment store op: {:?}", op),
     }
-}
-
-pub fn map_image_acces(access: VkAccessFlags) -> image::Access {
-    let mut mask = image::Access::empty();
-
-    if access & VkAccessFlagBits::VK_ACCESS_INPUT_ATTACHMENT_READ_BIT as u32 != 0 {
-        mask |= image::Access::INPUT_ATTACHMENT_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT as u32 != 0 {
-        mask |= image::Access::SHADER_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT as u32 != 0 {
-        mask |= image::Access::SHADER_WRITE;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_READ_BIT as u32 != 0 {
-        mask |= image::Access::COLOR_ATTACHMENT_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT as u32 != 0 {
-        mask |= image::Access::COLOR_ATTACHMENT_WRITE;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT as u32 != 0 {
-        mask |= image::Access::DEPTH_STENCIL_ATTACHMENT_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT as u32 != 0 {
-        mask |= image::Access::DEPTH_STENCIL_ATTACHMENT_WRITE;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_READ_BIT as u32 != 0 {
-        mask |= image::Access::TRANSFER_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_TRANSFER_WRITE_BIT as u32 != 0 {
-        mask |= image::Access::TRANSFER_WRITE;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_HOST_READ_BIT as u32 != 0 {
-        mask |= image::Access::HOST_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_HOST_WRITE_BIT as u32 != 0 {
-        mask |= image::Access::HOST_WRITE;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_READ_BIT as u32 != 0 {
-        mask |= image::Access::MEMORY_READ;
-    }
-    if access & VkAccessFlagBits::VK_ACCESS_MEMORY_WRITE_BIT as u32 != 0 {
-        mask |= image::Access::MEMORY_WRITE;
-    }
-
-    mask
 }
 
 pub fn map_subpass_contents(contents: VkSubpassContents) -> command::SubpassContents {
@@ -538,8 +589,24 @@ pub fn map_wrap_mode(mode: VkSamplerAddressMode) -> image::WrapMode {
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE => image::WrapMode::Clamp,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER => image::WrapMode::Border,
         other => {
-            //warn!("Non-covered sampler address mode: {:?}", mode);
+            warn!("Non-covered sampler address mode: {:?}", mode);
             image::WrapMode::Clamp
         }
+    }
+}
+
+pub fn map_offset(extent: VkOffset3D) -> command::Offset {
+    command::Offset {
+        x: extent.x,
+        y: extent.y,
+        z: extent.z,
+    }
+}
+
+pub fn map_extent(extent: VkExtent3D) -> Extent {
+    Extent {
+        width: extent.width,
+        height: extent.height,
+        depth: extent.depth,
     }
 }

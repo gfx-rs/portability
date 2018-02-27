@@ -13,6 +13,7 @@ vulkan = ["gfx-backend-vulkan"]
 
 [dependencies]
 lazy_static = "1.0"
+log = "0.4"
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"

@@ -11,6 +11,8 @@ extern crate gfx_backend_vulkan as back;
 
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate log;
 
 mod conv;
 mod handle;
