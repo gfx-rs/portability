@@ -23,6 +23,12 @@ pub type PFN_vkCreateInstance = ::std::option::Option<unsafe extern "C" fn(
     pInstance: *mut VkInstance,
 ) -> VkResult>;
 
+pub type PFN_vkEnumeratePhysicalDevices = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pPhysicalDeviceCount: *mut u32,
+    pPhysicalDevices: *mut VkPhysicalDevice,
+) -> VkResult>;
+
 macro_rules! proc_addr {
     ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr),*) => (
         match $name {
@@ -230,7 +236,17 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 
     proc_addr!{ name,
         vkCreateInstance, PFN_vkCreateInstance => gfxCreateInstance,
+        vkCreateDevice, PFN_vkCreateDevice => gfxCreateDevice,
+        vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr => gfxGetDeviceProcAddr,
+
+        vkEnumeratePhysicalDevices, PFN_vkEnumeratePhysicalDevices => gfxEnumeratePhysicalDevices,
         vkEnumerateInstanceExtensionProperties, PFN_vkEnumerateInstanceExtensionProperties => gfxEnumerateInstanceExtensionProperties,
+        vkEnumerateDeviceExtensionProperties, PFN_vkEnumerateDeviceExtensionProperties => gfxEnumerateDeviceExtensionProperties,
+
+        vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures => gfxGetPhysicalDeviceFeatures,
+        vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties => gfxGetPhysicalDeviceProperties,
+        vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties => gfxGetPhysicalDeviceMemoryProperties,
+        vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties => gfxGetPhysicalDeviceQueueFamilyProperties,
 
         vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR => gfxGetPhysicalDeviceSurfaceSupportKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
@@ -255,7 +271,9 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkDestroySwapchainKHR, PFN_vkDestroySwapchainKHR => gfxDestroySwapchainKHR,
         vkGetSwapchainImagesKHR, PFN_vkGetSwapchainImagesKHR => gfxGetSwapchainImagesKHR,
         vkAcquireNextImageKHR, PFN_vkAcquireNextImageKHR => gfxAcquireNextImageKHR,
-        vkQueuePresentKHR, PFN_vkQueuePresentKHR => gfxQueuePresentKHR
+        vkQueuePresentKHR, PFN_vkQueuePresentKHR => gfxQueuePresentKHR,
+        vkCreateSampler, PFN_vkCreateSampler => gfxCreateSampler,
+        vkDestroySampler, PFN_vkDestroySampler => gfxDestroySampler
     }
 }
 
@@ -1413,20 +1431,36 @@ pub extern "C" fn gfxDestroyPipelineLayout(
 }
 #[inline]
 pub extern "C" fn gfxCreateSampler(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkSamplerCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pSampler: *mut VkSampler,
 ) -> VkResult {
-    unimplemented!()
+    let vk_info = unsafe { &*pCreateInfo };
+    //TODO: fill all the sampler properties
+    let info = hal::image::SamplerInfo {
+        filter: hal::image::FilterMethod::Scale,
+        wrap_mode: (
+            conv::map_wrap_mode(vk_info.addressModeU),
+            conv::map_wrap_mode(vk_info.addressModeV),
+            conv::map_wrap_mode(vk_info.addressModeW),
+        ),
+        lod_bias: 0.0.into(),
+        lod_range: 0.0.into() .. 1.0.into(),
+        comparison: None,
+        border: [0.0; 4].into(),
+    };
+    let sampler = gpu.device.create_sampler(info);
+    unsafe { *pSampler = Handle::new(sampler); }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroySampler(
-    device: VkDevice,
+    gpu: VkDevice,
     sampler: VkSampler,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    gpu.device.destroy_sampler(*sampler.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorSetLayout(
