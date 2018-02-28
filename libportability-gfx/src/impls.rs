@@ -334,9 +334,6 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkSetEvent, PFN_vkSetEvent => gfxSetEvent,
         vkResetEvent, PFN_vkResetEvent => gfxResetEvent,
 
-        vkResetEvent, PFN_vkResetEvent => gfxResetEvent,
-        vkResetEvent, PFN_vkResetEvent => gfxResetEvent,
-
         vkQueueSubmit, PFN_vkQueueSubmit => gfxQueueSubmit,
         vkQueueBindSparse, PFN_vkQueueBindSparse => gfxQueueBindSparse,
         vkQueueWaitIdle, PFN_vkQueueWaitIdle => gfxQueueWaitIdle,
