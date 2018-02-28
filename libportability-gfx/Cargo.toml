@@ -17,14 +17,14 @@ log = "0.4"
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
-rev = "14a0d6c0976cdbc882a6f63bced18a9b2bf13f5f"
+rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
 
 [dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
-rev = "14a0d6c0976cdbc882a6f63bced18a9b2bf13f5f"
+rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
 optional = true
 
 [target.'cfg(windows)'.dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
-rev = "14a0d6c0976cdbc882a6f63bced18a9b2bf13f5f"
+rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
 optional = true
