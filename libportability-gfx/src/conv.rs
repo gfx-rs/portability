@@ -83,7 +83,7 @@ pub fn map_format(format: VkFormat) -> Option<format::Format> {
     }
 }
 
-pub fn extent2d_from_hal(extent: window::Extent2d) -> VkExtent2D {
+pub fn extent2d_from_hal(extent: window::Extent2D) -> VkExtent2D {
     VkExtent2D {
         width: extent.width,
         height: extent.height,
@@ -136,16 +136,16 @@ pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> image::Sub
     }
 }
 
-fn map_aspect(aspects: VkImageAspectFlags) -> format::AspectFlags {
-    let mut flags = format::AspectFlags::empty();
+fn map_aspect(aspects: VkImageAspectFlags) -> format::Aspects {
+    let mut flags = format::Aspects::empty();
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
-        flags |= format::AspectFlags::COLOR;
+        flags |= format::Aspects::COLOR;
     }
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
-        flags |= format::AspectFlags::DEPTH;
+        flags |= format::Aspects::DEPTH;
     }
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
-        flags |= format::AspectFlags::DEPTH;
+        flags |= format::Aspects::DEPTH;
     }
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_METADATA_BIT as u32 != 0 {
         unimplemented!()
@@ -595,8 +595,8 @@ pub fn map_wrap_mode(mode: VkSamplerAddressMode) -> image::WrapMode {
     }
 }
 
-pub fn map_offset(extent: VkOffset3D) -> command::Offset {
-    command::Offset {
+pub fn map_offset(extent: VkOffset3D) -> image::Offset {
+    image::Offset {
         x: extent.x,
         y: extent.y,
         z: extent.z,

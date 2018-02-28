@@ -134,7 +134,7 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures(
     adapter: VkPhysicalDevice,
     pFeatures: *mut VkPhysicalDeviceFeatures,
 ) {
-    let features = adapter.physical_device.get_features();
+    let features = adapter.physical_device.features();
 
     // TODO: fill in information
 }
@@ -167,7 +167,7 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
     let adapter_info = &adapter.info;
-    let limits = adapter.physical_device.get_limits();
+    let limits = adapter.physical_device.limits();
     let (major, minor, patch) = VERSION;
 
     let device_name = {
@@ -1741,109 +1741,149 @@ pub extern "C" fn gfxUpdateDescriptorSets(
     descriptorCopyCount: u32,
     pDescriptorCopies: *const VkCopyDescriptorSet,
 ) {
-    assert_eq!(descriptorCopyCount, 0); // TODO
+    //TODO: use `SmallVec` aggressively
 
-    let writes = unsafe {
+    //TEMP: find a cleaner and faster way to provide those
+    // currently we have to allocate vectors and `transmute` lifetimes :()
+    // yeah, this is super crappy, and not crabby at all
+    let mut samplers = Vec::new();
+    let mut images = Vec::new();
+    let mut texel_buffers = Vec::new();
+    let mut buffers = Vec::new();
+    let mut combined_image_samplers = Vec::new();
+
+    let mut writes: Vec<pso::DescriptorSetWrite<B, Range<_>>> = Vec::new();
+    let write_infos = unsafe {
         slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _)
     };
 
-    let writes = writes
-        .iter()
-        .map(|write| {
-            fn map_buffer_info(buffer_info: &[VkDescriptorBufferInfo]) -> Vec<(&<B as Backend>::Buffer, Range<u64>)> {
-                buffer_info
+    for write in write_infos {
+        fn map_buffer_info(buffer_info: &[VkDescriptorBufferInfo]) -> Vec<(&<B as Backend>::Buffer, Range<u64>)> {
+            buffer_info
+                .into_iter()
+                .map(|buffer| {
+                    assert_ne!(buffer.range as i32, VK_WHOLE_SIZE);
+                    (
+                        match *buffer.buffer {
+                            Buffer::Buffer(ref buf) => buf,
+                            // Vulkan portability restriction:
+                            // Non-sparse buffer need to be bound to device memory.
+                            Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
+                        },
+                        buffer.offset .. buffer.offset+buffer.range,
+                    )
+                })
+                .collect()
+        }
+
+        let image_info = unsafe {
+            slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
+        };
+        let buffer_info = unsafe {
+            slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
+        };
+        let texel_buffer_views = unsafe {
+            slice::from_raw_parts(write.pTexelBufferView, write.descriptorCount as _)
+        };
+
+        let ty = conv::map_descriptor_type(write.descriptorType);
+        let desc_write = match ty {
+            pso::DescriptorType::Sampler => {
+                samplers.push(image_info
                     .into_iter()
-                    .map(|buffer| {
-                        assert_ne!(buffer.range as i32, VK_WHOLE_SIZE);
-                        (
-                            match *buffer.buffer {
-                                Buffer::Buffer(ref buf) => buf,
-                                // Vulkan portability restriction:
-                                // Non-sparse buffer need to be bound to device memory.
-                                Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
-                            },
-                            buffer.offset .. buffer.offset+buffer.range,
-                        )
-                    })
-                    .collect()
+                    .map(|image| &*image.sampler)
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::Sampler(unsafe { mem::transmute(samplers.last().unwrap().as_slice()) })
             }
-
-            let image_info = unsafe {
-                slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
-            };
-            let buffer_info = unsafe {
-                slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
-            };
-            let texel_buffer_views = unsafe {
-                slice::from_raw_parts(write.pTexelBufferView, write.descriptorCount as _)
-            };
-
-            let ty = conv::map_descriptor_type(write.descriptorType);
-            let desc_write = match ty {
-                pso::DescriptorType::Sampler => pso::DescriptorWrite::Sampler(
-                    image_info
-                        .into_iter()
-                        .map(|image| &*image.sampler)
-                        .collect()
-                ),
-                pso::DescriptorType::SampledImage => pso::DescriptorWrite::SampledImage(
-                    image_info
-                        .into_iter()
-                        .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
-                        .collect()
-                ),
-                pso::DescriptorType::StorageImage => pso::DescriptorWrite::StorageImage(
-                    image_info
-                        .into_iter()
-                        .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
-                        .collect()
-                ),
-                pso::DescriptorType::UniformTexelBuffer => pso::DescriptorWrite::UniformTexelBuffer(
-                    texel_buffer_views
-                        .into_iter()
-                        .map(|view| &**view)
-                        .collect()
-                ),
-                pso::DescriptorType::StorageTexelBuffer => pso::DescriptorWrite::StorageTexelBuffer(
-                    texel_buffer_views
-                        .into_iter()
-                        .map(|view| &**view)
-                        .collect()
-                ),
-                pso::DescriptorType::UniformBuffer => pso::DescriptorWrite::UniformBuffer(
-                    map_buffer_info(buffer_info)
-                ),
-                pso::DescriptorType::StorageBuffer => pso::DescriptorWrite::StorageBuffer(
-                    map_buffer_info(buffer_info)
-                ),
-                pso::DescriptorType::InputAttachment => pso::DescriptorWrite::InputAttachment(
-                    image_info
-                        .into_iter()
-                        .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
-                        .collect()
-                ),
-                pso::DescriptorType::CombinedImageSampler => pso::DescriptorWrite::CombinedImageSampler(
-                    image_info
-                        .into_iter()
-                        .map(|image| (
-                            &*image.sampler,
-                            &*image.imageView,
-                            conv::map_image_layout(image.imageLayout),
-                        ))
-                        .collect()
-                ),
-            };
-
-            pso::DescriptorSetWrite {
-                set: &*write.dstSet,
-                binding: write.dstBinding as _,
-                array_offset: write.dstArrayElement as _,
-                write: desc_write,
+            pso::DescriptorType::SampledImage => {
+                images.push(image_info
+                    .into_iter()
+                    .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::SampledImage(unsafe { mem::transmute(images.last().unwrap().as_slice()) })
             }
-        })
-        .collect::<Vec<_>>();
+            pso::DescriptorType::StorageImage => {
+                images.push(image_info
+                    .into_iter()
+                    .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::StorageImage(unsafe { mem::transmute(images.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::UniformTexelBuffer => {
+                texel_buffers.push(texel_buffer_views
+                    .into_iter()
+                    .map(|view| &**view)
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::UniformTexelBuffer(unsafe { mem::transmute(texel_buffers.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::StorageTexelBuffer => {
+                texel_buffers.push(texel_buffer_views
+                    .into_iter()
+                    .map(|view| &**view)
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::StorageTexelBuffer(unsafe { mem::transmute(texel_buffers.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::UniformBuffer => {
+                buffers.push(map_buffer_info(buffer_info));
+                pso::DescriptorWrite::UniformBuffer(unsafe { mem::transmute(buffers.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::StorageBuffer => {
+                buffers.push(map_buffer_info(buffer_info));
+                pso::DescriptorWrite::StorageBuffer(unsafe { mem::transmute(buffers.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::InputAttachment => {
+                images.push(image_info
+                    .into_iter()
+                    .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::InputAttachment(unsafe { mem::transmute(images.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::CombinedImageSampler => {
+                combined_image_samplers.push(image_info
+                    .into_iter()
+                    .map(|image| (
+                        &*image.sampler,
+                        &*image.imageView,
+                        conv::map_image_layout(image.imageLayout),
+                    ))
+                    .collect::<Vec<_>>()
+                );
+                pso::DescriptorWrite::CombinedImageSampler(unsafe { mem::transmute(combined_image_samplers.last().unwrap().as_slice()) })
+            }
+        };
 
-    gpu.device.update_descriptor_sets(&writes);
+        writes.push(pso::DescriptorSetWrite {
+            set: &*write.dstSet,
+            binding: write.dstBinding as _,
+            array_offset: write.dstArrayElement as _,
+            write: desc_write,
+        });
+    }
+
+    let copies = unsafe {
+            slice::from_raw_parts(pDescriptorCopies, descriptorCopyCount as _)
+        }
+        .iter()
+        .map(|copy| {
+            pso::DescriptorSetCopy {
+                src_set: &*copy.srcSet,
+                src_binding: copy.srcBinding as _,
+                src_array_offset: copy.srcArrayElement as _,
+                dst_set: &*copy.dstSet,
+                dst_binding: copy.dstBinding as _,
+                dst_array_offset: copy.dstArrayElement as _,
+                count: copy.descriptorCount as _,
+            }
+        });
+
+    gpu.device.write_descriptor_sets(writes);
+    gpu.device.copy_descriptor_sets(copies);
 }
 #[inline]
 pub extern "C" fn gfxCreateFramebuffer(
@@ -2056,7 +2096,7 @@ pub extern "C" fn gfxDestroyRenderPass(
     renderPass: VkRenderPass,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_renderpass(*renderPass.unwrap());
+    gpu.device.destroy_render_pass(*renderPass.unwrap());
 }
 #[inline]
 pub extern "C" fn gfxGetRenderAreaGranularity(
@@ -2633,14 +2673,34 @@ pub extern "C" fn gfxCmdPipelineBarrier(
     mut commandBuffer: VkCommandBuffer,
     srcStageMask: VkPipelineStageFlags,
     dstStageMask: VkPipelineStageFlags,
-    _dependencyFlags: VkDependencyFlags,
-    _memoryBarrierCount: u32,
-    _pMemoryBarriers: *const VkMemoryBarrier,
+    dependencyFlags: VkDependencyFlags,
+    memoryBarrierCount: u32,
+    pMemoryBarriers: *const VkMemoryBarrier,
     bufferMemoryBarrierCount: u32,
     pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
+    let global_barriers = unsafe {
+            slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _)
+        }
+        .iter()
+        .flat_map(|b| {
+            let buf = conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask);
+            let buf_bar = if !buf.start.is_empty() || !buf.end.is_empty() {
+                Some(memory::Barrier::AllBuffers(buf))
+            } else {
+                None
+            };
+            let img = conv::map_image_access(b.srcAccessMask) .. conv::map_image_access(b.dstAccessMask);
+            let img_bar = if !img.start.is_empty() || !img.end.is_empty() {
+                Some(memory::Barrier::AllImages(img))
+            } else {
+                None
+            };
+            buf_bar.into_iter().chain(img_bar)
+        });
+
     let buffer_barriers = unsafe {
             slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _)
         }
@@ -2652,6 +2712,7 @@ pub extern "C" fn gfxCmdPipelineBarrier(
                 Buffer::Unbound(_) => panic!("Bound buffer is needed here!"),
             },
         });
+
     let image_barriers = unsafe {
             slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _)
         }
@@ -2669,7 +2730,8 @@ pub extern "C" fn gfxCmdPipelineBarrier(
 
     commandBuffer.pipeline_barrier(
         conv::map_pipeline_stage_flags(srcStageMask) .. conv::map_pipeline_stage_flags(dstStageMask),
-        buffer_barriers.chain(image_barriers),
+        memory::Dependencies::from_bits(dependencyFlags as _).unwrap_or(memory::Dependencies::empty()),
+        global_barriers.chain(buffer_barriers).chain(image_barriers),
     );
 }
 #[inline]
@@ -2755,7 +2817,7 @@ pub extern "C" fn gfxCmdBeginRenderPass(
     };
     let contents = conv::map_subpass_contents(contents);
 
-    commandBuffer.begin_renderpass_raw(
+    commandBuffer.begin_render_pass_raw(
         &*info.renderPass,
         &*info.framebuffer,
         render_area,
@@ -2769,7 +2831,7 @@ pub extern "C" fn gfxCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: Vk
 }
 #[inline]
 pub extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
-    commandBuffer.end_renderpass();
+    commandBuffer.end_render_pass();
 }
 #[inline]
 pub extern "C" fn gfxCmdExecuteCommands(
