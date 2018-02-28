@@ -19,6 +19,21 @@ pub fn format_properties_from_hal(properties: format::Properties) -> VkFormatPro
     }
 }
 
+pub fn image_format_properties_from_hal(_properties: format::Properties) -> VkImageFormatProperties {
+    //TODO
+    VkImageFormatProperties {
+        maxExtent: VkExtent3D {
+            width: 1<<12,
+            height: 1<<12,
+            depth: 1<<8,
+        },
+        maxMipLevels: 1,
+        maxArrayLayers: 1,
+        sampleCounts: 1,
+        maxResourceSize: 1<<24,
+    }
+}
+
 fn image_features_from_hal(features: format::ImageFeature) -> VkFormatFeatureFlags {
     let mut flags = 0;
 

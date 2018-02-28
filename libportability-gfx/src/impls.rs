@@ -151,15 +151,19 @@ pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
-    physicalDevice: VkPhysicalDevice,
+    adapter: VkPhysicalDevice,
     format: VkFormat,
-    type_: VkImageType,
-    tiling: VkImageTiling,
-    usage: VkImageUsageFlags,
-    flags: VkImageCreateFlags,
+    _type_: VkImageType,
+    _tiling: VkImageTiling,
+    _usage: VkImageUsageFlags,
+    _flags: VkImageCreateFlags,
     pImageFormatProperties: *mut VkImageFormatProperties,
 ) -> VkResult {
-    unimplemented!()
+    let properties = adapter.physical_device.format_properties(conv::map_format(format));
+    unsafe {
+        *pImageFormatProperties = conv::image_format_properties_from_hal(properties);
+    }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceProperties(
@@ -240,11 +244,15 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr => gfxGetDeviceProcAddr,
 
         vkEnumeratePhysicalDevices, PFN_vkEnumeratePhysicalDevices => gfxEnumeratePhysicalDevices,
+        vkEnumerateInstanceLayerProperties, PFN_vkEnumerateInstanceLayerProperties => gfxEnumerateInstanceLayerProperties,
         vkEnumerateInstanceExtensionProperties, PFN_vkEnumerateInstanceExtensionProperties => gfxEnumerateInstanceExtensionProperties,
         vkEnumerateDeviceExtensionProperties, PFN_vkEnumerateDeviceExtensionProperties => gfxEnumerateDeviceExtensionProperties,
+        vkEnumerateDeviceLayerProperties, PFN_vkEnumerateDeviceLayerProperties => gfxEnumerateDeviceLayerProperties,
 
         vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures => gfxGetPhysicalDeviceFeatures,
         vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties => gfxGetPhysicalDeviceProperties,
+        vkGetPhysicalDeviceFormatProperties, PFN_vkGetPhysicalDeviceFormatProperties => gfxGetPhysicalDeviceFormatProperties,
+        vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties => gfxGetPhysicalDeviceImageFormatProperties,
         vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties => gfxGetPhysicalDeviceMemoryProperties,
         vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties => gfxGetPhysicalDeviceQueueFamilyProperties,
 
@@ -534,7 +542,7 @@ pub extern "C" fn gfxEnumerateInstanceLayerProperties(
     pPropertyCount: *mut u32,
     _pProperties: *mut VkLayerProperties,
 ) -> VkResult {
-    // TODO: dummy implementation
+    warn!("TODO: gfxEnumerateInstanceLayerProperties");
     unsafe { *pPropertyCount = 0; }
 
     VkResult::VK_SUCCESS
@@ -545,7 +553,10 @@ pub extern "C" fn gfxEnumerateDeviceLayerProperties(
     pPropertyCount: *mut u32,
     pProperties: *mut VkLayerProperties,
 ) -> VkResult {
-    unimplemented!()
+    warn!("TODO: gfxEnumerateDeviceLayerProperties");
+    unsafe { *pPropertyCount = 0; }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxGetDeviceQueue(
@@ -1766,7 +1777,6 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                     (
                         match *buffer.buffer {
                             Buffer::Buffer(ref buf) => buf,
-                            // Vulkan portability restriction:
                             // Non-sparse buffer need to be bound to device memory.
                             Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
                         },
