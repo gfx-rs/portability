@@ -8,12 +8,17 @@ name = "portability_gfx"
 
 [features]
 default = []
+#default = ["env_logger"] # uncomment for debugging
 dx12 = ["gfx-backend-dx12"]
 vulkan = ["gfx-backend-vulkan"]
 
 [dependencies]
 lazy_static = "1.0"
 log = "0.4"
+
+[dependencies.env_logger]
+version = "0.5"
+optional = true
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
