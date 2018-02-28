@@ -48,6 +48,12 @@ pub extern "C" fn gfxCreateInstance(
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
 ) -> VkResult {
+    //Note: is this the best place to enable logging?
+    #[cfg(feature = "env_logger")]
+    {
+        use env_logger;
+        env_logger::init();
+    }
     let instance = back::Instance::create("portability", 1);
     unsafe { *pInstance = Handle::new(instance) };
     VkResult::VK_SUCCESS

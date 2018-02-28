@@ -13,6 +13,8 @@ extern crate gfx_backend_vulkan as back;
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
+#[cfg(feature = "env_logger")]
+extern crate env_logger;
 
 mod conv;
 mod handle;
