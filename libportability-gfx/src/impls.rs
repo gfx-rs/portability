@@ -17,18 +17,7 @@ use super::*;
 const VERSION: (u32, u32, u32) = (1, 0, 66);
 const DRIVER_VERSION: u32 = 1;
 
-pub type PFN_vkCreateInstance = ::std::option::Option<unsafe extern "C" fn(
-    pCreateInfo: *const VkInstanceCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
-    pInstance: *mut VkInstance,
-) -> VkResult>;
-
-pub type PFN_vkEnumeratePhysicalDevices = ::std::option::Option<unsafe extern "C" fn(
-    instance: VkInstance,
-    pPhysicalDeviceCount: *mut u32,
-    pPhysicalDevices: *mut VkPhysicalDevice,
-) -> VkResult>;
-
+#[macro_export]
 macro_rules! proc_addr {
     ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr,)*) => (
         match $name {
@@ -246,6 +235,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 
     proc_addr!{ name,
         vkCreateInstance, PFN_vkCreateInstance => gfxCreateInstance,
+        vkDestroyInstance, PFN_vkDestroyInstance => gfxDestroyInstance,
         vkCreateDevice, PFN_vkCreateDevice => gfxCreateDevice,
         vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr => gfxGetDeviceProcAddr,
 
@@ -261,6 +251,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties => gfxGetPhysicalDeviceImageFormatProperties,
         vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties => gfxGetPhysicalDeviceMemoryProperties,
         vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties => gfxGetPhysicalDeviceQueueFamilyProperties,
+        vkGetPhysicalDeviceSparseImageFormatProperties, PFN_vkGetPhysicalDeviceSparseImageFormatProperties => gfxGetPhysicalDeviceSparseImageFormatProperties,
 
         vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR => gfxGetPhysicalDeviceSurfaceSupportKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
@@ -457,7 +448,7 @@ pub extern "C" fn gfxCreateDevice(
                     let group = gpu.queues.take_raw(id).unwrap();
                     let queues = group
                         .into_iter()
-                        .map(Handle::new)
+                        .map(DispatchHandle::new)
                         .collect();
 
                     (info.queueFamilyIndex, queues)
@@ -470,7 +461,7 @@ pub extern "C" fn gfxCreateDevice(
             };
 
             unsafe {
-                *pDevice = Handle::new(gpu);
+                *pDevice = DispatchHandle::new(gpu);
             }
             VkResult::VK_SUCCESS
         }
@@ -484,11 +475,16 @@ pub extern "C" fn gfxDestroyDevice(device: VkDevice, _pAllocator: *const VkAlloc
 }
 
 lazy_static! {
-    static ref INSTANCE_EXTENSIONS: [VkExtensionProperties; 1] = {
+    static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
         let mut extensions = [
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_SURFACE_SPEC_VERSION,
+            },
+            #[cfg(target_os="windows")]
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+                specVersion: VK_KHR_WIN32_SURFACE_SPEC_VERSION,
             }
         ];
 
@@ -497,8 +493,14 @@ lazy_static! {
             .copy_from_slice(unsafe {
                 mem::transmute(VK_KHR_SURFACE_EXTENSION_NAME as &[u8])
             });
+        #[cfg(target_os="windows")]
+        extensions[1]
+            .extensionName[..VK_KHR_WIN32_SURFACE_EXTENSION_NAME.len()]
+            .copy_from_slice(unsafe {
+                mem::transmute(VK_KHR_WIN32_SURFACE_EXTENSION_NAME as &[u8])
+            });
 
-        extensions
+        extensions.to_vec()
     };
 }
 
@@ -2189,7 +2191,7 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 
     let output = unsafe { slice::from_raw_parts_mut(pCommandBuffers, count) };
     for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
-        *out = Handle::new(cmd_buf);
+        *out = DispatchHandle::new(cmd_buf);
     }
 
     VkResult::VK_SUCCESS

@@ -5,7 +5,12 @@ authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
 
 [lib]
 name = "portability_icd"
-crate-type = ["dylib"]
+crate-type = ["cdylib"]
+
+[features]
+default = []
+dx12 = ["portability-gfx/dx12"]
+vulkan = ["portability-gfx/vulkan"]
 
 [dependencies]
 portability-gfx = { path = "../libportability-gfx" }

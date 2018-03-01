@@ -21,7 +21,7 @@ mod handle;
 mod impls;
 
 use back::Backend as B;
-use handle::Handle;
+use handle::{DispatchHandle, Handle};
 
 use std::{cmp, slice};
 use std::collections::HashMap;
@@ -31,10 +31,10 @@ pub use impls::*;
 // Vulkan objects
 pub type VkInstance = Handle<back::Instance>;
 pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
-pub type VkDevice = Handle<Gpu<B>>;
-pub type VkQueue = Handle<<B as hal::Backend>::CommandQueue>;
+pub type VkDevice = DispatchHandle<Gpu<B>>;
+pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
-pub type VkCommandBuffer = Handle<<B as hal::Backend>::CommandBuffer>;
+pub type VkCommandBuffer = DispatchHandle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
 pub type VkDescriptorSetLayout = Handle<<B as hal::Backend>::DescriptorSetLayout>;
 pub type VkPipelineLayout = Handle<<B as hal::Backend>::PipelineLayout>;
@@ -188,6 +188,9 @@ pub const VK_KHR_surface: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 25;
 pub const VK_KHR_SURFACE_EXTENSION_NAME: &'static [u8; 15usize] =
     b"VK_KHR_surface\x00";
+pub const VK_KHR_WIN32_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 6;
+pub const VK_KHR_WIN32_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
+    b"VK_KHR_win32_surface\x00";
 pub const VK_KHR_swapchain: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SWAPCHAIN_SPEC_VERSION: ::std::os::raw::c_uint = 68;
 pub const VK_KHR_SWAPCHAIN_EXTENSION_NAME: &'static [u8; 17usize] =
@@ -6799,3 +6802,20 @@ pub type PFN_vkCmdSetDiscardRectangleEXT =
                                                discardRectangleCount: u32,
                                                pDiscardRectangles:
                                                    *const VkRect2D)>;
+
+pub type PFN_vkCreateInstance = ::std::option::Option<unsafe extern "C" fn(
+    pCreateInfo: *const VkInstanceCreateInfo,
+    pAllocator: *const VkAllocationCallbacks,
+    pInstance: *mut VkInstance,
+) -> VkResult>;
+
+pub type PFN_vkEnumeratePhysicalDevices = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pPhysicalDeviceCount: *mut u32,
+    pPhysicalDevices: *mut VkPhysicalDevice,
+) -> VkResult>;
+
+pub type PFN_vkDestroyInstance = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pAllocator: *const VkAllocationCallbacks,
+)>;
