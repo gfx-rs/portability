@@ -1,0 +1,22 @@
+skip_branch_with_pr: true
+
+environment:
+  global:
+    PATH: '%PATH%;%USERPROFILE%\.cargo\bin'
+    RUST_BACKTRACE: full
+  matrix:
+  - CHANNEL: stable
+    TARGET: x86_64-pc-windows-msvc
+  - CHANNEL: nightly
+    TARGET: x86_64-pc-windows-msvc
+
+install:
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs
+  - rustup-init -yv --default-toolchain %CHANNEL% --default-host %TARGET%
+  - rustc -vV
+  - cargo -vV
+
+build: false
+test_script:
+  - cargo build --manifest-path libportability/Cargo.toml --features vulkan
+  - cargo build --manifest-path libportability/Cargo.toml --features dx12
