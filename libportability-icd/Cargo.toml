@@ -1,7 +1,11 @@
 [package]
 name = "portability-icd"
+publish = false
 version = "0.1.0"
-authors = ["Dzmitry Malyshau <kvark@mozilla.com>"]
+authors = [
+	"Dzmitry Malyshau <kvark@mozilla.com>",
+	"Markus Siglreightmaier <m.siglreith@gmail.com>",
+]
 
 [lib]
 name = "portability_icd"
@@ -9,8 +13,9 @@ crate-type = ["cdylib"]
 
 [features]
 default = []
-dx12 = ["portability-gfx/dx12"]
-vulkan = ["portability-gfx/vulkan"]
+dx12 = ["portability-gfx/gfx-backend-dx12"]
+metal = ["portability-gfx/gfx-backend-metal"]
+vulkan = ["portability-gfx/gfx-backend-vulkan"]
 
 [dependencies]
-portability-gfx = { path = "../libportability-gfx" }
+portability-gfx = { path = "../libportability-gfx", features = ["dispatch"] }

@@ -20,7 +20,7 @@
  */
 
 
-#if defined(_WIN32)
+#ifdef _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif
 
@@ -79,9 +79,9 @@ int main() {
     Config config = { 10, 10, width, height };
     Window window = new_window(config);
 
-    VkSurfaceKHR surface;
+    VkSurfaceKHR surface = 0;
 
-#if defined(_WIN32)
+#ifdef _WIN32
     VkWin32SurfaceCreateInfoKHR surface_info = {};
     surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
     surface_info.hinstance = window.instance;
