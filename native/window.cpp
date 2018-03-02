@@ -3,7 +3,7 @@
 
 #include "window.hpp"
 
-#if defined(_WIN32)
+#ifdef _WIN32
 const char *CLASS_NAME = "PortabilityClass";
 
 auto WINAPI window_func(HWND hwnd, UINT u_msg, WPARAM w_param, LPARAM l_param) -> LRESULT {
@@ -75,6 +75,16 @@ auto poll_events() -> bool {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+    return true;
+}
+
+#elif __APPLE__
+auto new_window(Config config) -> Window {
+    Window window = Window {};
+    return window;
+}
+
+auto poll_events() -> bool {
     return true;
 }
 

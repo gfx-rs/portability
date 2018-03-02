@@ -2,16 +2,21 @@
 
 #include <stdint.h>
 
-#if defined(_WIN32)
+#ifdef _WIN32
 #include <windows.h>
-#else
+#elif __APPLE__
+//TODO
+#elif __unix__
 #include <xcb/xcb.h>
+#else
+#error "unknown platform"
 #endif
 
 struct Window {
-#if defined(_WIN32)
+#ifdef _WIN32
     HINSTANCE instance;
     HWND window;
+#elif __APPLE__
 #else
     xcb_connection_t *connection;
     xcb_drawable_t window;

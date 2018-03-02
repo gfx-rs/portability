@@ -1,8 +1,6 @@
 use VK_NULL_HANDLE;
 use std::{borrow, fmt, ops};
 
-static ICD_LOADER_MAGIC: u32 = 0x01CDC0DE;
-
 #[repr(C)]
 pub struct Handle<T>(*mut T);
 
@@ -54,52 +52,62 @@ impl<T> fmt::Debug for Handle<T> {
     }
 }
 
-#[repr(C)]
-pub struct DispatchHandle<T>(u32, Handle<T>);
+#[cfg(feature = "dispatch")]
+pub use self::dispatch::DispatchHandle;
+#[cfg(not(feature = "dispatch"))]
+pub type DispatchHandle<T> = Handle<T>;
 
-impl<T> DispatchHandle<T> {
-    pub fn new(value: T) -> Self {
-        DispatchHandle(ICD_LOADER_MAGIC, Handle::new(value))
+#[cfg(feature = "dispatch")]
+mod dispatch {
+    const ICD_LOADER_MAGIC: u32 = 0x01CDC0DE;
+
+    #[repr(C)]
+    pub struct DispatchHandle<T>(u32, super::Handle<T>);
+
+    impl<T> DispatchHandle<T> {
+        pub fn new(value: T) -> Self {
+            DispatchHandle(ICD_LOADER_MAGIC, super::Handle::new(value))
+        }
+
+        pub fn unwrap(self) -> Box<T> {
+            self.1.unwrap()
+        }
+
+        pub fn is_null(&self) -> bool {
+            self.1.is_null()
+        }
     }
 
-    pub fn unwrap(self) -> Box<T> {
-        self.1.unwrap()
+    impl<T> Clone for DispatchHandle<T> {
+        fn clone(&self) -> Self {
+            DispatchHandle(self.0, self.1)
+        }
     }
 
-    pub fn is_null(&self) -> bool {
-        self.1.is_null()
+    impl<T> Copy for DispatchHandle<T> {}
+
+    impl<T> ops::Deref for DispatchHandle<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            self.1.deref()
+        }
     }
-}
 
-impl<T> Clone for DispatchHandle<T> {
-    fn clone(&self) -> Self {
-        DispatchHandle(self.0, self.1)
+    impl<T> ops::DerefMut for DispatchHandle<T> {
+        fn deref_mut(&mut self) -> &mut T {
+            self.1.deref_mut()
+        }
     }
-}
 
-impl<T> Copy for DispatchHandle<T> {}
-
-impl<T> ops::Deref for DispatchHandle<T> {
-    type Target = T;
-    fn deref(&self) -> &T {
-        self.1.deref()
+    impl<T> borrow::Borrow<T> for DispatchHandle<T> {
+        fn borrow(&self) -> &T {
+            self.1.borrow()
+        }
     }
-}
 
-impl<T> ops::DerefMut for DispatchHandle<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        self.1.deref_mut()
-    }
-}
-
-impl<T> borrow::Borrow<T> for DispatchHandle<T> {
-    fn borrow(&self) -> &T {
-        self.1.borrow()
-    }
-}
-
-impl<T> fmt::Debug for DispatchHandle<T> {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "DispatchHandle({:p})", (self.1).0)
+    impl<T> fmt::Debug for DispatchHandle<T> {
+        fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            write!(formatter, "DispatchHandle({:p})", (self.1).0)
+        }
     }
 }

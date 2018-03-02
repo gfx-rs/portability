@@ -44,7 +44,7 @@ pub extern "C" fn gfxCreateInstance(
         env_logger::init();
     }
     let instance = back::Instance::create("portability", 1);
-    unsafe { *pInstance = Handle::new(instance) };
+    unsafe { *pInstance = DispatchHandle::new(instance) };
     VkResult::VK_SUCCESS
 }
 
@@ -75,7 +75,7 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     let count = cmp::min(adapters.len(), output.len());
 
     for (out, adapter) in output.iter_mut().zip(adapters.into_iter()) {
-        *out = Handle::new(adapter);
+        *out = DispatchHandle::new(adapter);
     }
 
     unsafe { *pPhysicalDeviceCount = count as _ };
@@ -3205,7 +3205,7 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    #[cfg(all(feature = "vulkan", target_os = "windows"))]
+    #[cfg(all(feature = "gfx-backend-vulkan", target_os = "windows"))]
     {
         unsafe {
             assert_eq!(info.flags, 0);
@@ -3216,7 +3216,7 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
             VkResult::VK_SUCCESS
         }
     }
-    #[cfg(feature = "dx12")]
+    #[cfg(feature = "gfx-backend-dx12")]
     {
         unsafe {
             assert_eq!(info.flags, 0);
@@ -3235,7 +3235,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    #[cfg(all(feature = "vulkan", target_os = "linux"))]
+    #[cfg(all(feature = "gfx-backend-vulkan", target_os = "linux"))]
     {
         unsafe {
             assert_eq!(info.flags, 0);
@@ -3246,7 +3246,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
             VkResult::VK_SUCCESS
         }
     }
-    #[cfg(not(all(feature = "vulkan", target_os = "linux")))]
+    #[cfg(not(all(feature = "gfx-backend-vulkan", target_os = "linux")))]
     unreachable!()
 }
 #[inline]

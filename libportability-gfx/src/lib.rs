@@ -4,9 +4,11 @@
 #![allow(improper_ctypes)] //TEMP: buggy Rustc FFI analysis
 
 extern crate gfx_hal as hal;
-#[cfg(feature = "dx12")]
+#[cfg(feature = "gfx-backend-dx12")]
 extern crate gfx_backend_dx12 as back;
-#[cfg(feature = "vulkan")]
+#[cfg(feature = "gfx-backend-metal")]
+extern crate gfx_backend_metal as back;
+#[cfg(feature = "gfx-backend-vulkan")]
 extern crate gfx_backend_vulkan as back;
 
 #[macro_use]
@@ -30,7 +32,7 @@ pub use impls::*;
 
 // Vulkan objects
 pub type VkInstance = Handle<back::Instance>;
-pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
+pub type VkPhysicalDevice = DispatchHandle<hal::Adapter<B>>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
 pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;

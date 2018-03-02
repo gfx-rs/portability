@@ -4,6 +4,11 @@
 
 This is a prototype library implementing [Vulkan Portability Initiative](https://www.khronos.org/blog/khronos-announces-the-vulkan-portability-initiative) using gfx-rs [low-level core](http://gfx-rs.github.io/2017/07/24/low-level.html). See gfx-rs [meta issue](https://github.com/gfx-rs/gfx/issues/1354) for backend limitations and further details.
 
+## Check out
+```
+git clone --recursive https://github.com/gfx-rs/portability && cd portability
+```
+
 ## Build
 
 ### Makefile (Unix)
@@ -15,7 +20,7 @@ make
 Build the Rust library (portability implementation):
 
 ```
-cargo build --manifest-path libportability/Cargo.toml --features <vulkan|dx12>
+cargo build --manifest-path libportability/Cargo.toml --features <vulkan|dx12|metal>
 ```
 
 Build the native example:
