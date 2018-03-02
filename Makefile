@@ -42,7 +42,7 @@ binding: $(BINDING)
 $(BINDING): $(VULKAN_DIR)/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
 
-$(LIBRARY): libportability/src/*.rs libportability-gfx/src/*.rs Cargo.toml $(wildcard Cargo.lock)
+$(LIBRARY): libportability/src/*.rs libportability-gfx/src/*.rs Cargo.toml libportability-gfx/Cargo.toml $(wildcard Cargo.lock)
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
 	mkdir -p target/native
 

@@ -1,6 +1,6 @@
 use hal::{command as com, memory, pass, pso, queue};
 use hal::{
-    Backend, DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily,
+    DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily,
     Surface, Swapchain as HalSwapchain, FrameSync,
 };
 use hal::device::WaitFor;
@@ -10,7 +10,6 @@ use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
 use std::mem;
-use std::ops::Range;
 
 use super::*;
 
@@ -298,6 +297,8 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkDestroyBuffer, PFN_vkDestroyBuffer => gfxDestroyBuffer,
         vkGetBufferMemoryRequirements, PFN_vkGetBufferMemoryRequirements => gfxGetBufferMemoryRequirements,
         vkBindBufferMemory, PFN_vkBindBufferMemory => gfxBindBufferMemory,
+        vkCreateBufferView, PFN_vkCreateBufferView => gfxCreateBufferView,
+        vkDestroyBufferView, PFN_vkDestroyBufferView => gfxDestroyBufferView,
 
         vkCreateImage, PFN_vkCreateImage => gfxCreateImage,
         vkDestroyImage, PFN_vkDestroyImage => gfxDestroyImage,
@@ -306,24 +307,42 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkBindImageMemory, PFN_vkBindImageMemory => gfxBindImageMemory,
         vkCreateImageView, PFN_vkCreateImageView => gfxCreateImageView,
         vkDestroyImageView, PFN_vkDestroyImageView => gfxDestroyImageView,
+        vkGetImageSubresourceLayout, PFN_vkGetImageSubresourceLayout => gfxGetImageSubresourceLayout,
 
         vkCreateRenderPass, PFN_vkCreateRenderPass => gfxCreateRenderPass,
         vkDestroyRenderPass, PFN_vkDestroyRenderPass => gfxDestroyRenderPass,
         vkCreateFramebuffer, PFN_vkCreateFramebuffer => gfxCreateFramebuffer,
         vkDestroyFramebuffer, PFN_vkDestroyFramebuffer => gfxDestroyFramebuffer,
+        vkGetRenderAreaGranularity, PFN_vkGetRenderAreaGranularity => gfxGetRenderAreaGranularity,
 
         vkCreatePipelineLayout, PFN_vkCreatePipelineLayout => gfxCreatePipelineLayout,
         vkDestroyPipelineLayout, PFN_vkDestroyPipelineLayout => gfxDestroyPipelineLayout,
         vkCreateGraphicsPipelines, PFN_vkCreateGraphicsPipelines => gfxCreateGraphicsPipelines,
+        vkCreateComputePipelines, PFN_vkCreateComputePipelines => gfxCreateComputePipelines,
         vkDestroyPipeline, PFN_vkDestroyPipeline => gfxDestroyPipeline,
+        vkCreatePipelineCache, PFN_vkCreatePipelineCache => gfxCreatePipelineCache,
+        vkDestroyPipelineCache, PFN_vkDestroyPipelineCache => gfxDestroyPipelineCache,
+        vkGetPipelineCacheData, PFN_vkGetPipelineCacheData => gfxGetPipelineCacheData,
+        vkMergePipelineCaches, PFN_vkMergePipelineCaches => gfxMergePipelineCaches,
 
         vkCreateCommandPool, PFN_vkCreateCommandPool => gfxCreateCommandPool,
         vkDestroyCommandPool, PFN_vkDestroyCommandPool => gfxDestroyCommandPool,
+        vkResetCommandPool, PFN_vkResetCommandPool => gfxResetCommandPool,
         vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers => gfxAllocateCommandBuffers,
         vkFreeCommandBuffers, PFN_vkFreeCommandBuffers => gfxFreeCommandBuffers,
         vkBeginCommandBuffer, PFN_vkBeginCommandBuffer => gfxBeginCommandBuffer,
         vkEndCommandBuffer, PFN_vkEndCommandBuffer => gfxEndCommandBuffer,
+        vkResetCommandBuffer, PFN_vkResetCommandBuffer => gfxResetCommandBuffer,
 
+        vkCreateDescriptorSetLayout, PFN_vkCreateDescriptorSetLayout => gfxCreateDescriptorSetLayout,
+        vkDestroyDescriptorSetLayout, PFN_vkDestroyDescriptorSetLayout => gfxDestroyDescriptorSetLayout,
+        vkCreateDescriptorPool, PFN_vkCreateDescriptorPool => gfxCreateDescriptorPool,
+        vkDestroyDescriptorPool, PFN_vkDestroyDescriptorPool => gfxDestroyDescriptorPool,
+        vkResetDescriptorPool, PFN_vkResetDescriptorPool => gfxResetDescriptorPool,
+        vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets => gfxAllocateDescriptorSets,
+        vkFreeDescriptorSets, PFN_vkFreeDescriptorSets => gfxFreeDescriptorSets,
+        vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets => gfxUpdateDescriptorSets,
+        
         vkCreateFence, PFN_vkCreateFence => gfxCreateFence,
         vkDestroyFence, PFN_vkDestroyFence => gfxDestroyFence,
         vkWaitForFences, PFN_vkWaitForFences => gfxWaitForFences,
@@ -347,25 +366,7 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkCreateQueryPool, PFN_vkCreateQueryPool => gfxCreateQueryPool,
         vkDestroyQueryPool, PFN_vkDestroyQueryPool => gfxDestroyQueryPool,
         vkGetQueryPoolResults, PFN_vkGetQueryPoolResults => gfxGetQueryPoolResults,
-        vkCreateBufferView, PFN_vkCreateBufferView => gfxCreateBufferView,
-        vkDestroyBufferView, PFN_vkDestroyBufferView => gfxDestroyBufferView,
-        vkGetImageSubresourceLayout, PFN_vkGetImageSubresourceLayout => gfxGetImageSubresourceLayout,
-        vkCreatePipelineCache, PFN_vkCreatePipelineCache => gfxCreatePipelineCache,
-        vkDestroyPipelineCache, PFN_vkDestroyPipelineCache => gfxDestroyPipelineCache,
-        vkGetPipelineCacheData, PFN_vkGetPipelineCacheData => gfxGetPipelineCacheData,
-        vkMergePipelineCaches, PFN_vkMergePipelineCaches => gfxMergePipelineCaches,
-        vkCreateComputePipelines, PFN_vkCreateComputePipelines => gfxCreateComputePipelines,
-        vkCreateDescriptorSetLayout, PFN_vkCreateDescriptorSetLayout => gfxCreateDescriptorSetLayout,
-        vkDestroyDescriptorSetLayout, PFN_vkDestroyDescriptorSetLayout => gfxDestroyDescriptorSetLayout,
-        vkCreateDescriptorPool, PFN_vkCreateDescriptorPool => gfxCreateDescriptorPool,
-        vkDestroyDescriptorPool, PFN_vkDestroyDescriptorPool => gfxDestroyDescriptorPool,
-        vkResetDescriptorPool, PFN_vkResetDescriptorPool => gfxResetDescriptorPool,
-        vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets => gfxAllocateDescriptorSets,
-        vkFreeDescriptorSets, PFN_vkFreeDescriptorSets => gfxFreeDescriptorSets,
-        vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets => gfxUpdateDescriptorSets,
-        vkGetRenderAreaGranularity, PFN_vkGetRenderAreaGranularity => gfxGetRenderAreaGranularity,
-        vkResetCommandPool, PFN_vkResetCommandPool => gfxResetCommandPool,
-        vkResetCommandBuffer, PFN_vkResetCommandBuffer => gfxResetCommandBuffer,
+
         vkCmdBindPipeline, PFN_vkCmdBindPipeline => gfxCmdBindPipeline,
         vkCmdSetViewport, PFN_vkCmdSetViewport => gfxCmdSetViewport,
         vkCmdSetScissor, PFN_vkCmdSetScissor => gfxCmdSetScissor,
@@ -379,6 +380,7 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkCmdBindDescriptorSets, PFN_vkCmdBindDescriptorSets => gfxCmdBindDescriptorSets,
         vkCmdBindIndexBuffer, PFN_vkCmdBindIndexBuffer => gfxCmdBindIndexBuffer,
         vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers => gfxCmdBindVertexBuffers,
+        vkCmdDraw, PFN_vkCmdDraw => gfxCmdDraw,
         vkCmdDrawIndexed, PFN_vkCmdDrawIndexed => gfxCmdDrawIndexed,
         vkCmdDrawIndirect, PFN_vkCmdDrawIndirect => gfxCmdDrawIndirect,
         vkCmdDrawIndexedIndirect, PFN_vkCmdDrawIndexedIndirect => gfxCmdDrawIndexedIndirect,
@@ -388,6 +390,7 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkCmdCopyImage, PFN_vkCmdCopyImage => gfxCmdCopyImage,
         vkCmdBlitImage, PFN_vkCmdBlitImage => gfxCmdBlitImage,
         vkCmdCopyBufferToImage, PFN_vkCmdCopyBufferToImage => gfxCmdCopyBufferToImage,
+        vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer => gfxCmdCopyImageToBuffer,
         vkCmdUpdateBuffer, PFN_vkCmdUpdateBuffer => gfxCmdUpdateBuffer,
         vkCmdFillBuffer, PFN_vkCmdFillBuffer => gfxCmdFillBuffer,
         vkCmdClearColorImage, PFN_vkCmdClearColorImage => gfxCmdClearColorImage,
@@ -408,10 +411,6 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier => gfxCmdPipelineBarrier,
         vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass => gfxCmdBeginRenderPass,
         vkCmdEndRenderPass, PFN_vkCmdEndRenderPass => gfxCmdEndRenderPass,
-        vkCmdBindPipeline, PFN_vkCmdBindPipeline => gfxCmdBindPipeline,
-        vkCmdBindVertexBuffers, PFN_vkCmdBindVertexBuffers => gfxCmdBindVertexBuffers,
-        vkCmdDraw, PFN_vkCmdDraw => gfxCmdDraw,
-        vkCmdCopyImageToBuffer, PFN_vkCmdCopyImageToBuffer => gfxCmdCopyImageToBuffer,
     }
 }
 
@@ -1760,40 +1759,12 @@ pub extern "C" fn gfxUpdateDescriptorSets(
     descriptorCopyCount: u32,
     pDescriptorCopies: *const VkCopyDescriptorSet,
 ) {
-    //TODO: use `SmallVec` aggressively
-
-    //TEMP: find a cleaner and faster way to provide those
-    // currently we have to allocate vectors and `transmute` lifetimes :()
-    // yeah, this is super crappy, and not crabby at all
-    let mut samplers = Vec::new();
-    let mut images = Vec::new();
-    let mut texel_buffers = Vec::new();
-    let mut buffers = Vec::new();
-    let mut combined_image_samplers = Vec::new();
-
-    let mut writes: Vec<pso::DescriptorSetWrite<B, Range<_>>> = Vec::new();
     let write_infos = unsafe {
         slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _)
     };
+    let mut writes = Vec::new(); //TODO: avoid allocation here and below
 
     for write in write_infos {
-        fn map_buffer_info(buffer_info: &[VkDescriptorBufferInfo]) -> Vec<(&<B as Backend>::Buffer, Range<u64>)> {
-            buffer_info
-                .into_iter()
-                .map(|buffer| {
-                    assert_ne!(buffer.range as i32, VK_WHOLE_SIZE);
-                    (
-                        match *buffer.buffer {
-                            Buffer::Buffer(ref buf) => buf,
-                            // Non-sparse buffer need to be bound to device memory.
-                            Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
-                        },
-                        buffer.offset .. buffer.offset+buffer.range,
-                    )
-                })
-                .collect()
-        }
-
         let image_info = unsafe {
             slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
         };
@@ -1805,74 +1776,67 @@ pub extern "C" fn gfxUpdateDescriptorSets(
         };
 
         let ty = conv::map_descriptor_type(write.descriptorType);
-        let desc_write = match ty {
+        let descriptors = match ty {
             pso::DescriptorType::Sampler => {
-                samplers.push(image_info
+                image_info
                     .into_iter()
-                    .map(|image| &*image.sampler)
-                    .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::Sampler(unsafe { mem::transmute(samplers.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::SampledImage => {
-                images.push(image_info
-                    .into_iter()
-                    .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
-                    .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::SampledImage(unsafe { mem::transmute(images.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::StorageImage => {
-                images.push(image_info
-                    .into_iter()
-                    .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
-                    .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::StorageImage(unsafe { mem::transmute(images.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::UniformTexelBuffer => {
-                texel_buffers.push(texel_buffer_views
-                    .into_iter()
-                    .map(|view| &**view)
-                    .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::UniformTexelBuffer(unsafe { mem::transmute(texel_buffers.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::StorageTexelBuffer => {
-                texel_buffers.push(texel_buffer_views
-                    .into_iter()
-                    .map(|view| &**view)
-                    .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::StorageTexelBuffer(unsafe { mem::transmute(texel_buffers.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::UniformBuffer => {
-                buffers.push(map_buffer_info(buffer_info));
-                pso::DescriptorWrite::UniformBuffer(unsafe { mem::transmute(buffers.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::StorageBuffer => {
-                buffers.push(map_buffer_info(buffer_info));
-                pso::DescriptorWrite::StorageBuffer(unsafe { mem::transmute(buffers.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::InputAttachment => {
-                images.push(image_info
-                    .into_iter()
-                    .map(|image| (&*image.imageView, conv::map_image_layout(image.imageLayout)))
-                    .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::InputAttachment(unsafe { mem::transmute(images.last().unwrap().as_slice()) })
-            }
-            pso::DescriptorType::CombinedImageSampler => {
-                combined_image_samplers.push(image_info
-                    .into_iter()
-                    .map(|image| (
+                    .map(|image| pso::Descriptor::Sampler(
                         &*image.sampler,
+                    ))
+                    .collect::<Vec<_>>()
+            }
+            pso::DescriptorType::InputAttachment |
+            pso::DescriptorType::SampledImage |
+            pso::DescriptorType::StorageImage |
+            pso::DescriptorType::UniformImageDynamic => {
+                image_info
+                    .into_iter()
+                    .map(|image| pso::Descriptor::Image(
                         &*image.imageView,
                         conv::map_image_layout(image.imageLayout),
                     ))
                     .collect::<Vec<_>>()
-                );
-                pso::DescriptorWrite::CombinedImageSampler(unsafe { mem::transmute(combined_image_samplers.last().unwrap().as_slice()) })
+            }
+            pso::DescriptorType::UniformTexelBuffer |
+            pso::DescriptorType::StorageTexelBuffer => {
+                texel_buffer_views
+                    .into_iter()
+                    .map(|view| pso::Descriptor::TexelBuffer(
+                        &**view,
+                    ))
+                    .collect::<Vec<_>>()
+            }
+            pso::DescriptorType::UniformBuffer |
+            pso::DescriptorType::StorageBuffer |
+            pso::DescriptorType::UniformBufferDynamic => {
+                buffer_info
+                    .into_iter()
+                    .map(|buffer| {
+                        let end = if buffer.range as i32 == VK_WHOLE_SIZE {
+                            None
+                        } else {
+                            Some(buffer.offset + buffer.range)
+                        };
+                        pso::Descriptor::Buffer(
+                            match *buffer.buffer {
+                                Buffer::Buffer(ref buf) => buf,
+                                // Non-sparse buffer need to be bound to device memory.
+                                Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
+                            },
+                            Some(buffer.offset) .. end,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            }
+            pso::DescriptorType::CombinedImageSampler => {
+                image_info
+                    .into_iter()
+                    .map(|image| pso::Descriptor::CombinedImageSampler(
+                        &*image.imageView,
+                        conv::map_image_layout(image.imageLayout),
+                        &*image.sampler,
+                    ))
+                    .collect::<Vec<_>>()
             }
         };
 
@@ -1880,7 +1844,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
             set: &*write.dstSet,
             binding: write.dstBinding as _,
             array_offset: write.dstArrayElement as _,
-            write: desc_write,
+            descriptors,
         });
     }
 

@@ -4,7 +4,7 @@ publish = false
 version = "0.1.0"
 authors = [
 	"Dzmitry Malyshau <kvark@mozilla.com>",
-	"Markus Siglreight <m.siglreith@gmail.com>",
+	"Markus Siglreightmaier <m.siglreith@gmail.com>",
 ]
 
 [lib]
@@ -25,19 +25,19 @@ optional = true
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
-rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
+rev = "eeb1a2effa079e72a48b24fafb163ab8548428ff"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
-rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
+rev = "eeb1a2effa079e72a48b24fafb163ab8548428ff"
 optional = true
 
 [target.'cfg(windows)'.dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
-rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
+rev = "eeb1a2effa079e72a48b24fafb163ab8548428ff"
 optional = true
 
 [target.'cfg(target_os = "macos")'.dependencies.gfx-backend-metal]
 git = "https://github.com/gfx-rs/gfx"
-rev = "070e0cee47ae6f0c395a3402fd6f889c1315ef3e"
+rev = "eeb1a2effa079e72a48b24fafb163ab8548428ff"
 optional = true
