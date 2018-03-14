@@ -43,7 +43,7 @@ pub extern "C" fn gfxCreateInstance(
         env_logger::init();
     }
     let instance = back::Instance::create("portability", 1);
-    unsafe { *pInstance = DispatchHandle::new(instance) };
+    unsafe { *pInstance = Handle::new(instance) };
     VkResult::VK_SUCCESS
 }
 
@@ -342,7 +342,7 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkAllocateDescriptorSets, PFN_vkAllocateDescriptorSets => gfxAllocateDescriptorSets,
         vkFreeDescriptorSets, PFN_vkFreeDescriptorSets => gfxFreeDescriptorSets,
         vkUpdateDescriptorSets, PFN_vkUpdateDescriptorSets => gfxUpdateDescriptorSets,
-        
+
         vkCreateFence, PFN_vkCreateFence => gfxCreateFence,
         vkDestroyFence, PFN_vkDestroyFence => gfxDestroyFence,
         vkWaitForFences, PFN_vkWaitForFences => gfxWaitForFences,
@@ -2168,10 +2168,13 @@ pub extern "C" fn gfxFreeCommandBuffers(
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
+    // TODO:
+    /*
     let buffer_slice = unsafe { slice::from_raw_parts(pCommandBuffers, commandBufferCount as _) };
     let buffers = buffer_slice.iter().map(|buffer| *buffer.unwrap()).collect();
 
     unsafe { commandPool.free(buffers) };
+    */
 }
 
 #[inline]
