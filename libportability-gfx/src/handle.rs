@@ -1,6 +1,7 @@
 use VK_NULL_HANDLE;
 use std::{borrow, fmt, ops};
 
+
 #[repr(C)]
 pub struct Handle<T>(*mut T);
 
@@ -59,28 +60,32 @@ pub type DispatchHandle<T> = Handle<T>;
 
 #[cfg(feature = "dispatch")]
 mod dispatch {
-    const ICD_LOADER_MAGIC: u32 = 0x01CDC0DE;
+    use VK_NULL_HANDLE;
+    use std::{borrow, fmt, ops};
+
+    const ICD_LOADER_MAGIC: u64 = 0x01CDC0DE;
 
     #[repr(C)]
-    pub struct DispatchHandle<T>(u32, super::Handle<T>);
+    pub struct DispatchHandle<T>(*mut (u64, T));
 
     impl<T> DispatchHandle<T> {
         pub fn new(value: T) -> Self {
-            DispatchHandle(ICD_LOADER_MAGIC, super::Handle::new(value))
+            let ptr = Box::into_raw(Box::new((ICD_LOADER_MAGIC, value)));
+            DispatchHandle(ptr)
         }
 
-        pub fn unwrap(self) -> Box<T> {
-            self.1.unwrap()
+        pub fn unwrap(self) -> Box<(u64, T)> {
+            unsafe { Box::from_raw(self.0) }
         }
 
         pub fn is_null(&self) -> bool {
-            self.1.is_null()
+            self.0 == VK_NULL_HANDLE as *mut _
         }
     }
 
     impl<T> Clone for DispatchHandle<T> {
         fn clone(&self) -> Self {
-            DispatchHandle(self.0, self.1)
+            DispatchHandle(self.0)
         }
     }
 
@@ -89,25 +94,25 @@ mod dispatch {
     impl<T> ops::Deref for DispatchHandle<T> {
         type Target = T;
         fn deref(&self) -> &T {
-            self.1.deref()
+            unsafe { &(*self.0).1 }
         }
     }
 
     impl<T> ops::DerefMut for DispatchHandle<T> {
         fn deref_mut(&mut self) -> &mut T {
-            self.1.deref_mut()
+            unsafe { &mut (*self.0).1 }
         }
     }
 
     impl<T> borrow::Borrow<T> for DispatchHandle<T> {
         fn borrow(&self) -> &T {
-            self.1.borrow()
+            unsafe { &(*self.0).1 }
         }
     }
 
     impl<T> fmt::Debug for DispatchHandle<T> {
         fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-            write!(formatter, "DispatchHandle({:p})", (self.1).0)
+            write!(formatter, "DispatchHandle({:p})", self.0)
         }
     }
 }
