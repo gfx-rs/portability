@@ -1041,14 +1041,14 @@ pub extern "C" fn gfxCreateImage(
         .create_image(
             conv::map_image_kind(
                 info.imageType,
-                info.flags,
                 info.extent,
-                info.arrayLayers,
+                info.arrayLayers as _,
                 info.samples,
             ),
             info.mipLevels as _,
             conv::map_format(info.format).unwrap(),
             conv::map_image_usage(info.usage),
+            unsafe { mem::transmute(info.flags) },
         )
         .expect("Error on creating image");
 
@@ -1098,6 +1098,7 @@ pub extern "C" fn gfxCreateImageView(
 
     let view = gpu.device.create_image_view(
         image,
+        conv::map_view_kind(info.viewType),
         conv::map_format(info.format).unwrap(),
         conv::map_swizzle(info.components),
         conv::map_subresource_range(info.subresourceRange),
@@ -1603,21 +1604,24 @@ pub extern "C" fn gfxCreateSampler(
     _pAllocator: *const VkAllocationCallbacks,
     pSampler: *mut VkSampler,
 ) -> VkResult {
-    let vk_info = unsafe { &*pCreateInfo };
+    let info = unsafe { &*pCreateInfo };
     //TODO: fill all the sampler properties
-    let info = hal::image::SamplerInfo {
-        filter: hal::image::FilterMethod::Scale,
+    let gfx_info = hal::image::SamplerInfo {
+        min_filter: conv::map_filter(info.minFilter),
+        mag_filter: conv::map_filter(info.magFilter),
+        mip_filter: conv::map_mipmap_filter(info.mipmapMode),
         wrap_mode: (
-            conv::map_wrap_mode(vk_info.addressModeU),
-            conv::map_wrap_mode(vk_info.addressModeV),
-            conv::map_wrap_mode(vk_info.addressModeW),
+            conv::map_wrap_mode(info.addressModeU),
+            conv::map_wrap_mode(info.addressModeV),
+            conv::map_wrap_mode(info.addressModeW),
         ),
         lod_bias: 0.0.into(),
         lod_range: 0.0.into() .. 1.0.into(),
         comparison: None,
         border: [0.0; 4].into(),
+        anisotropic: hal::image::Anisotropic::Off,
     };
-    let sampler = gpu.device.create_sampler(info);
+    let sampler = gpu.device.create_sampler(gfx_info);
     unsafe { *pSampler = Handle::new(sampler); }
     VkResult::VK_SUCCESS
 }
@@ -1883,7 +1887,7 @@ pub extern "C" fn gfxCreateFramebuffer(
         .into_iter()
         .map(|attachment| &**attachment);
 
-    let extent = hal::device::Extent {
+    let extent = hal::image::Extent {
         width: info.width,
         height: info.height,
         depth: info.layers,

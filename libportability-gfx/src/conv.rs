@@ -1,5 +1,4 @@
 use hal::{buffer, command, error, format, image, memory, pass, pso, window};
-use hal::device::Extent;
 use hal::{PatchSize, Primitive};
 
 use std::mem;
@@ -170,37 +169,29 @@ fn map_aspect(aspects: VkImageAspectFlags) -> format::Aspects {
 
 pub fn map_image_kind(
     ty: VkImageType,
-    flags: VkImageCreateFlags,
     extent: VkExtent3D,
-    array_layers: u32,
+    array_layers: image::Layer,
     samples: VkSampleCountFlagBits,
 ) -> image::Kind {
     debug_assert_ne!(array_layers, 0);
-    let is_cube = flags & VkImageCreateFlagBits::VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT as u32 != 0;
-    assert!(!is_cube || array_layers % 6 == 0);
-
     match ty {
-        VkImageType::VK_IMAGE_TYPE_1D if array_layers == 1 => image::Kind::D1(extent.width as _),
-        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1Array(extent.width as _, array_layers as _),
-        VkImageType::VK_IMAGE_TYPE_2D if array_layers == 1 => {
-            image::Kind::D2(extent.width as _, extent.height as _, map_aa_mode(samples))
-        }
-        VkImageType::VK_IMAGE_TYPE_2D if is_cube && array_layers == 6 => {
-            image::Kind::Cube(extent.width as _)
-        }
-        VkImageType::VK_IMAGE_TYPE_2D if is_cube => {
-            image::Kind::CubeArray(extent.width as _, (array_layers / 6) as _)
-        }
-        VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2Array(
-            extent.width as _,
-            extent.height as _,
-            array_layers as _,
-            map_aa_mode(samples),
-        ),
-        VkImageType::VK_IMAGE_TYPE_3D => {
-            image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _)
-        }
-        _ => unimplemented!(),
+        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width as _, array_layers),
+        VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2(extent.width as _, extent.height as _, array_layers, samples as _),
+        VkImageType::VK_IMAGE_TYPE_3D => image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _),
+        _ => unreachable!()
+    }
+}
+
+pub fn map_view_kind(ty: VkImageViewType) -> image::ViewKind {
+    match ty {
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_1D => image::ViewKind::D1,
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_1D_ARRAY => image::ViewKind::D1Array,
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_2D => image::ViewKind::D2,
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_2D_ARRAY => image::ViewKind::D2Array,
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_3D => image::ViewKind::D3,
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_CUBE => image::ViewKind::Cube,
+        VkImageViewType::VK_IMAGE_VIEW_TYPE_CUBE_ARRAY => image::ViewKind::CubeArray,
+        _ => unreachable!()
     }
 }
 
@@ -218,15 +209,6 @@ pub fn map_image_layout(layout: VkImageLayout) -> image::ImageLayout {
         VkImageLayout::VK_IMAGE_LAYOUT_PREINITIALIZED => Preinitialized,
         VkImageLayout::VK_IMAGE_LAYOUT_PRESENT_SRC_KHR => Present,
         _ => panic!("Unexpected image layout: {:?}", layout),
-    }
-}
-
-fn map_aa_mode(samples: VkSampleCountFlagBits) -> image::AaMode {
-    use VkSampleCountFlagBits::*;
-
-    match samples {
-        VK_SAMPLE_COUNT_1_BIT => image::AaMode::Single,
-        _ => image::AaMode::Multi(samples as _),
     }
 }
 
@@ -596,6 +578,22 @@ pub fn map_cmd_buffer_usage(flags: VkCommandBufferUsageFlags) -> command::Comman
     unsafe { mem::transmute(flags as u16) }
 }
 
+pub fn map_filter(filter: VkFilter) -> image::Filter {
+    match filter {
+        VkFilter::VK_FILTER_NEAREST => image::Filter::Nearest,
+        VkFilter::VK_FILTER_LINEAR => image::Filter::Linear,
+        _ => panic!("Unsupported filter {:?}", filter)
+    }
+}
+
+pub fn map_mipmap_filter(mode: VkSamplerMipmapMode) -> image::Filter {
+    match mode {
+        VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_NEAREST => image::Filter::Nearest,
+        VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR => image::Filter::Linear,
+        _ => panic!("Unsupported mipmap mode {:?}", mode)
+    }
+}
+
 pub fn map_wrap_mode(mode: VkSamplerAddressMode) -> image::WrapMode {
     use super::VkSamplerAddressMode::*;
     match mode {
@@ -618,8 +616,8 @@ pub fn map_offset(extent: VkOffset3D) -> image::Offset {
     }
 }
 
-pub fn map_extent(extent: VkExtent3D) -> Extent {
-    Extent {
+pub fn map_extent(extent: VkExtent3D) -> image::Extent {
+    image::Extent {
         width: extent.width,
         height: extent.height,
         depth: extent.depth,
