@@ -11,6 +11,10 @@ impl<T> Handle<T> {
         Handle(ptr)
     }
 
+    pub fn null() -> Self {
+        Handle(VK_NULL_HANDLE as *mut _)
+    }
+
     pub fn unwrap(self) -> Box<T> {
         unsafe { Box::from_raw(self.0) }
     }
@@ -72,6 +76,10 @@ mod dispatch {
         pub fn new(value: T) -> Self {
             let ptr = Box::into_raw(Box::new((ICD_LOADER_MAGIC, value)));
             DispatchHandle(ptr)
+        }
+
+        pub fn null() -> Self {
+            DispatchHandle(VK_NULL_HANDLE as *mut _)
         }
 
         pub fn unwrap(self) -> Box<(u64, T)> {

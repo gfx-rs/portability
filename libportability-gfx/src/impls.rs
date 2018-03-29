@@ -36,14 +36,21 @@ pub extern "C" fn gfxCreateInstance(
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
 ) -> VkResult {
-    //Note: is this the best place to enable logging?
+    // Note: is this the best place to enable logging?
     #[cfg(feature = "env_logger")]
     {
         use env_logger;
         env_logger::init();
     }
-    let instance = back::Instance::create("portability", 1);
-    unsafe { *pInstance = Handle::new(instance) };
+
+    let backend = back::Instance::create("portability", 1);
+    let adapters = backend
+        .enumerate_adapters()
+        .into_iter()
+        .map(Handle::new)
+        .collect();
+
+    unsafe { *pInstance = Handle::new(RawInstance { backend, adapters }) };
     VkResult::VK_SUCCESS
 }
 
@@ -62,20 +69,15 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     pPhysicalDeviceCount: *mut u32,
     pPhysicalDevices: *mut VkPhysicalDevice,
 ) -> VkResult {
-    let adapters = instance.enumerate_adapters();
-
     // If NULL, number of devices is returned.
     if pPhysicalDevices.is_null() {
-        unsafe { *pPhysicalDeviceCount = adapters.len() as _ };
+        unsafe { *pPhysicalDeviceCount = instance.adapters.len() as _ };
         return VkResult::VK_SUCCESS;
     }
 
     let output = unsafe { slice::from_raw_parts_mut(pPhysicalDevices, *pPhysicalDeviceCount as _) };
-    let count = cmp::min(adapters.len(), output.len());
-
-    for (out, adapter) in output.iter_mut().zip(adapters.into_iter()) {
-        *out = DispatchHandle::new(adapter);
-    }
+    let count = cmp::min(instance.adapters.len(), output.len());
+    output.copy_from_slice(&instance.adapters[..count]);
 
     unsafe { *pPhysicalDeviceCount = count as _ };
     VkResult::VK_SUCCESS
@@ -130,7 +132,65 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures(
 ) {
     let features = adapter.physical_device.features();
 
-    // TODO: fill in information
+    unsafe {
+        *pFeatures = VkPhysicalDeviceFeatures {
+            robustBufferAccess: VK_FALSE,
+            fullDrawIndexUint32: VK_FALSE,
+            imageCubeArray: VK_FALSE,
+            independentBlend: VK_FALSE,
+            geometryShader: VK_FALSE,
+            tessellationShader: VK_FALSE,
+            sampleRateShading: VK_FALSE,
+            dualSrcBlend: VK_FALSE,
+            logicOp: VK_FALSE,
+            multiDrawIndirect: VK_FALSE,
+            drawIndirectFirstInstance: VK_FALSE,
+            depthClamp: VK_FALSE,
+            depthBiasClamp: VK_FALSE,
+            fillModeNonSolid: VK_FALSE,
+            depthBounds: VK_FALSE,
+            wideLines: VK_FALSE,
+            largePoints: VK_FALSE,
+            alphaToOne: VK_FALSE,
+            multiViewport: VK_FALSE,
+            samplerAnisotropy: VK_FALSE,
+            textureCompressionETC2: VK_FALSE,
+            textureCompressionASTC_LDR: VK_FALSE,
+            textureCompressionBC: VK_FALSE,
+            occlusionQueryPrecise: VK_FALSE,
+            pipelineStatisticsQuery: VK_FALSE,
+            vertexPipelineStoresAndAtomics: VK_FALSE,
+            fragmentStoresAndAtomics: VK_FALSE,
+            shaderTessellationAndGeometryPointSize: VK_FALSE,
+            shaderImageGatherExtended: VK_FALSE,
+            shaderStorageImageExtendedFormats: VK_FALSE,
+            shaderStorageImageMultisample: VK_FALSE,
+            shaderStorageImageReadWithoutFormat: VK_FALSE,
+            shaderStorageImageWriteWithoutFormat: VK_FALSE,
+            shaderUniformBufferArrayDynamicIndexing: VK_FALSE,
+            shaderSampledImageArrayDynamicIndexing: VK_FALSE,
+            shaderStorageBufferArrayDynamicIndexing: VK_FALSE,
+            shaderStorageImageArrayDynamicIndexing: VK_FALSE,
+            shaderClipDistance: VK_FALSE,
+            shaderCullDistance: VK_FALSE,
+            shaderFloat64: VK_FALSE,
+            shaderInt64: VK_FALSE,
+            shaderInt16: VK_FALSE,
+            shaderResourceResidency: VK_FALSE,
+            shaderResourceMinLod: VK_FALSE,
+            sparseBinding: VK_FALSE,
+            sparseResidencyBuffer: VK_FALSE,
+            sparseResidencyImage2D: VK_FALSE,
+            sparseResidencyImage3D: VK_FALSE,
+            sparseResidency2Samples: VK_FALSE,
+            sparseResidency4Samples: VK_FALSE,
+            sparseResidency8Samples: VK_FALSE,
+            sparseResidency16Samples: VK_FALSE,
+            sparseResidencyAliased: VK_FALSE,
+            variableMultisampleRate: VK_FALSE,
+            inheritedQueries: VK_FALSE,
+        };
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
@@ -231,6 +291,11 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         Ok(name) => name,
         Err(_) => return None,
     };
+
+    let device_addr = gfxGetDeviceProcAddr(DispatchHandle::null(), pName);
+    if device_addr.is_some() {
+        return device_addr;
+    }
 
     proc_addr!{ name,
         vkCreateInstance, PFN_vkCreateInstance => gfxCreateInstance,
@@ -3182,7 +3247,7 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
             assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
             *pSurface = Handle::new(
-                instance.create_surface_from_hwnd(info.hinstance, info.hwnd),
+                instance.backend.create_surface_from_hwnd(info.hinstance, info.hwnd),
             );
             VkResult::VK_SUCCESS
         }
@@ -3192,7 +3257,7 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
         unsafe {
             assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
-            *pSurface = Handle::new(instance.create_surface_from_hwnd(info.hwnd));
+            *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
             VkResult::VK_SUCCESS
         }
     }
@@ -3212,7 +3277,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
             assert_eq!(info.flags, 0);
             assert!(pAllocator.is_null());
             *pSurface = Handle::new(
-                instance.create_surface_from_xcb(info.connection as _, info.window),
+                instance.backend.create_surface_from_xcb(info.connection as _, info.window),
             );
             VkResult::VK_SUCCESS
         }

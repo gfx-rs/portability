@@ -30,9 +30,15 @@ use std::collections::HashMap;
 
 pub use impls::*;
 
+
 // Vulkan objects
-pub type VkInstance = Handle<back::Instance>;
-pub type VkPhysicalDevice = DispatchHandle<hal::Adapter<B>>;
+pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
+
+pub struct RawInstance {
+    pub backend: back::Instance,
+    pub adapters: Vec<VkPhysicalDevice>,
+}
+pub type VkInstance = Handle<RawInstance>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
 pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
 pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
