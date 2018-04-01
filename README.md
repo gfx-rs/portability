@@ -4,6 +4,15 @@
 
 This is a prototype library implementing [Vulkan Portability Initiative](https://www.khronos.org/blog/khronos-announces-the-vulkan-portability-initiative) using gfx-rs [low-level core](http://gfx-rs.github.io/2017/07/24/low-level.html). See gfx-rs [meta issue](https://github.com/gfx-rs/gfx/issues/1354) for backend limitations and further details.
 
+## Vulkan CTS coverage
+
+| gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
+| -------------- | -- | -- | -- | - | - | - | - | - | - | - |
+| *Vulkan* | 3576 | 652  | 676  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
+| *DX12* | 3563 | 1243 | 73  | 0 | 0 | 2247 | 0 | 0 | 0 | 0 |
+
+Currently crashing on "dEQP-VK.api.object_management.single.buffer_view_uniform_r8g8b8a8_unorm".
+
 ## Check out
 ```
 git clone --recursive https://github.com/gfx-rs/portability && cd portability
