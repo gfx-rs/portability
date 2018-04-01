@@ -623,3 +623,24 @@ pub fn map_extent(extent: VkExtent3D) -> image::Extent {
         depth: extent.depth,
     }
 }
+
+pub fn map_rect(rect: &VkRect2D) -> pso::Rect {
+    pso::Rect {
+        x: rect.offset.x as _,
+        y: rect.offset.y as _,
+        w: rect.extent.width as _,
+        h: rect.extent.height as _,
+    }
+}
+
+pub fn map_viewport(vp: &VkViewport) -> pso::Viewport {
+    pso::Viewport {
+        rect: pso::Rect {
+            x: vp.x as _,
+            y: vp.y as _,
+            w: vp.width as _,
+            h: vp.height as _,
+        },
+        depth: vp.minDepth .. vp.maxDepth,
+    }
+}

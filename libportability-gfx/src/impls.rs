@@ -684,7 +684,8 @@ pub extern "C" fn gfxQueueSubmit(
 }
 #[inline]
 pub extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
-    unimplemented!()
+    let _ = queue.wait_idle();
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDeviceWaitIdle(device: VkDevice) -> VkResult {
@@ -715,7 +716,7 @@ pub extern "C" fn gfxAllocateMemory(
 pub extern "C" fn gfxFreeMemory(
     gpu: VkDevice,
     memory: VkDeviceMemory,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     gpu.device.free_memory(*memory.unwrap());
 }
@@ -985,7 +986,7 @@ pub extern "C" fn gfxDestroySemaphore(
 pub extern "C" fn gfxCreateEvent(
     device: VkDevice,
     pCreateInfo: *const VkEventCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pEvent: *mut VkEvent,
 ) -> VkResult {
     unimplemented!()
@@ -994,7 +995,7 @@ pub extern "C" fn gfxCreateEvent(
 pub extern "C" fn gfxDestroyEvent(
     device: VkDevice,
     event: VkEvent,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
@@ -1014,7 +1015,7 @@ pub extern "C" fn gfxResetEvent(device: VkDevice, event: VkEvent) -> VkResult {
 pub extern "C" fn gfxCreateQueryPool(
     device: VkDevice,
     pCreateInfo: *const VkQueryPoolCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pQueryPool: *mut VkQueryPool,
 ) -> VkResult {
     unimplemented!()
@@ -1023,7 +1024,7 @@ pub extern "C" fn gfxCreateQueryPool(
 pub extern "C" fn gfxDestroyQueryPool(
     device: VkDevice,
     queryPool: VkQueryPool,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
@@ -1044,7 +1045,7 @@ pub extern "C" fn gfxGetQueryPoolResults(
 pub extern "C" fn gfxCreateBuffer(
     gpu: VkDevice,
     pCreateInfo: *const VkBufferCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pBuffer: *mut VkBuffer,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
@@ -1064,37 +1065,55 @@ pub extern "C" fn gfxCreateBuffer(
 pub extern "C" fn gfxDestroyBuffer(
     gpu: VkDevice,
     buffer: VkBuffer,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !buffer.is_null() {
         match *buffer.unwrap() {
             Buffer::Buffer(buffer) => gpu.device.destroy_buffer(buffer),
-            Buffer::Unbound(_) => unimplemented!(),
+            Buffer::Unbound(_) => () //TODO? drop for now
         }
     }
 }
 #[inline]
 pub extern "C" fn gfxCreateBufferView(
-    device: VkDevice,
+    gpu: VkDevice,
     pCreateInfo: *const VkBufferViewCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pView: *mut VkBufferView,
 ) -> VkResult {
-    unimplemented!()
+    let info = unsafe { &*pCreateInfo };
+
+    let view = gpu.device
+        .create_buffer_view(
+            match *info.buffer {
+                Buffer::Buffer(ref buffer) => buffer,
+                Buffer::Unbound(_) => unimplemented!(),
+            },
+            conv::map_format(info.format),
+            info.offset .. info.offset + info.range,
+        )
+        .expect("Error creating buffer view");
+
+    unsafe {
+        *pView = Handle::new(view);
+    }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyBufferView(
-    device: VkDevice,
-    bufferView: VkBufferView,
-    pAllocator: *const VkAllocationCallbacks,
+    gpu: VkDevice,
+    view: VkBufferView,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if !view.is_null() {
+        gpu.device.destroy_buffer_view(*view.unwrap());
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreateImage(
     gpu: VkDevice,
     pCreateInfo: *const VkImageCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pImage: *mut VkImage,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
@@ -1126,7 +1145,7 @@ pub extern "C" fn gfxCreateImage(
 pub extern "C" fn gfxDestroyImage(
     gpu: VkDevice,
     image: VkImage,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !image.is_null() {
         match *image.unwrap() {
@@ -1148,7 +1167,7 @@ pub extern "C" fn gfxGetImageSubresourceLayout(
 pub extern "C" fn gfxCreateImageView(
     gpu: VkDevice,
     pCreateInfo: *const VkImageViewCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pView: *mut VkImageView,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
@@ -1181,7 +1200,7 @@ pub extern "C" fn gfxCreateImageView(
 pub extern "C" fn gfxDestroyImageView(
     gpu: VkDevice,
     imageView: VkImageView,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     gpu.device.destroy_image_view(*imageView.unwrap())
 }
@@ -1219,7 +1238,7 @@ pub extern "C" fn gfxDestroyShaderModule(
 pub extern "C" fn gfxCreatePipelineCache(
     device: VkDevice,
     pCreateInfo: *const VkPipelineCacheCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
     // unimplemented!()
@@ -1231,7 +1250,7 @@ pub extern "C" fn gfxCreatePipelineCache(
 pub extern "C" fn gfxDestroyPipelineCache(
     device: VkDevice,
     pipelineCache: VkPipelineCache,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
@@ -1315,8 +1334,6 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     let mut cur_shader_stage = 0;
 
     let descs = infos.into_iter().map(|info| {
-        // TODO: handle dynamic states and viewports
-
         let shaders = {
             let mut set: pso::GraphicsShaderSet<_> = unsafe { mem::zeroed() };
 
@@ -1530,6 +1547,35 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             })
         };
 
+        let vp_state = unsafe { &*info.pViewportState };
+        let empty_dyn_states = [];
+        let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
+            Some(state) => unsafe {
+                slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
+            },
+            None => &empty_dyn_states,
+        };
+        let baked_states = pso::BakedStates {
+            viewport: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_VIEWPORT) {
+                None
+            } else {
+                unsafe { vp_state.pViewports.as_ref() }
+                    .map(conv::map_viewport)
+            },
+            scissor: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_SCISSOR) {
+                None
+            } else {
+                unsafe { vp_state.pScissors.as_ref() }
+                    .map(conv::map_rect)
+            },
+            blend_color: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_BLEND_CONSTANTS) {
+                None
+            } else {
+                unsafe { info.pColorBlendState.as_ref() }
+                    .map(|cbs| cbs.blendConstants)
+            },
+        };
+
         let layout = &*info.layout;
         let subpass = pass::Subpass {
             index: info.subpass as _,
@@ -1572,6 +1618,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             input_assembler,
             blender,
             depth_stencil,
+            baked_states,
             layout,
             subpass,
             flags,
@@ -1601,7 +1648,7 @@ pub extern "C" fn gfxCreateComputePipelines(
     pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkComputePipelineCreateInfo,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
     unimplemented!()
@@ -1610,7 +1657,7 @@ pub extern "C" fn gfxCreateComputePipelines(
 pub extern "C" fn gfxDestroyPipeline(
     gpu: VkDevice,
     pipeline: VkPipeline,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !pipeline.is_null() {
         match *pipeline.unwrap() {
@@ -2233,7 +2280,7 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 #[inline]
 pub extern "C" fn gfxFreeCommandBuffers(
     _gpu: VkDevice,
-    mut commandPool: VkCommandPool,
+    commandPool: VkCommandPool,
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
@@ -2291,17 +2338,7 @@ pub extern "C" fn gfxCmdSetViewport(
     let viewports = unsafe {
         slice::from_raw_parts(pViewports, viewportCount as _)
             .into_iter()
-            .map(|viewport| {
-                com::Viewport {
-                    rect: com::Rect {
-                        x: viewport.x as _,
-                        y: viewport.y as _,
-                        w: viewport.width as _,
-                        h: viewport.height as _,
-                    },
-                    depth: viewport.minDepth .. viewport.maxDepth,
-                }
-            })
+            .map(conv::map_viewport)
     };
 
     commandBuffer.set_viewports(viewports);
@@ -2318,14 +2355,7 @@ pub extern "C" fn gfxCmdSetScissor(
     let scissors = unsafe {
         slice::from_raw_parts(pScissors, scissorCount as _)
             .into_iter()
-            .map(|scissor| {
-                com::Rect {
-                    x: scissor.offset.x as _,
-                    y: scissor.offset.y as _,
-                    w: scissor.extent.width as _,
-                    h: scissor.extent.height as _,
-                }
-            })
+            .map(conv::map_rect)
     };
 
     commandBuffer.set_scissors(scissors);
@@ -2855,7 +2885,7 @@ pub extern "C" fn gfxCmdBeginRenderPass(
 ) {
     let info = unsafe { &*pRenderPassBegin };
 
-    let render_area = com::Rect {
+    let render_area = pso::Rect {
         x: info.renderArea.offset.x as _,
         y: info.renderArea.offset.y as _,
         w: info.renderArea.extent.width as _,
@@ -3049,7 +3079,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
 pub extern "C" fn gfxDestroySwapchainKHR(
     device: VkDevice,
     mut swapchain: VkSwapchainKHR,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     for image in &mut swapchain.images {
         let _ = image.unwrap();
@@ -3106,7 +3136,7 @@ pub extern "C" fn gfxCmdReserveSpaceForCommandsNVX(
 pub extern "C" fn gfxCreateIndirectCommandsLayoutNVX(
     device: VkDevice,
     pCreateInfo: *const VkIndirectCommandsLayoutCreateInfoNVX,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pIndirectCommandsLayout: *mut VkIndirectCommandsLayoutNVX,
 ) -> VkResult {
     unimplemented!()
@@ -3115,7 +3145,7 @@ pub extern "C" fn gfxCreateIndirectCommandsLayoutNVX(
 pub extern "C" fn gfxDestroyIndirectCommandsLayoutNVX(
     device: VkDevice,
     indirectCommandsLayout: VkIndirectCommandsLayoutNVX,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
@@ -3123,7 +3153,7 @@ pub extern "C" fn gfxDestroyIndirectCommandsLayoutNVX(
 pub extern "C" fn gfxCreateObjectTableNVX(
     device: VkDevice,
     pCreateInfo: *const VkObjectTableCreateInfoNVX,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pObjectTable: *mut VkObjectTableNVX,
 ) -> VkResult {
     unimplemented!()
@@ -3132,7 +3162,7 @@ pub extern "C" fn gfxCreateObjectTableNVX(
 pub extern "C" fn gfxDestroyObjectTableNVX(
     device: VkDevice,
     objectTable: VkObjectTableNVX,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
@@ -3200,7 +3230,7 @@ pub extern "C" fn gfxDisplayPowerControlEXT(
 pub extern "C" fn gfxRegisterDeviceEventEXT(
     device: VkDevice,
     pDeviceEventInfo: *const VkDeviceEventInfoEXT,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pFence: *mut VkFence,
 ) -> VkResult {
     unimplemented!()
@@ -3210,7 +3240,7 @@ pub extern "C" fn gfxRegisterDisplayEventEXT(
     device: VkDevice,
     display: VkDisplayKHR,
     pDisplayEventInfo: *const VkDisplayEventInfoEXT,
-    pAllocator: *const VkAllocationCallbacks,
+    _pAllocator: *const VkAllocationCallbacks,
     pFence: *mut VkFence,
 ) -> VkResult {
     unimplemented!()
@@ -3240,12 +3270,12 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
+    assert!(pAllocator.is_null());
     let info = unsafe { &*pCreateInfo };
     #[cfg(all(feature = "gfx-backend-vulkan", target_os = "windows"))]
     {
         unsafe {
             assert_eq!(info.flags, 0);
-            assert!(pAllocator.is_null());
             *pSurface = Handle::new(
                 instance.backend.create_surface_from_hwnd(info.hinstance, info.hwnd),
             );
@@ -3256,7 +3286,6 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
     {
         unsafe {
             assert_eq!(info.flags, 0);
-            assert!(pAllocator.is_null());
             *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
             VkResult::VK_SUCCESS
         }
@@ -3270,12 +3299,12 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
+    assert!(pAllocator.is_null());
     let info = unsafe { &*pCreateInfo };
     #[cfg(all(feature = "gfx-backend-vulkan", target_os = "linux"))]
     {
         unsafe {
             assert_eq!(info.flags, 0);
-            assert!(pAllocator.is_null());
             *pSurface = Handle::new(
                 instance.backend.create_surface_from_xcb(info.connection as _, info.window),
             );
