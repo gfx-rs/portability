@@ -1070,7 +1070,9 @@ pub extern "C" fn gfxDestroyBuffer(
     if !buffer.is_null() {
         match *buffer.unwrap() {
             Buffer::Buffer(buffer) => gpu.device.destroy_buffer(buffer),
-            Buffer::Unbound(_) => () //TODO? drop for now
+            Buffer::Unbound(_) => {
+                warn!("Trying to destroy a non-bound buffer, ignoring");
+            }
         }
     }
 }
@@ -1150,7 +1152,9 @@ pub extern "C" fn gfxDestroyImage(
     if !image.is_null() {
         match *image.unwrap() {
             Image::Image(image) => gpu.device.destroy_image(image),
-            Image::Unbound(_) => unimplemented!(),
+            Image::Unbound(_) => {
+                warn!("Trying to destroy a non-bound image, ignoring");
+            }
         }
     }
 }
