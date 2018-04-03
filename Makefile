@@ -1,4 +1,5 @@
 VULKAN_DIR=modules/vulkan-docs/src
+CTS_DIR=../VK-GL-CTS
 BINDING=target/vulkan.rs
 NATIVE_DIR=target/native
 TARGET=$(NATIVE_DIR)/test
@@ -31,9 +32,10 @@ else
 	endif
 endif
 
+FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 
-.PHONY: all binding run
+.PHONY: all binding run cts
 
 all: $(TARGET)
 
@@ -54,6 +56,12 @@ $(TARGET): $(LIBRARY) $(OBJECTS) Makefile
 
 run: $(TARGET)
 	$(TARGET)
+
+cts: $(TARGET)
+	-LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(CTS_DIR)/build/external/vulkancts/modules/vulkan/deqp-vk
+	python $(CTS_DIR)/scripts/log/log_to_xml.py TestResults.qpa conformance/last.xml
+	mv TestResults.qpa conformance/last.qpa
+	firefox conformance/last.xml
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)

@@ -8,10 +8,12 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 
 | gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
 | -------------- | -- | -- | -- | - | - | - | - | - | - | - |
-| *Vulkan* | 3576 | 652  | 676  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
+| *Vulkan* | 3589 | 665  | 676  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
 | *DX12* | 3563 | 1243 | 73  | 0 | 0 | 2247 | 0 | 0 | 0 | 0 |
 
-Currently crashing on "dEQP-VK.api.object_management.single.buffer_view_uniform_r8g8b8a8_unorm".
+Currently crashing on event handling.
+
+Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts`.
 
 ## Check out
 ```

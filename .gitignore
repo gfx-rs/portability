@@ -1,4 +1,6 @@
 /build/
 /target/
+conformance/*.xml
+conformance/*.qpa
 **/*.rs.bk
 Cargo.lock
