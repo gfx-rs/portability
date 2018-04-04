@@ -8,12 +8,13 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 
 | gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
 | -------------- | -- | -- | -- | - | - | - | - | - | - | - |
-| *Vulkan* | 3589 | 665  | 676  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
+| *Vulkan* | 3742 | 1393  | 101  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
 | *DX12* | 3563 | 1243 | 73  | 0 | 0 | 2247 | 0 | 0 | 0 | 0 |
 
-Currently crashing on event handling.
+Currently stopping with:
+> Unable to create Vulkan instance: VkError(ErrorIncompatibleDriver)
 
-Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts`.
+Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems.
 
 ## Check out
 ```

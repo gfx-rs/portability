@@ -207,17 +207,31 @@ pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
 pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
     adapter: VkPhysicalDevice,
     format: VkFormat,
-    _type_: VkImageType,
-    _tiling: VkImageTiling,
-    _usage: VkImageUsageFlags,
-    _flags: VkImageCreateFlags,
+    typ: VkImageType,
+    tiling: VkImageTiling,
+    usage: VkImageUsageFlags,
+    create_flags: VkImageCreateFlags,
     pImageFormatProperties: *mut VkImageFormatProperties,
 ) -> VkResult {
-    let properties = adapter.physical_device.format_properties(conv::map_format(format));
-    unsafe {
-        *pImageFormatProperties = conv::image_format_properties_from_hal(properties);
+    let properties = adapter.physical_device.image_format_properties(
+        conv::map_format(format).unwrap(),
+        match typ {
+            VkImageType::VK_IMAGE_TYPE_1D => 1,
+            VkImageType::VK_IMAGE_TYPE_2D => 2,
+            VkImageType::VK_IMAGE_TYPE_3D => 3,
+            _ => panic!("Unexpected image type: {:?}", typ),
+        },
+        conv::map_tiling(tiling),
+        conv::map_image_usage(usage),
+        unsafe { mem::transmute(create_flags) },
+    );
+    match properties {
+        Some(props) => unsafe {
+            *pImageFormatProperties = conv::image_format_properties_from_hal(props);
+            VkResult::VK_SUCCESS
+        },
+        None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED
     }
-    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceProperties(
@@ -1133,6 +1147,7 @@ pub extern "C" fn gfxCreateImage(
             ),
             info.mipLevels as _,
             conv::map_format(info.format).unwrap(),
+            conv::map_tiling(info.tiling),
             conv::map_image_usage(info.usage),
             unsafe { mem::transmute(info.flags) },
         )
@@ -1764,7 +1779,9 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
     let bindings = layout_bindings
         .iter()
         .map(|binding| {
-            assert!(binding.pImmutableSamplers.is_null()); // TODO
+            if !binding.pImmutableSamplers.is_null() {
+                warn!("immutable samplers are not supported yet");
+            }
 
             pso::DescriptorSetLayoutBinding {
                 binding: binding.binding as _,
@@ -1798,7 +1815,9 @@ pub extern "C" fn gfxCreateDescriptorPool(
     pDescriptorPool: *mut VkDescriptorPool,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    assert_eq!(info.flags, 0); // TODO
+    if info.flags != 0 {
+        warn!("gfxCreateDescriptorPool flags are not supported: 0x{:x}", info.flags);
+    }
 
     let pool_sizes = unsafe {
         slice::from_raw_parts(info.pPoolSizes, info.poolSizeCount as _)
@@ -1864,12 +1883,13 @@ pub extern "C" fn gfxAllocateDescriptorSets(
 }
 #[inline]
 pub extern "C" fn gfxFreeDescriptorSets(
-    device: VkDevice,
-    descriptorPool: VkDescriptorPool,
-    descriptorSetCount: u32,
-    pDescriptorSets: *const VkDescriptorSet,
+    _device: VkDevice,
+    _descriptorPool: VkDescriptorPool,
+    _descriptorSetCount: u32,
+    _pDescriptorSets: *const VkDescriptorSet,
 ) -> VkResult {
-    unimplemented!()
+    error!("gfxFreeDescriptorSets not implemented");
+    VkResult::VK_NOT_READY
 }
 #[inline]
 pub extern "C" fn gfxUpdateDescriptorSets(
