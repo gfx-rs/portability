@@ -18,18 +18,13 @@ pub fn format_properties_from_hal(properties: format::Properties) -> VkFormatPro
     }
 }
 
-pub fn image_format_properties_from_hal(_properties: format::Properties) -> VkImageFormatProperties {
-    //TODO
+pub fn image_format_properties_from_hal(properties: image::FormatProperties) -> VkImageFormatProperties {
     VkImageFormatProperties {
-        maxExtent: VkExtent3D {
-            width: 1<<12,
-            height: 1<<12,
-            depth: 1<<8,
-        },
-        maxMipLevels: 1,
-        maxArrayLayers: 1,
-        sampleCounts: 1,
-        maxResourceSize: 1<<24,
+        maxExtent: extent3d_from_hal(properties.max_extent),
+        maxMipLevels: properties.max_levels as _,
+        maxArrayLayers: properties.max_layers as _,
+        sampleCounts: properties.sample_count_mask as _,
+        maxResourceSize: properties.max_resource_size as _,
     }
 }
 
@@ -101,6 +96,14 @@ pub fn extent2d_from_hal(extent: window::Extent2D) -> VkExtent2D {
     VkExtent2D {
         width: extent.width,
         height: extent.height,
+    }
+}
+
+pub fn extent3d_from_hal(extent: image::Extent) -> VkExtent3D {
+    VkExtent3D {
+        width: extent.width,
+        height: extent.height,
+        depth: extent.depth,
     }
 }
 
@@ -195,8 +198,8 @@ pub fn map_view_kind(ty: VkImageViewType) -> image::ViewKind {
     }
 }
 
-pub fn map_image_layout(layout: VkImageLayout) -> image::ImageLayout {
-    use hal::image::ImageLayout::*;
+pub fn map_image_layout(layout: VkImageLayout) -> image::Layout {
+    use hal::image::Layout::*;
     match layout {
         VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => Undefined,
         VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => General,
@@ -234,10 +237,10 @@ pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
         flags |= image::Usage::DEPTH_STENCIL_ATTACHMENT;
     }
     if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT as u32 != 0 {
-        unimplemented!()
+        warn!("VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT is not supported yet");
     }
     if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT as u32 != 0 {
-        unimplemented!()
+        warn!("VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT is not supported yet");
     }
 
     flags
@@ -397,8 +400,7 @@ pub fn map_descriptor_type(ty: VkDescriptorType) -> pso::DescriptorType {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER => pso::DescriptorType::UniformBuffer,
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::StorageBuffer,
         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT => pso::DescriptorType::InputAttachment,
-
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER |
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER => pso::DescriptorType::CombinedImageSampler,
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC |
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => unimplemented!(),
         _ => panic!("Unexpected descriptor type: {:?}", ty),
@@ -575,7 +577,7 @@ pub fn map_blend_op(
 #[inline]
 pub fn map_cmd_buffer_usage(flags: VkCommandBufferUsageFlags) -> command::CommandBufferFlags {
     // Vulkan and HAL flags are equal
-    unsafe { mem::transmute(flags as u16) }
+    unsafe { mem::transmute(flags) }
 }
 
 pub fn map_filter(filter: VkFilter) -> image::Filter {
@@ -642,5 +644,13 @@ pub fn map_viewport(vp: &VkViewport) -> pso::Viewport {
             h: vp.height as _,
         },
         depth: vp.minDepth .. vp.maxDepth,
+    }
+}
+
+pub fn map_tiling(tiling: VkImageTiling) -> image::Tiling {
+    match tiling {
+        VkImageTiling::VK_IMAGE_TILING_OPTIMAL => image::Tiling::Optimal,
+        VkImageTiling::VK_IMAGE_TILING_LINEAR => image::Tiling::Linear,
+        _ => panic!("Unexpected tiling: {:?}", tiling),
     }
 }
