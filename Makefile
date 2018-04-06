@@ -68,6 +68,9 @@ cts: $(TARGET) $(TEST_LIST)
 	mv TestResults.qpa conformance/last.qpa
 	firefox conformance/last.xml
 
+cts-debug: $(TARGET) $(TEST_LIST)
+	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) rust-lldb $(CTS_DIR)/build/external/vulkancts/modules/vulkan/deqp-vk -- --deqp-caselist-file=$(TEST_LIST)
+
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)
 	cargo clean

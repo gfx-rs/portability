@@ -3077,6 +3077,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         color_format: conv::map_format(info.imageFormat).unwrap(),
         depth_stencil_format: None,
         image_count: info.minImageCount,
+        image_usage: conv::map_image_usage(info.imageUsage),
     };
     let (swapchain, backbuffers) = gpu.device
         .create_swapchain(&mut info.surface.clone(), config);
