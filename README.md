@@ -10,6 +10,7 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 | -------------- | -- | -- | -- | - | - | - | - | - | - | - |
 | *Vulkan* | 3742 | 1393  | 101  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
 | *DX12* | 3563 | 1243 | 73  | 0 | 0 | 2247 | 0 | 0 | 0 | 0 |
+| *Metal* | 6 | 6 | 0  | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Currently stopping with:
 > Unable to create Vulkan instance: VkError(ErrorIncompatibleDriver)
