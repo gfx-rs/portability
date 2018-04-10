@@ -69,18 +69,26 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     pPhysicalDeviceCount: *mut u32,
     pPhysicalDevices: *mut VkPhysicalDevice,
 ) -> VkResult {
+    let num_adapters = instance.adapters.len();
+
     // If NULL, number of devices is returned.
     if pPhysicalDevices.is_null() {
-        unsafe { *pPhysicalDeviceCount = instance.adapters.len() as _ };
+        unsafe { *pPhysicalDeviceCount = num_adapters as _ };
         return VkResult::VK_SUCCESS;
     }
 
     let output = unsafe { slice::from_raw_parts_mut(pPhysicalDevices, *pPhysicalDeviceCount as _) };
-    let count = cmp::min(instance.adapters.len(), output.len());
+    let num_output = output.len();
+    let (code, count) = if num_output < num_adapters {
+        (VkResult::VK_INCOMPLETE, num_output)
+    } else {
+        (VkResult::VK_SUCCESS, num_adapters)
+    };
+    
     output.copy_from_slice(&instance.adapters[..count]);
-
     unsafe { *pPhysicalDeviceCount = count as _ };
-    VkResult::VK_SUCCESS
+
+    code
 }
 
 #[inline]
