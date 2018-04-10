@@ -25,7 +25,7 @@ mod impls;
 use back::Backend as B;
 use handle::{DispatchHandle, Handle};
 
-use std::{cmp, slice};
+use std::{slice};
 use std::collections::HashMap;
 
 pub use impls::*;
