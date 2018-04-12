@@ -4,4 +4,3 @@ conformance/*.xml
 conformance/*.qpa
 conformance/*.txt
 **/*.rs.bk
-Cargo.lock
