@@ -8,12 +8,14 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 
 | gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
 | -------- | ---- | ---- | --- | -- | - | ---- | - | - | - | - |
-| *Vulkan* | 3914 | 1516 | 120 | 30 | 0 | 2248 | 0 | 0 | 0 | 0 |
+| *Vulkan* | 7723 | 2236 | 66  | 34 | 0 | 5387 | 0 | 0 | 0 | 0 |
 | *DX12*   | 3563 | 1243 | 73  | 0  | 0 | 2247 | 0 | 0 | 0 | 0 |
 | *Metal*  | 3710 | 1260 | 66  | 0  | 0 | 2384 | 0 | 0 | 0 | 0 |
 
+DX12 and Metal measurement are currently out of date.
+  
 Currently stopping with:
-> Unable to create Vulkan instance: VkError(ErrorIncompatibleDriver)
+> (RADV ARCH VULKAN) radv_BeginCommandBuffer: Assertion `pBeginInfo->pInheritanceInfo' failed.
 
 Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems.
 
