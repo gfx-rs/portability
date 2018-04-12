@@ -950,15 +950,27 @@ pub extern "C" fn gfxDestroyFence(
 }
 #[inline]
 pub extern "C" fn gfxResetFences(
-    device: VkDevice,
+    gpu: VkDevice,
     fenceCount: u32,
     pFences: *const VkFence,
 ) -> VkResult {
-    unimplemented!()
+    let fence_slice = unsafe {
+        slice::from_raw_parts(pFences, fenceCount as _)
+    };
+    let fences = fence_slice
+        .into_iter()
+        .map(|fence| &**fence);
+
+    gpu.device.reset_fences(fences);
+    VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxGetFenceStatus(device: VkDevice, fence: VkFence) -> VkResult {
-    unimplemented!()
+pub extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
+    if gpu.device.get_fence_status(&*fence) {
+        VkResult::VK_SUCCESS
+    } else {
+        VkResult::VK_NOT_READY
+    }
 }
 #[inline]
 pub extern "C" fn gfxWaitForFences(
@@ -1016,7 +1028,9 @@ pub extern "C" fn gfxCreateEvent(
     _pAllocator: *const VkAllocationCallbacks,
     pEvent: *mut VkEvent,
 ) -> VkResult {
-    unimplemented!()
+    // Vulkan portability doesn't currently support events, but some
+    // test cases use them so fail with an obvious error message.
+    VkResult::VK_ERROR_DEVICE_LOST
 }
 #[inline]
 pub extern "C" fn gfxDestroyEvent(
