@@ -7,10 +7,10 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 ## Vulkan CTS coverage
 
 | gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
-| -------------- | -- | -- | -- | - | - | - | - | - | - | - |
-| *Vulkan* | 3742 | 1393  | 101  | 0 | 0 | 2248 | 0 | 0 | 0 | 0 |
-| *DX12* | 3563 | 1243 | 73  | 0 | 0 | 2247 | 0 | 0 | 0 | 0 |
-| *Metal* | 3710 | 1260 | 66  | 0 | 0 | 2384 | 0 | 0 | 0 | 0 |
+| -------- | ---- | ---- | --- | -- | - | ---- | - | - | - | - |
+| *Vulkan* | 3914 | 1516 | 120 | 30 | 0 | 2248 | 0 | 0 | 0 | 0 |
+| *DX12*   | 3563 | 1243 | 73  | 0  | 0 | 2247 | 0 | 0 | 0 | 0 |
+| *Metal*  | 3710 | 1260 | 66  | 0  | 0 | 2384 | 0 | 0 | 0 | 0 |
 
 Currently stopping with:
 > Unable to create Vulkan instance: VkError(ErrorIncompatibleDriver)

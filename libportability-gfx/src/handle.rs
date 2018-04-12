@@ -15,8 +15,8 @@ impl<T> Handle<T> {
         Handle(VK_NULL_HANDLE as *mut _)
     }
 
-    pub fn unwrap(self) -> Box<T> {
-        unsafe { Box::from_raw(self.0) }
+    pub fn unbox(self) -> T {
+        *unsafe { Box::from_raw(self.0) }
     }
 
     pub fn is_null(&self) -> bool {
@@ -82,8 +82,8 @@ mod dispatch {
             DispatchHandle(VK_NULL_HANDLE as *mut _)
         }
 
-        pub fn unwrap(self) -> Box<(u64, T)> {
-            unsafe { Box::from_raw(self.0) }
+        pub fn unbox(self) -> T {
+            unsafe { Box::from_raw(self.0) }.1
         }
 
         pub fn is_null(&self) -> bool {

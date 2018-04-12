@@ -59,7 +59,7 @@ pub extern "C" fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    instance.unwrap();
+    let _ = instance.unbox();
     //let it drop
 }
 
@@ -556,8 +556,13 @@ pub extern "C" fn gfxCreateDevice(
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyDevice(device: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
-    let _ = device.unwrap(); //TODO?
+pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
+    // release all the owned command queues
+    for (_, family) in gpu.unbox().queues {
+        for queue in family {
+            let _ = queue.unbox();
+        }
+    }
 }
 
 lazy_static! {
@@ -740,7 +745,7 @@ pub extern "C" fn gfxFreeMemory(
     memory: VkDeviceMemory,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.free_memory(*memory.unwrap());
+    gpu.device.free_memory(memory.unbox());
 }
 #[inline]
 pub extern "C" fn gfxMapMemory(
@@ -941,7 +946,7 @@ pub extern "C" fn gfxDestroyFence(
     fence: VkFence,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_fence(*fence.unwrap());
+    gpu.device.destroy_fence(fence.unbox());
 }
 #[inline]
 pub extern "C" fn gfxResetFences(
@@ -1002,7 +1007,7 @@ pub extern "C" fn gfxDestroySemaphore(
     semaphore: VkSemaphore,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_semaphore(*semaphore.unwrap());
+    gpu.device.destroy_semaphore(semaphore.unbox());
 }
 #[inline]
 pub extern "C" fn gfxCreateEvent(
@@ -1090,7 +1095,7 @@ pub extern "C" fn gfxDestroyBuffer(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !buffer.is_null() {
-        match *buffer.unwrap() {
+        match buffer.unbox() {
             Buffer::Buffer(buffer) => gpu.device.destroy_buffer(buffer),
             Buffer::Unbound(_) => {
                 warn!("Trying to destroy a non-bound buffer, ignoring");
@@ -1130,7 +1135,7 @@ pub extern "C" fn gfxDestroyBufferView(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !view.is_null() {
-        gpu.device.destroy_buffer_view(*view.unwrap());
+        gpu.device.destroy_buffer_view(view.unbox());
     }
 }
 #[inline]
@@ -1173,7 +1178,7 @@ pub extern "C" fn gfxDestroyImage(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !image.is_null() {
-        match *image.unwrap() {
+        match image.unbox() {
             Image::Image(image) => gpu.device.destroy_image(image),
             Image::Unbound(_) => {
                 warn!("Trying to destroy a non-bound image, ignoring");
@@ -1229,7 +1234,7 @@ pub extern "C" fn gfxDestroyImageView(
     imageView: VkImageView,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_image_view(*imageView.unwrap())
+    gpu.device.destroy_image_view(imageView.unbox())
 }
 #[inline]
 pub extern "C" fn gfxCreateShaderModule(
@@ -1259,7 +1264,7 @@ pub extern "C" fn gfxDestroyShaderModule(
     shaderModule: VkShaderModule,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_shader_module(*shaderModule.unwrap());
+    gpu.device.destroy_shader_module(shaderModule.unbox());
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
@@ -1687,7 +1692,7 @@ pub extern "C" fn gfxDestroyPipeline(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if !pipeline.is_null() {
-        match *pipeline.unwrap() {
+        match pipeline.unbox() {
             Pipeline::Graphics(pipeline) => gpu.device.destroy_graphics_pipeline(pipeline),
             Pipeline::Compute(pipeline) => gpu.device.destroy_compute_pipeline(pipeline),
         }
@@ -1734,7 +1739,7 @@ pub extern "C" fn gfxDestroyPipelineLayout(
     pipelineLayout: VkPipelineLayout,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_pipeline_layout(*pipelineLayout.unwrap());
+    gpu.device.destroy_pipeline_layout(pipelineLayout.unbox());
 }
 #[inline]
 pub extern "C" fn gfxCreateSampler(
@@ -1770,7 +1775,7 @@ pub extern "C" fn gfxDestroySampler(
     sampler: VkSampler,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_sampler(*sampler.unwrap());
+    gpu.device.destroy_sampler(sampler.unbox());
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorSetLayout(
@@ -1813,7 +1818,7 @@ pub extern "C" fn gfxDestroyDescriptorSetLayout(
     descriptorSetLayout: VkDescriptorSetLayout,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_descriptor_set_layout(*descriptorSetLayout.unwrap());
+    gpu.device.destroy_descriptor_set_layout(descriptorSetLayout.unbox());
 }
 #[inline]
 pub extern "C" fn gfxCreateDescriptorPool(
@@ -1853,7 +1858,7 @@ pub extern "C" fn gfxDestroyDescriptorPool(
     descriptorPool: VkDescriptorPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_descriptor_pool(*descriptorPool.unwrap());
+    gpu.device.destroy_descriptor_pool(descriptorPool.unbox());
 }
 #[inline]
 pub extern "C" fn gfxResetDescriptorPool(
@@ -1884,7 +1889,16 @@ pub extern "C" fn gfxAllocateDescriptorSets(
         slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
     };
     for (set, raw_set) in sets.iter_mut().zip(descriptor_sets.into_iter()) {
-        *set = Handle::new(raw_set);
+        *set = match raw_set {
+            Ok(set) => Handle::new(set),
+            Err(e) => return match e {
+                pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+                pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
+                pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
+                pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
+            },
+        };
     }
 
     VkResult::VK_SUCCESS
@@ -2054,7 +2068,7 @@ pub extern "C" fn gfxDestroyFramebuffer(
     framebuffer: VkFramebuffer,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_framebuffer(*framebuffer.unwrap());
+    gpu.device.destroy_framebuffer(framebuffer.unbox());
 }
 #[inline]
 pub extern "C" fn gfxCreateRenderPass(
@@ -2226,7 +2240,7 @@ pub extern "C" fn gfxDestroyRenderPass(
     renderPass: VkRenderPass,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_render_pass(*renderPass.unwrap());
+    gpu.device.destroy_render_pass(renderPass.unbox());
 }
 #[inline]
 pub extern "C" fn gfxGetRenderAreaGranularity(
@@ -2271,7 +2285,7 @@ pub extern "C" fn gfxDestroyCommandPool(
     commandPool: VkCommandPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_command_pool(*commandPool.unwrap());
+    gpu.device.destroy_command_pool(commandPool.unbox());
 }
 
 #[inline]
@@ -2312,17 +2326,15 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 #[inline]
 pub extern "C" fn gfxFreeCommandBuffers(
     _gpu: VkDevice,
-    commandPool: VkCommandPool,
+    mut commandPool: VkCommandPool,
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    // TODO:
-    /*
-    let buffer_slice = unsafe { slice::from_raw_parts(pCommandBuffers, commandBufferCount as _) };
-    let buffers = buffer_slice.iter().map(|buffer| *buffer.unwrap()).collect();
-
+    let slice = unsafe {
+        slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
+    };
+    let buffers = slice.iter().map(|buffer| buffer.unbox()).collect();
     unsafe { commandPool.free(buffers) };
-    */
 }
 
 #[inline]
@@ -2964,7 +2976,7 @@ pub extern "C" fn gfxDestroySurfaceKHR(
     surface: VkSurfaceKHR,
     _: *const VkAllocationCallbacks,
 ) {
-    let _ = surface.unwrap(); //TODO
+    let _ = surface.unbox(); //TODO
 }
 
 #[inline]
@@ -3115,9 +3127,9 @@ pub extern "C" fn gfxDestroySwapchainKHR(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     for image in &mut swapchain.images {
-        let _ = image.unwrap();
+        let _ = image.unbox();
     }
-    let _ = swapchain.unwrap();
+    let _ = swapchain.unbox();
 }
 #[inline]
 pub extern "C" fn gfxGetSwapchainImagesKHR(

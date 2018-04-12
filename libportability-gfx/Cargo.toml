@@ -25,23 +25,19 @@ optional = true
 
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
-rev = "efa0822a343489f3c72df9537628c1283179a6df"
 #path = "../../gfx/src/hal"
 
 [target.'cfg(not(target_os = "macos"))'.dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
-rev = "efa0822a343489f3c72df9537628c1283179a6df"
 #path = "../../gfx/src/backend/vulkan"
 optional = true
 
 [target.'cfg(windows)'.dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
-rev = "efa0822a343489f3c72df9537628c1283179a6df"
 #path = "../../gfx/src/backend/dx12"
 optional = true
 
 [target.'cfg(target_os = "macos")'.dependencies.gfx-backend-metal]
 git = "https://github.com/gfx-rs/gfx"
-rev = "efa0822a343489f3c72df9537628c1283179a6df"
 #path = "../../gfx/src/backend/metal"
 optional = true
