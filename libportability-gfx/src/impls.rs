@@ -548,8 +548,13 @@ pub extern "C" fn gfxCreateDevice(
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyDevice(device: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
-    let _ = device.unwrap(); //TODO?
+pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
+    // release all the owned command queues
+    for (_, family) in gpu.unwrap().queues {
+        for queue in family {
+            let _ = queue.unwrap();
+        }
+    }
 }
 
 lazy_static! {
@@ -1876,7 +1881,16 @@ pub extern "C" fn gfxAllocateDescriptorSets(
         slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
     };
     for (set, raw_set) in sets.iter_mut().zip(descriptor_sets.into_iter()) {
-        *set = Handle::new(raw_set);
+        *set = match raw_set {
+            Ok(set) => Handle::new(set),
+            Err(e) => return match e {
+                pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+                pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
+                pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
+                pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
+            },
+        };
     }
 
     VkResult::VK_SUCCESS
@@ -2304,17 +2318,15 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 #[inline]
 pub extern "C" fn gfxFreeCommandBuffers(
     _gpu: VkDevice,
-    commandPool: VkCommandPool,
+    mut commandPool: VkCommandPool,
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    // TODO:
-    /*
-    let buffer_slice = unsafe { slice::from_raw_parts(pCommandBuffers, commandBufferCount as _) };
-    let buffers = buffer_slice.iter().map(|buffer| *buffer.unwrap()).collect();
-
+    let slice = unsafe {
+        slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
+    };
+    let buffers = slice.iter().map(|buffer| *buffer.unwrap()).collect();
     unsafe { commandPool.free(buffers) };
-    */
 }
 
 #[inline]

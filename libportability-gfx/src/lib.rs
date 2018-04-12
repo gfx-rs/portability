@@ -38,6 +38,7 @@ pub struct RawInstance {
     pub backend: back::Instance,
     pub adapters: Vec<VkPhysicalDevice>,
 }
+
 pub type VkInstance = Handle<RawInstance>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
 pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
