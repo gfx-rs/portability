@@ -793,13 +793,15 @@ pub extern "C" fn gfxMapMemory(
     _flags: VkMemoryMapFlags,
     ppData: *mut *mut ::std::os::raw::c_void,
 ) -> VkResult {
-    if size == VK_WHOLE_SIZE as VkDeviceSize {
-        unimplemented!()
-    }
+    let range = if size == VK_WHOLE_SIZE as VkDeviceSize {
+        (Some(offset), None)
+    } else {
+        (Some(offset), Some(offset + size))
+    };
 
     unsafe {
         *ppData = gpu.device
-            .map_memory(&memory, offset..offset + size)
+            .map_memory(&memory, range)
             .unwrap() as *mut _; // TODO
     }
 
