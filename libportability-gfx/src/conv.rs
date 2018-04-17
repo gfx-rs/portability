@@ -1,4 +1,4 @@
-use hal::{buffer, command, error, format, image, memory, pass, pso, window};
+use hal::{buffer, command, error, format, image, memory, pass, pso, query, window};
 use hal::{PatchSize, Primitive};
 
 use std::mem;
@@ -654,3 +654,14 @@ pub fn map_tiling(tiling: VkImageTiling) -> image::Tiling {
         _ => panic!("Unexpected tiling: {:?}", tiling),
     }
 }
+
+pub fn map_query_control_flags(flags: VkQueryControlFlags) -> query::QueryControl {
+    // Safe due to equivalence of HAL values and Vulkan values
+    unsafe { mem::transmute(flags) }
+}
+
+pub fn map_pipeline_statistics(statistics: VkQueryPipelineStatisticFlags) -> query::PipelineStatistic {
+    // Safe due to equivalence of HAL values and Vulkan values
+    unsafe { mem::transmute(statistics) }
+}
+

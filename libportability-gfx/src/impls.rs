@@ -2395,7 +2395,29 @@ pub extern "C" fn gfxBeginCommandBuffer(
     mut commandBuffer: VkCommandBuffer,
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
-    commandBuffer.begin(conv::map_cmd_buffer_usage(unsafe { (*pBeginInfo).flags }));
+    let inheritance_info = unsafe {
+        let info = (*pBeginInfo).pInheritanceInfo;
+        if info.is_null() {
+            com::CommandBufferInheritanceInfo::default()
+        } else {
+            let info = &*info;
+            com::CommandBufferInheritanceInfo {
+                subpass: if info.renderPass.is_null() {
+                    None
+                } else {
+                    Some(pass::Subpass {
+                        index: info.subpass as usize,
+                        main_pass: &*info.renderPass,
+                    })
+                },
+                framebuffer: if info.framebuffer.is_null() { None } else { Some(&*info.framebuffer) },
+                occlusion_query_enable: info.occlusionQueryEnable == VK_TRUE,
+                occlusion_query_flags: conv::map_query_control_flags(info.queryFlags),
+                pipeline_statistics: conv::map_pipeline_statistics(info.pipelineStatistics),
+            }
+        }
+    };
+    commandBuffer.begin(conv::map_cmd_buffer_usage(unsafe { (*pBeginInfo).flags }), inheritance_info);
 
     VkResult::VK_SUCCESS
 }
@@ -2430,15 +2452,13 @@ pub extern "C" fn gfxCmdSetViewport(
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    assert_eq!(firstViewport, 0); // TODO
-
     let viewports = unsafe {
         slice::from_raw_parts(pViewports, viewportCount as _)
             .into_iter()
             .map(conv::map_viewport)
     };
 
-    commandBuffer.set_viewports(viewports);
+    commandBuffer.set_viewports(firstViewport, viewports);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetScissor(
@@ -2447,15 +2467,13 @@ pub extern "C" fn gfxCmdSetScissor(
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    assert_eq!(firstScissor, 0); // TODO
-
     let scissors = unsafe {
         slice::from_raw_parts(pScissors, scissorCount as _)
             .into_iter()
             .map(conv::map_rect)
     };
 
-    commandBuffer.set_scissors(scissors);
+    commandBuffer.set_scissors(firstScissor, scissors);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {
