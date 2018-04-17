@@ -1,5 +1,5 @@
 use hal::{buffer, command, error, format, image, memory, pass, pso, window};
-use hal::{PatchSize, Primitive};
+use hal::{IndexType, PatchSize, Primitive};
 
 use std::mem;
 
@@ -568,10 +568,54 @@ pub fn map_color_components(mask: VkColorComponentFlags) -> pso::ColorMask {
     unsafe { mem::transmute(mask as u8) }
 }
 
+fn map_blend_factor(factor: VkBlendFactor) -> pso::Factor {
+    use hal::pso::Factor::*;
+    use super::VkBlendFactor::*;
+    match factor {
+        VK_BLEND_FACTOR_ZERO => Zero,
+        VK_BLEND_FACTOR_ONE => One,
+        VK_BLEND_FACTOR_SRC_COLOR => SrcColor,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR => OneMinusSrcColor,
+        VK_BLEND_FACTOR_DST_COLOR => DstColor,
+        VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR => OneMinusDstColor,
+        VK_BLEND_FACTOR_SRC_ALPHA => SrcAlpha,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA => OneMinusSrcAlpha,
+        VK_BLEND_FACTOR_DST_ALPHA => DstAlpha,
+        VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA => OneMinusDstAlpha,
+        VK_BLEND_FACTOR_CONSTANT_COLOR => ConstColor,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR => OneMinusConstColor,
+        VK_BLEND_FACTOR_CONSTANT_ALPHA => ConstAlpha,
+        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA => OneMinusConstAlpha,
+        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE => SrcAlphaSaturate,
+        VK_BLEND_FACTOR_SRC1_COLOR => Src1Color,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR => OneMinusSrc1Color,
+        VK_BLEND_FACTOR_SRC1_ALPHA => Src1Alpha,
+        VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA => OneMinusSrc1Alpha,
+        _ => panic!("Unexpected blend factor: {:?}", factor),
+    }
+}
+
 pub fn map_blend_op(
     blend_op: VkBlendOp, src_factor: VkBlendFactor, dst_factor: VkBlendFactor,
 ) -> pso::BlendOp {
-    unimplemented!()
+    use super::VkBlendOp::*;
+    match blend_op {
+        VK_BLEND_OP_ADD => pso::BlendOp::Add {
+            src: map_blend_factor(src_factor),
+            dst: map_blend_factor(dst_factor)
+        },
+        VK_BLEND_OP_SUBTRACT => pso::BlendOp::Sub {
+            src: map_blend_factor(src_factor),
+            dst: map_blend_factor(dst_factor)
+        },
+        VK_BLEND_OP_REVERSE_SUBTRACT => pso::BlendOp::RevSub {
+            src: map_blend_factor(src_factor),
+            dst: map_blend_factor(dst_factor)
+        },
+        VK_BLEND_OP_MIN => pso::BlendOp::Min,
+        VK_BLEND_OP_MAX => pso::BlendOp::Max,
+        _ => panic!("Unexpected blend operation: {:?}", blend_op),
+    }
 }
 
 #[inline]
@@ -652,5 +696,13 @@ pub fn map_tiling(tiling: VkImageTiling) -> image::Tiling {
         VkImageTiling::VK_IMAGE_TILING_OPTIMAL => image::Tiling::Optimal,
         VkImageTiling::VK_IMAGE_TILING_LINEAR => image::Tiling::Linear,
         _ => panic!("Unexpected tiling: {:?}", tiling),
+    }
+}
+
+pub fn map_index_type(ty: VkIndexType) -> IndexType {
+    match ty {
+        VkIndexType::VK_INDEX_TYPE_UINT16 => IndexType::U16,
+        VkIndexType::VK_INDEX_TYPE_UINT32 => IndexType::U32,
+        _ => panic!("Unexpected index type: {:?}", ty),
     }
 }
