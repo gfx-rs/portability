@@ -84,7 +84,7 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     } else {
         (VkResult::VK_SUCCESS, num_adapters)
     };
-    
+
     output.copy_from_slice(&instance.adapters[..count]);
     unsafe { *pPhysicalDeviceCount = count as _ };
 
@@ -343,6 +343,8 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
         vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR => gfxGetPhysicalDeviceSurfaceFormatsKHR,
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
+
+        vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
     }
 }
 
@@ -566,6 +568,7 @@ pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocati
 }
 
 lazy_static! {
+    // TODO: Request from backend
     static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
         let mut extensions = [
             VkExtensionProperties {
@@ -589,6 +592,23 @@ lazy_static! {
             .extensionName[..VK_KHR_WIN32_SURFACE_EXTENSION_NAME.len()]
             .copy_from_slice(unsafe {
                 mem::transmute(VK_KHR_WIN32_SURFACE_EXTENSION_NAME as &[u8])
+            });
+
+        extensions.to_vec()
+    };
+
+    static ref DEVICE_EXTENSIONS: Vec<VkExtensionProperties> = {
+        let mut extensions = [
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_SWAPCHAIN_EXTENSION_NAME
+                specVersion: VK_KHR_SWAPCHAIN_SPEC_VERSION,
+            },
+        ];
+
+        extensions[0]
+            .extensionName[..VK_KHR_SWAPCHAIN_EXTENSION_NAME.len()]
+            .copy_from_slice(unsafe {
+                mem::transmute(VK_KHR_SWAPCHAIN_EXTENSION_NAME as &[u8])
             });
 
         extensions.to_vec()
@@ -629,10 +649,27 @@ pub extern "C" fn gfxEnumerateDeviceExtensionProperties(
     _physicalDevice: VkPhysicalDevice,
     _pLayerName: *const ::std::os::raw::c_char,
     pPropertyCount: *mut u32,
-    _pProperties: *mut VkExtensionProperties,
+    pProperties: *mut VkExtensionProperties,
 ) -> VkResult {
-    // TODO: dummy implementation
-    unsafe { *pPropertyCount = 0; }
+    let property_count = unsafe { &mut *pPropertyCount };
+    let num_extensions = DEVICE_EXTENSIONS.len() as u32;
+
+    if pProperties.is_null() {
+        *property_count = num_extensions;
+    } else {
+        if *property_count > num_extensions {
+            *property_count = num_extensions;
+        }
+        let properties =
+            unsafe { slice::from_raw_parts_mut(pProperties, *property_count as usize) };
+        for i in 0..*property_count as usize {
+            properties[i] = DEVICE_EXTENSIONS[i];
+        }
+
+        if *property_count < num_extensions {
+            return VkResult::VK_INCOMPLETE;
+        }
+    }
 
     VkResult::VK_SUCCESS
 }
