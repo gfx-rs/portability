@@ -6828,3 +6828,10 @@ pub type PFN_vkDestroyInstance = ::std::option::Option<unsafe extern "C" fn(
     instance: VkInstance,
     pAllocator: *const VkAllocationCallbacks,
 )>;
+
+pub type PFN_vkCreateWin32SurfaceKHR = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pCreateInfo: *const VkWin32SurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult>;
