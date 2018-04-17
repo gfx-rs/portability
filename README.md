@@ -10,7 +10,7 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 | -------- | ---- | ---- | --- | -- | - | ---- | - | - | - | - |
 | *Vulkan* | 7723 | 2236 | 66  | 34 | 0 | 5387 | 0 | 0 | 0 | 0 |
 | *DX12*   | 3563 | 1243 | 73  | 0  | 0 | 2247 | 0 | 0 | 0 | 0 |
-| *Metal*  | 3710 | 1260 | 66  | 0  | 0 | 2384 | 0 | 0 | 0 | 0 |
+| *Metal*  | 3538 | 1215 | 109 | 0  | 0 | 2214 | 0 | 0 | 0 | 0 |
 
 DX12 and Metal measurement are currently out of date.
   

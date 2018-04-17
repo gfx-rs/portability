@@ -517,15 +517,21 @@ pub extern "C" fn gfxCreateDevice(
             dev_info.queueCreateInfoCount as _,
         )
     };
+    let max_queue_count = queue_infos
+        .iter()
+        .map(|info| info.queueCount as usize)
+        .max()
+        .unwrap_or(0);
+    let priorities = vec![1.0; max_queue_count];
     let request_infos = queue_infos
         .iter()
         .map(|info| {
             let family = &adapter.queue_families[info.queueFamilyIndex as usize];
-            (family, vec![1.0; info.queueCount as usize])
+            (family, &priorities[.. info.queueCount as usize])
         })
         .collect::<Vec<_>>();
 
-    let gpu = adapter.physical_device.open(request_infos);
+    let gpu = adapter.physical_device.open(&request_infos);
 
     match gpu {
         Ok(mut gpu) => {
@@ -2395,7 +2401,9 @@ pub extern "C" fn gfxBeginCommandBuffer(
     mut commandBuffer: VkCommandBuffer,
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
-    commandBuffer.begin(conv::map_cmd_buffer_usage(unsafe { (*pBeginInfo).flags }));
+    let info = unsafe { &*pBeginInfo };
+    let inheritance = com::CommandBufferInheritanceInfo::default();
+    commandBuffer.begin(conv::map_cmd_buffer_usage(info.flags), inheritance);
 
     VkResult::VK_SUCCESS
 }
@@ -2430,15 +2438,13 @@ pub extern "C" fn gfxCmdSetViewport(
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    assert_eq!(firstViewport, 0); // TODO
-
     let viewports = unsafe {
         slice::from_raw_parts(pViewports, viewportCount as _)
             .into_iter()
             .map(conv::map_viewport)
     };
 
-    commandBuffer.set_viewports(viewports);
+    commandBuffer.set_viewports(firstViewport, viewports);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetScissor(
@@ -2447,15 +2453,13 @@ pub extern "C" fn gfxCmdSetScissor(
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    assert_eq!(firstScissor, 0); // TODO
-
     let scissors = unsafe {
         slice::from_raw_parts(pScissors, scissorCount as _)
             .into_iter()
             .map(conv::map_rect)
     };
 
-    commandBuffer.set_scissors(scissors);
+    commandBuffer.set_scissors(firstScissor, scissors);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {

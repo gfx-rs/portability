@@ -6,7 +6,7 @@ TARGET=$(NATIVE_DIR)/test
 OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
 LIB_EXTENSION=
 TEST_LIST=conformance/deqp.txt
-TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.3/vk-default.txt
+TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
