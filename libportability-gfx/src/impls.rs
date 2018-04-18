@@ -3,6 +3,7 @@ use hal::{
     DescriptorPool, Device, Instance, PhysicalDevice, QueueFamily,
     Surface, Swapchain as HalSwapchain, FrameSync,
 };
+use hal::buffer::IndexBufferView;
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
 use hal::command::RawCommandBuffer;
@@ -1372,7 +1373,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    assert!(pipelineCache.is_null());
+    // assert!(pipelineCache.is_null());
 
     let infos = unsafe {
         slice::from_raw_parts(pCreateInfos, createInfoCount as _)
@@ -2262,7 +2263,7 @@ pub extern "C" fn gfxCreateRenderPass(
     let dependencies = dependencies
         .into_iter()
         .map(|dependency| {
-            assert_eq!(dependency.dependencyFlags, 0); // TODO
+            // assert_eq!(dependency.dependencyFlags, 0); // TODO
 
             let src_pass = map_subpass_ref(dependency.srcSubpass);
             let dst_pass = map_subpass_ref(dependency.dstSubpass);
@@ -2552,13 +2553,23 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
 }
 #[inline]
 pub extern "C" fn gfxCmdBindIndexBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     buffer: VkBuffer,
     offset: VkDeviceSize,
     indexType: VkIndexType,
 ) {
-    unimplemented!()
+    commandBuffer.bind_index_buffer(
+        IndexBufferView {
+            buffer: match *buffer {
+                Buffer::Buffer(ref b) => b,
+                Buffer::Unbound(_) => panic!("Bound index buffer expected."),
+            },
+            offset,
+            index_type: conv::map_index_type(indexType),
+        }
+    );
 }
+
 #[inline]
 pub extern "C" fn gfxCmdBindVertexBuffers(
     mut commandBuffer: VkCommandBuffer,
@@ -2606,14 +2617,18 @@ pub extern "C" fn gfxCmdDraw(
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexed(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     indexCount: u32,
     instanceCount: u32,
     firstIndex: u32,
     vertexOffset: i32,
     firstInstance: u32,
 ) {
-    unimplemented!()
+    commandBuffer.draw_indexed(
+        firstIndex .. firstIndex + indexCount,
+        vertexOffset,
+        firstInstance .. firstInstance + instanceCount,
+    )
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndirect(
@@ -2654,13 +2669,33 @@ pub extern "C" fn gfxCmdDispatchIndirect(
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     srcBuffer: VkBuffer,
     dstBuffer: VkBuffer,
     regionCount: u32,
     pRegions: *const VkBufferCopy,
 ) {
-    unimplemented!()
+    let regions = unsafe {
+            slice::from_raw_parts(pRegions, regionCount as _)
+        }
+        .iter()
+        .map(|r| com::BufferCopy {
+            src: r.srcOffset,
+            dst: r.dstOffset,
+            size: r.size,
+        });
+
+    commandBuffer.copy_buffer(
+        match *srcBuffer {
+            Buffer::Buffer(ref src) => src,
+            Buffer::Unbound(_) => panic!("Bound src buffer expected!"),
+        },
+        match *dstBuffer {
+            Buffer::Buffer(ref dst) => dst,
+            Buffer::Unbound(_) => panic!("Bound dst buffer expected!"),
+        },
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyImage(
