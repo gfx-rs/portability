@@ -7,9 +7,11 @@ OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
 LIB_EXTENSION=
 TEST_LIST=conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
+DEQP=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/deqp-vk
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
+DEBUGGER=rust-gdb --args
 
 CC=g++
 CFLAGS=-std=c++11 -ggdb -O0 -I$(VULKAN_DIR)
@@ -30,6 +32,7 @@ else
 	ifeq ($(UNAME_S),Darwin)
 		LDFLAGS=-lpthread -ldl -lm
 		BACKEND=metal
+		DEBUGGER=rust-lldb --
 		LIB_EXTENSION=dylib
 	endif
 endif
@@ -64,13 +67,13 @@ $(TEST_LIST): $(TEST_LIST_SOURCE)
 	cat $(TEST_LIST_SOURCE) | grep -v -e ".event" -e "query" >$(TEST_LIST)
 
 cts: $(TARGET) $(TEST_LIST)
-	-LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(CTS_DIR)/build/external/vulkancts/modules/vulkan/deqp-vk --deqp-caselist-file=$(TEST_LIST)
+	-LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEQP) --deqp-caselist-file=$(TEST_LIST)
 	python $(CTS_DIR)/scripts/log/log_to_xml.py TestResults.qpa conformance/last.xml
 	mv TestResults.qpa conformance/last.qpa
 	firefox conformance/last.xml
 
 cts-debug: $(TARGET) $(TEST_LIST)
-	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) rust-lldb $(CTS_DIR)/build/external/vulkancts/modules/vulkan/deqp-vk -- --deqp-caselist-file=$(TEST_LIST)
+	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP) --deqp-caselist-file=$(TEST_LIST)
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)
