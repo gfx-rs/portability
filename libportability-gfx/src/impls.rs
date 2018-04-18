@@ -3004,14 +3004,34 @@ pub extern "C" fn gfxCmdCopyQueryPoolResults(
 }
 #[inline]
 pub extern "C" fn gfxCmdPushConstants(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     layout: VkPipelineLayout,
     stageFlags: VkShaderStageFlags,
     offset: u32,
     size: u32,
     pValues: *const ::std::os::raw::c_void,
 ) {
-    unimplemented!()
+    assert_eq!(size % 4, 0);
+
+    let values = unsafe {
+        slice::from_raw_parts(pValues as *const u32, size as usize / 4)
+    };
+
+    if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
+        commandBuffer.push_compute_constants(
+            &*layout,
+            offset,
+            values,
+        );
+    }
+    if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
+        commandBuffer.push_graphics_constants(
+            &*layout,
+            conv::map_stage_flags(stageFlags),
+            offset,
+            values,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginRenderPass(
