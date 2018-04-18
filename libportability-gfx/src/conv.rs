@@ -1,4 +1,4 @@
-use hal::{buffer, command, error, format, image, memory, pass, pso, window};
+use hal::{buffer, command, error, format, image, memory, pass, pso, query, window};
 use hal::{IndexType, PatchSize, Primitive};
 
 use std::mem;
@@ -705,4 +705,14 @@ pub fn map_index_type(ty: VkIndexType) -> IndexType {
         VkIndexType::VK_INDEX_TYPE_UINT32 => IndexType::U32,
         _ => panic!("Unexpected index type: {:?}", ty),
     }
+}
+
+pub fn map_query_control(flags: VkQueryControlFlags) -> query::QueryControl {
+    // Vulkan and HAL flags are equal
+    unsafe { mem::transmute(flags) }
+}
+
+pub fn map_pipeline_statistics(flags: VkQueryPipelineStatisticFlags) -> query::PipelineStatistic {
+    // Vulkan and HAL flags are equal
+    unsafe { mem::transmute(flags) }
 }

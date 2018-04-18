@@ -15,12 +15,20 @@ impl<T> Handle<T> {
         Handle(VK_NULL_HANDLE as *mut _)
     }
 
-    pub fn unbox(self) -> T {
-        *unsafe { Box::from_raw(self.0) }
+    pub fn unbox(self) -> Option<T> {
+        if self.0 == VK_NULL_HANDLE as *mut T {
+            None
+        } else {
+            Some(*unsafe { Box::from_raw(self.0) })
+        }
     }
 
-    pub fn is_null(&self) -> bool {
-        self.0 == VK_NULL_HANDLE as *mut T
+    pub fn as_ref(&self) -> Option<&T> {
+        if self.0 == VK_NULL_HANDLE as *mut T {
+            None
+        } else {
+            Some(unsafe { &*self.0 })
+        }
     }
 }
 
@@ -88,12 +96,20 @@ mod dispatch {
             DispatchHandle(VK_NULL_HANDLE as *mut _)
         }
 
-        pub fn unbox(self) -> T {
-            unsafe { Box::from_raw(self.0) }.1
+        pub fn unbox(self) -> Option<T> {
+            if self.0 == VK_NULL_HANDLE as *mut (u64, T) {
+                None
+            } else {
+                Some(unsafe { Box::from_raw(self.0) }.1)
+            }
         }
 
-        pub fn is_null(&self) -> bool {
-            self.0 == VK_NULL_HANDLE as *mut _
+        pub fn as_ref(&self) -> Option<&T> {
+            if self.0 == VK_NULL_HANDLE as *mut (u64, T) {
+                None
+            } else {
+                Some(unsafe { &(*self.0).1 })
+            }
         }
     }
 
