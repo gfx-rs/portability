@@ -32,14 +32,8 @@ pub use impls::*;
 
 
 // Vulkan objects
-pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
-
-pub struct RawInstance {
-    pub backend: back::Instance,
-    pub adapters: Vec<VkPhysicalDevice>,
-}
-
 pub type VkInstance = Handle<RawInstance>;
+pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
 pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
 pub type VkCommandPool = Handle<CommandPool<B>>;
@@ -62,6 +56,11 @@ pub type VkFramebuffer = Handle<<B as hal::Backend>::Framebuffer>;
 pub type VkPipeline = Handle<Pipeline<B>>;
 
 pub type QueueFamilyIndex = u32;
+
+pub struct RawInstance {
+    pub backend: back::Instance,
+    pub adapters: Vec<VkPhysicalDevice>,
+}
 
 pub struct Gpu<B: hal::Backend> {
     device: B::Device,

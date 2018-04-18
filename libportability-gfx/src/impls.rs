@@ -60,8 +60,9 @@ pub extern "C" fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    let _ = instance.unbox();
-    //let it drop
+    for adapter in instance.unbox().adapters {
+        let _ = adapter.unbox();
+    }
 }
 
 #[inline]
