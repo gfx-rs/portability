@@ -2334,7 +2334,10 @@ pub extern "C" fn gfxCreateCommandPool(
         flags |= CommandPoolCreateFlags::RESET_INDIVIDUAL;
     }
 
-    let pool = gpu.device.create_command_pool(family, flags);
+    let pool = CommandPool {
+        pool: gpu.device.create_command_pool(family, flags),
+        buffers: Vec::new(),
+    };
     unsafe { *pCommandPool = Handle::new(pool) };
     VkResult::VK_SUCCESS
 }
@@ -2345,7 +2348,11 @@ pub extern "C" fn gfxDestroyCommandPool(
     commandPool: VkCommandPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    gpu.device.destroy_command_pool(commandPool.unbox());
+    let pool = commandPool.unbox();
+    for cmd_buf in pool.buffers {
+        let _ = cmd_buf.unbox();
+    }
+    gpu.device.destroy_command_pool(pool.pool);
 }
 
 #[inline]
@@ -2354,7 +2361,7 @@ pub extern "C" fn gfxResetCommandPool(
     mut commandPool: VkCommandPool,
     _flags: VkCommandPoolResetFlags,
 ) -> VkResult {
-    commandPool.reset();
+    commandPool.pool.reset();
     VkResult::VK_SUCCESS
 }
 
@@ -2373,12 +2380,13 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 
     let count = info.commandBufferCount as usize;
 
-    let cmd_bufs = info.commandPool.allocate(count, level);
+    let cmd_bufs = info.commandPool.pool.allocate(count, level);
 
     let output = unsafe { slice::from_raw_parts_mut(pCommandBuffers, count) };
     for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
         *out = DispatchHandle::new(cmd_buf);
     }
+    info.commandPool.buffers.extend_from_slice(output);
 
     VkResult::VK_SUCCESS
 }
@@ -2393,8 +2401,10 @@ pub extern "C" fn gfxFreeCommandBuffers(
     let slice = unsafe {
         slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
     };
+    commandPool.buffers.retain(|buf| !slice.contains(buf));
+
     let buffers = slice.iter().map(|buffer| buffer.unbox()).collect();
-    unsafe { commandPool.free(buffers) };
+    unsafe { commandPool.pool.free(buffers) };
 }
 
 #[inline]
@@ -3448,7 +3458,10 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
         }
     }
     #[cfg(not(target_os = "windows"))]
-    unreachable!()
+    {
+        let _ = (instance, info, pSurface);
+        unreachable!()
+    }
 }
 pub extern "C" fn gfxCreateXcbSurfaceKHR(
     instance: VkInstance,
@@ -3469,7 +3482,10 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
         }
     }
     #[cfg(not(all(feature = "gfx-backend-vulkan", target_os = "linux")))]
-    unreachable!()
+    {
+        let _ = (instance, info, pSurface);
+        unreachable!()
+    }
 }
 #[inline]
 pub extern "C" fn gfxAcquireNextImageKHR(

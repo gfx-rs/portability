@@ -7,7 +7,7 @@ use portability_gfx::*;
 
 use std::ffi::CStr;
 use std::mem;
-use std::ptr;
+
 
 const ICD_VERSION: u32 = 5;
 
@@ -33,7 +33,7 @@ pub extern "C" fn vk_icdNegotiateLoaderICDInterfaceVersion(
 
 #[no_mangle]
 pub extern "C" fn vk_icdGetPhysicalDeviceProcAddr(
-    instance: VkInstance,
+    _instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
