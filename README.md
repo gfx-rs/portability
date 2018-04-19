@@ -9,10 +9,10 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 | gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
 | -------- | ---- | ---- | --- | -- | - | ---- | - | - | - | - |
 | *Vulkan* | 7759 | 2155 | 131 | 34 | 0 | 5439 | 0 | 0 | 0 | 0 |
-| *DX12*   | 3563 | 1243 | 73  | 0  | 0 | 2247 | 0 | 0 | 0 | 0 |
+| *DX12*   | 3576 | 1258 | 70  | 0  | 0 | 2248 | 0 | 0 | 0 | 0 |
 | *Metal*  | 3538 | 1215 | 109 | 0  | 0 | 2214 | 0 | 0 | 0 | 0 |
 
-Currently stopping on "dEQP-VK.api.command_buffers.render_pass_continue".
+Vulkan is currently stopping on "dEQP-VK.api.command_buffers.render_pass_continue" (secondary render passes). DX12 and Metal - on the lack of `VkBufferView` implementations.
 
 Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems.
 
