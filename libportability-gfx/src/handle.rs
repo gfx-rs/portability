@@ -1,5 +1,5 @@
 use VK_NULL_HANDLE;
-use std::{borrow, fmt, ops};
+use std::{borrow, cmp, fmt, ops};
 
 
 #[repr(C)]
@@ -15,12 +15,20 @@ impl<T> Handle<T> {
         Handle(VK_NULL_HANDLE as *mut _)
     }
 
-    pub fn unbox(self) -> T {
-        *unsafe { Box::from_raw(self.0) }
+    pub fn unbox(self) -> Option<T> {
+        if self.0 == VK_NULL_HANDLE as *mut T {
+            None
+        } else {
+            Some(*unsafe { Box::from_raw(self.0) })
+        }
     }
 
-    pub fn is_null(&self) -> bool {
-        self.0 == VK_NULL_HANDLE as *mut T
+    pub fn as_ref(&self) -> Option<&T> {
+        if self.0 == VK_NULL_HANDLE as *mut T {
+            None
+        } else {
+            Some(unsafe { &*self.0 })
+        }
     }
 }
 
@@ -51,6 +59,12 @@ impl<T> borrow::Borrow<T> for Handle<T> {
     }
 }
 
+impl<T> cmp::PartialEq for Handle<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
 impl<T> fmt::Debug for Handle<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
         write!(formatter, "Handle({:p})", self.0)
@@ -65,7 +79,7 @@ pub type DispatchHandle<T> = Handle<T>;
 #[cfg(feature = "dispatch")]
 mod dispatch {
     use VK_NULL_HANDLE;
-    use std::{borrow, fmt, ops};
+    use std::{borrow, cmp, fmt, ops};
 
     const ICD_LOADER_MAGIC: u64 = 0x01CDC0DE;
 
@@ -82,12 +96,20 @@ mod dispatch {
             DispatchHandle(VK_NULL_HANDLE as *mut _)
         }
 
-        pub fn unbox(self) -> T {
-            unsafe { Box::from_raw(self.0) }.1
+        pub fn unbox(self) -> Option<T> {
+            if self.0 == VK_NULL_HANDLE as *mut (u64, T) {
+                None
+            } else {
+                Some(unsafe { Box::from_raw(self.0) }.1)
+            }
         }
 
-        pub fn is_null(&self) -> bool {
-            self.0 == VK_NULL_HANDLE as *mut _
+        pub fn as_ref(&self) -> Option<&T> {
+            if self.0 == VK_NULL_HANDLE as *mut (u64, T) {
+                None
+            } else {
+                Some(unsafe { &(*self.0).1 })
+            }
         }
     }
 
@@ -115,6 +137,12 @@ mod dispatch {
     impl<T> borrow::Borrow<T> for DispatchHandle<T> {
         fn borrow(&self) -> &T {
             unsafe { &(*self.0).1 }
+        }
+    }
+
+    impl<T> cmp::PartialEq for DispatchHandle<T> {
+        fn eq(&self, other: &Self) -> bool {
+            self.0.eq(&other.0)
         }
     }
 

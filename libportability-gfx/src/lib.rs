@@ -32,17 +32,11 @@ pub use impls::*;
 
 
 // Vulkan objects
-pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
-
-pub struct RawInstance {
-    pub backend: back::Instance,
-    pub adapters: Vec<VkPhysicalDevice>,
-}
-
 pub type VkInstance = Handle<RawInstance>;
+pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
 pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
-pub type VkCommandPool = Handle<<B as hal::Backend>::CommandPool>;
+pub type VkCommandPool = Handle<CommandPool<B>>;
 pub type VkCommandBuffer = DispatchHandle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
 pub type VkDescriptorSetLayout = Handle<<B as hal::Backend>::DescriptorSetLayout>;
@@ -63,6 +57,11 @@ pub type VkPipeline = Handle<Pipeline<B>>;
 
 pub type QueueFamilyIndex = u32;
 
+pub struct RawInstance {
+    pub backend: back::Instance,
+    pub adapters: Vec<VkPhysicalDevice>,
+}
+
 pub struct Gpu<B: hal::Backend> {
     device: B::Device,
     queues: HashMap<QueueFamilyIndex, Vec<VkQueue>>,
@@ -81,6 +80,11 @@ pub enum Image<B: hal::Backend> {
 pub enum Buffer<B: hal::Backend> {
     Buffer(B::Buffer),
     Unbound(B::UnboundBuffer),
+}
+
+pub struct CommandPool<B: hal::Backend> {
+    pool: B::CommandPool,
+    buffers: Vec<VkCommandBuffer>,
 }
 
 //NOTE: all *KHR types have to be pure `Handle` things for compatibility with

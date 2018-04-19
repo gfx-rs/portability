@@ -8,14 +8,11 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 
 | gfx-rs Backend | Total cases | Pass | Fail | Quality warning | Compatibility warning | Not supported | Resource error | Internal error | Timeout | Crash |
 | -------- | ---- | ---- | --- | -- | - | ---- | - | - | - | - |
-| *Vulkan* | 7723 | 2236 | 66  | 34 | 0 | 5387 | 0 | 0 | 0 | 0 |
+| *Vulkan* | 7759 | 2155 | 131 | 34 | 0 | 5439 | 0 | 0 | 0 | 0 |
 | *DX12*   | 3563 | 1243 | 73  | 0  | 0 | 2247 | 0 | 0 | 0 | 0 |
 | *Metal*  | 3538 | 1215 | 109 | 0  | 0 | 2214 | 0 | 0 | 0 | 0 |
 
-DX12 and Metal measurement are currently out of date.
-  
-Currently stopping with:
-> (RADV ARCH VULKAN) radv_BeginCommandBuffer: Assertion `pBeginInfo->pInheritanceInfo' failed.
+Currently stopping on "dEQP-VK.api.command_buffers.render_pass_continue".
 
 Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems.
 
