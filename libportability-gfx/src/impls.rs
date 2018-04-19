@@ -2876,13 +2876,42 @@ pub extern "C" fn gfxCmdClearDepthStencilImage(
 }
 #[inline]
 pub extern "C" fn gfxCmdClearAttachments(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     attachmentCount: u32,
     pAttachments: *const VkClearAttachment,
     rectCount: u32,
     pRects: *const VkClearRect,
 ) {
-    unimplemented!()
+    let attachments = unsafe {
+        slice::from_raw_parts(pAttachments, attachmentCount as _)
+    };
+    let rects = unsafe {
+        slice::from_raw_parts(pRects, rectCount as _)
+    };
+    commandBuffer.clear_attachments(
+        attachments.iter().map(|at| {
+            use VkImageAspectFlagBits::*;
+            if at.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
+                com::AttachmentClear::Color(
+                    at.colorAttachment as _,
+                    unsafe { at.clearValue.color.float32 }.into(), //TODO!
+                )
+            } else
+            if at.aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
+                com::AttachmentClear::Depth(unsafe {
+                    at.clearValue.depthStencil.depth
+                })
+            } else
+            if at.aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
+                com::AttachmentClear::Stencil(unsafe {
+                    at.clearValue.depthStencil.stencil
+                })
+            } else {
+                panic!("Unexpected mask {:?}", at.aspectMask);
+            }
+        }),
+        rects.iter().map(|r| conv::map_rect(&r.rect)), //TODO: layers!
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdResolveImage(
@@ -3115,11 +3144,14 @@ pub extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
 }
 #[inline]
 pub extern "C" fn gfxCmdExecuteCommands(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    unimplemented!()
+    let cmd_buffers = unsafe {
+        slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
+    };
+    commandBuffer.execute_commands(cmd_buffers.iter().map(|cb| *cb));
 }
 
 #[inline]
