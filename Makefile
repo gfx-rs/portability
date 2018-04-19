@@ -72,8 +72,11 @@ cts: $(TARGET) $(TEST_LIST)
 	mv TestResults.qpa conformance/last.qpa
 	firefox conformance/last.xml
 
-cts-debug: $(TARGET) $(TEST_LIST)
-	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP) --deqp-caselist-file=$(TEST_LIST)
+cts-pick: $(TARGET)
+	-LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEQP) -n $(name)
+
+cts-debug: $(TARGET)
+	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP) -n $(name)
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)
