@@ -1490,14 +1490,21 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             let state = unsafe { &*info.pRasterizationState };
 
             assert_eq!(state.rasterizerDiscardEnable, VK_FALSE); // TODO
-            assert_eq!(state.depthBiasEnable, VK_FALSE); // TODO: ready for work
 
             pso::Rasterizer {
                 polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
                 cull_face: conv::map_cull_face(state.cullMode),
                 front_face: conv::map_front_face(state.frontFace),
                 depth_clamping: state.depthClampEnable == VK_TRUE,
-                depth_bias: None, // TODO
+                depth_bias: if state.depthBiasEnable == VK_TRUE {
+                    Some(pso::DepthBias {
+                        const_factor: state.depthBiasConstantFactor,
+                        clamp: state.depthBiasClamp,
+                        slope_factor: state.depthBiasSlopeFactor,
+                    })
+                } else {
+                    None
+                },
                 conservative: false,
             }
         };
