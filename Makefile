@@ -39,10 +39,13 @@ endif
 
 FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
+LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all binding run cts
+.PHONY: all release binding run cts cts-pick cts-debug clean
 
 all: $(TARGET)
+
+release: $(LIBRARY_FAST)
 
 binding: $(BINDING)
 
@@ -53,6 +56,10 @@ $(LIBRARY): libportability*/src/*.rs libportability*/Cargo.toml Cargo.lock
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
 	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
 	mkdir -p target/native
+
+$(LIBRARY_FAST):  libportability*/src/*.rs libportability*/Cargo.toml Cargo.lock
+	cargo build --release --manifest-path libportability/Cargo.toml --features $(BACKEND)
+	cargo build --release --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
 
 $(NATIVE_DIR)/%.o: native/%.cpp $(DEPS) Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
