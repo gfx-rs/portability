@@ -1404,7 +1404,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 .as_ref()
                 .map(|specialization| {
                     let data = slice::from_raw_parts(
-                        specialization.pData,
+                        specialization.pData as *const u8,
                         specialization.dataSize as _,
                     );
                     let entries = slice::from_raw_parts(
@@ -1415,8 +1415,29 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     entries
                         .into_iter()
                         .map(|entry| {
-                            // Currently blocked due to lack of specialization type knowledge
-                            unimplemented!()
+                            let offset = entry.offset as usize;
+                            pso::Specialization {
+                                id: entry.constantID,
+                                value: match entry.size {
+                                    4 => pso::Constant::U32(
+                                        data[offset] as u32 |
+                                        (data[offset+1] as u32) << 8 |
+                                        (data[offset+2] as u32) << 16 |
+                                        (data[offset+3] as u32) << 24
+                                    ),
+                                    8 => pso::Constant::U64(
+                                        data[offset] as u64 |
+                                        (data[offset+1] as u64) << 8 |
+                                        (data[offset+2] as u64) << 16 |
+                                        (data[offset+3] as u64) << 24 |
+                                        (data[offset+4] as u64) << 32 |
+                                        (data[offset+5] as u64) << 40 |
+                                        (data[offset+6] as u64) << 48 |
+                                        (data[offset+7] as u64) << 56
+                                    ),
+                                    size => panic!("Unexpected specialization constant size: {:?}", size),
+                                },
+                            }
                         })
                         .collect::<Vec<pso::Specialization>>()
                 })
@@ -2739,7 +2760,7 @@ pub extern "C" fn gfxCmdCopyBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyImage(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
     dstImage: VkImage,
@@ -2747,7 +2768,31 @@ pub extern "C" fn gfxCmdCopyImage(
     regionCount: u32,
     pRegions: *const VkImageCopy,
 ) {
-    unimplemented!()
+    let regions = unsafe {
+            slice::from_raw_parts(pRegions, regionCount as _)
+        }
+        .iter()
+        .map(|r| com::ImageCopy {
+            src_subresource: conv::map_subresource_layers(r.srcSubresource),
+            src_offset: conv::map_offset(r.srcOffset),
+            dst_subresource: conv::map_subresource_layers(r.dstSubresource),
+            dst_offset: conv::map_offset(r.dstOffset),
+            extent: conv::map_extent(r.extent),
+        });
+
+    commandBuffer.copy_image(
+        match *srcImage {
+            Image::Image(ref src) => src,
+            Image::Unbound(_) => panic!("Bound src image expected!"),
+        },
+        conv::map_image_layout(srcImageLayout),
+        match *dstImage {
+            Image::Image(ref dst) => dst,
+            Image::Unbound(_) => panic!("Bound dst image expected!"),
+        },
+        conv::map_image_layout(dstImageLayout),
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdBlitImage(
