@@ -362,6 +362,7 @@ pub extern "C" fn gfxGetDeviceProcAddr(
     };
 
     proc_addr!{ name,
+        vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr => gfxGetDeviceProcAddr,
         vkDestroyDevice, PFN_vkDestroyDevice => gfxDestroyDevice,
         vkGetDeviceMemoryCommitment, PFN_vkGetDeviceMemoryCommitment => gfxGetDeviceMemoryCommitment,
 
