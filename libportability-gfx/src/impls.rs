@@ -1845,7 +1845,6 @@ pub extern "C" fn gfxCreateSampler(
     pSampler: *mut VkSampler,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    //TODO: fill all the sampler properties
     let gfx_info = hal::image::SamplerInfo {
         min_filter: conv::map_filter(info.minFilter),
         mag_filter: conv::map_filter(info.magFilter),
@@ -1855,11 +1854,19 @@ pub extern "C" fn gfxCreateSampler(
             conv::map_wrap_mode(info.addressModeV),
             conv::map_wrap_mode(info.addressModeW),
         ),
-        lod_bias: 0.0.into(),
-        lod_range: 0.0.into() .. 1.0.into(),
-        comparison: None,
-        border: [0.0; 4].into(),
-        anisotropic: hal::image::Anisotropic::Off,
+        lod_bias: info.mipLodBias.into(),
+        lod_range: info.minLod.into() .. info.maxLod.into(),
+        comparison: if info.compareEnable == VK_TRUE {
+            Some(conv::map_compare_op(info.compareOp))
+        } else {
+            None
+        },
+        border: [0.0; 4].into(), // TODO
+        anisotropic: if info.anisotropyEnable == VK_TRUE {
+            hal::image::Anisotropic::On(info.maxAnisotropy as _)
+        } else {
+            hal::image::Anisotropic::Off
+        },
     };
     let sampler = gpu.device.create_sampler(gfx_info);
     unsafe { *pSampler = Handle::new(sampler); }
