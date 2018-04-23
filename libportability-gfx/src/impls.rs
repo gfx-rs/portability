@@ -839,7 +839,15 @@ pub extern "C" fn gfxFlushMappedMemoryRanges(
             slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
         }
         .iter()
-        .map(|r| (&*r.memory, r.offset .. r.offset + r.size));
+        .map(|r| {
+            let range = if r.size == VK_WHOLE_SIZE as VkDeviceSize {
+                (Some(r.offset), None)
+            } else {
+                (Some(r.offset), Some(r.offset + r.size))
+            };
+
+            (&*r.memory, range)
+        });
 
     gpu.device.flush_mapped_memory_ranges(ranges);
     VkResult::VK_SUCCESS
@@ -854,7 +862,15 @@ pub extern "C" fn gfxInvalidateMappedMemoryRanges(
             slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
         }
         .iter()
-        .map(|r| (&*r.memory, r.offset .. r.offset + r.size));
+        .map(|r| {
+            let range = if r.size == VK_WHOLE_SIZE as VkDeviceSize {
+                (Some(r.offset), None)
+            } else {
+                (Some(r.offset), Some(r.offset + r.size))
+            };
+
+            (&*r.memory, range)
+        });
 
     gpu.device.invalidate_mapped_memory_ranges(ranges);
     VkResult::VK_SUCCESS
