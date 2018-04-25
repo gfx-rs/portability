@@ -60,6 +60,10 @@ pub extern "C" fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
+    #[cfg(feature = "nightly")]
+    {
+        Handle::report_leaks();
+    }
     for adapter in instance.unbox().unwrap().adapters {
         let _ = adapter.unbox();
     }

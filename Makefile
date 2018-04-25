@@ -45,6 +45,9 @@ LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
 all: $(TARGET)
 
+debug:
+	cargo build --manifest-path libportability/Cargo.toml --features "$(BACKEND) debug"
+
 release: $(LIBRARY_FAST)
 
 binding: $(BINDING)

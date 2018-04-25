@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)]
 #![allow(non_upper_case_globals)]
 #![allow(improper_ctypes)] //TEMP: buggy Rustc FFI analysis
+#![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
 extern crate gfx_hal as hal;
 #[cfg(feature = "gfx-backend-dx12")]
