@@ -60,12 +60,12 @@ pub extern "C" fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
+    for adapter in instance.unbox().unwrap().adapters {
+        let _ = adapter.unbox();
+    }
     #[cfg(feature = "nightly")]
     {
         Handle::report_leaks();
-    }
-    for adapter in instance.unbox().unwrap().adapters {
-        let _ = adapter.unbox();
     }
 }
 
@@ -253,7 +253,8 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
     let adapter_info = &adapter.info;
-    let limits = adapter.physical_device.limits();
+    let limits = conv::limits_from_hal(adapter.physical_device.limits());
+    let sparse_properties = unsafe { mem::zeroed() }; // TODO
     let (major, minor, patch) = VERSION;
 
     let device_name = {
@@ -264,9 +265,6 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
         name[..len].copy_from_slice(&c_str[..len]);
         unsafe { mem::transmute(name) }
     };
-
-    let limits = unsafe { mem::zeroed() }; // TODO
-    let sparse_properties = unsafe { mem::zeroed() }; // TODO
 
     unsafe {
         *pProperties = VkPhysicalDeviceProperties {
@@ -311,7 +309,7 @@ pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetInstanceProcAddr(
-    instance: VkInstance,
+    _instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -356,7 +354,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 
 #[inline]
 pub extern "C" fn gfxGetDeviceProcAddr(
-    device: VkDevice,
+    _device: VkDevice,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -630,7 +628,7 @@ lazy_static! {
 
 #[inline]
 pub extern "C" fn gfxEnumerateInstanceExtensionProperties(
-    pLayerName: *const ::std::os::raw::c_char,
+    _pLayerName: *const ::std::os::raw::c_char,
     pPropertyCount: *mut u32,
     pProperties: *mut VkExtensionProperties,
 ) -> VkResult {
@@ -698,9 +696,9 @@ pub extern "C" fn gfxEnumerateInstanceLayerProperties(
 }
 #[inline]
 pub extern "C" fn gfxEnumerateDeviceLayerProperties(
-    physicalDevice: VkPhysicalDevice,
+    _physicalDevice: VkPhysicalDevice,
     pPropertyCount: *mut u32,
-    pProperties: *mut VkLayerProperties,
+    _pProperties: *mut VkLayerProperties,
 ) -> VkResult {
     warn!("TODO: gfxEnumerateDeviceLayerProperties");
     unsafe { *pPropertyCount = 0; }
@@ -714,8 +712,11 @@ pub extern "C" fn gfxGetDeviceQueue(
     queueIndex: u32,
     pQueue: *mut VkQueue,
 ) {
+    let queue = gpu.queues
+        .get(&queueFamilyIndex)
+        .unwrap()[queueIndex as usize];
     unsafe {
-        *pQueue = gpu.queues.get(&queueFamilyIndex).unwrap()[queueIndex as usize];
+        *pQueue = queue;
     }
 }
 #[inline]
@@ -763,8 +764,8 @@ pub extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDeviceWaitIdle(device: VkDevice) -> VkResult {
-    // TODO
+pub extern "C" fn gfxDeviceWaitIdle(gpu: VkDevice) -> VkResult {
+    let _ = gpu.device.wait_idle();
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -913,7 +914,7 @@ pub extern "C" fn gfxGetBufferMemoryRequirements(
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
     let req = match *buffer {
-        Buffer::Buffer(ref buffer) => unimplemented!(),
+        Buffer::Buffer(_) => unimplemented!(),
         Buffer::Unbound(ref buffer) => gpu.device.get_buffer_requirements(buffer),
     };
 
@@ -930,7 +931,7 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
     let req = match *image {
-        Image::Image(ref image) => unimplemented!(),
+        Image::Image(_) => unimplemented!(),
         Image::Unbound(ref image) => gpu.device.get_image_requirements(image),
     };
 
@@ -943,32 +944,32 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
 
 #[inline]
 pub extern "C" fn gfxGetImageSparseMemoryRequirements(
-    device: VkDevice,
-    image: VkImage,
-    pSparseMemoryRequirementCount: *mut u32,
-    pSparseMemoryRequirements: *mut VkSparseImageMemoryRequirements,
+    _device: VkDevice,
+    _image: VkImage,
+    _pSparseMemoryRequirementCount: *mut u32,
+    _pSparseMemoryRequirements: *mut VkSparseImageMemoryRequirements,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties(
-    physicalDevice: VkPhysicalDevice,
-    format: VkFormat,
-    type_: VkImageType,
-    samples: VkSampleCountFlagBits,
-    usage: VkImageUsageFlags,
-    tiling: VkImageTiling,
-    pPropertyCount: *mut u32,
-    pProperties: *mut VkSparseImageFormatProperties,
+    _physicalDevice: VkPhysicalDevice,
+    _format: VkFormat,
+    _type_: VkImageType,
+    _samples: VkSampleCountFlagBits,
+    _usage: VkImageUsageFlags,
+    _tiling: VkImageTiling,
+    _pPropertyCount: *mut u32,
+    _pProperties: *mut VkSparseImageFormatProperties,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxQueueBindSparse(
-    queue: VkQueue,
-    bindInfoCount: u32,
-    pBindInfo: *const VkBindSparseInfo,
-    fence: VkFence,
+    _queue: VkQueue,
+    _bindInfoCount: u32,
+    _pBindInfo: *const VkBindSparseInfo,
+    _fence: VkFence,
 ) -> VkResult {
     unimplemented!()
 }
@@ -1055,7 +1056,7 @@ pub extern "C" fn gfxWaitForFences(
 #[inline]
 pub extern "C" fn gfxCreateSemaphore(
     gpu: VkDevice,
-    pCreateInfo: *const VkSemaphoreCreateInfo,
+    _pCreateInfo: *const VkSemaphoreCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pSemaphore: *mut VkSemaphore,
 ) -> VkResult {
@@ -1079,10 +1080,10 @@ pub extern "C" fn gfxDestroySemaphore(
 }
 #[inline]
 pub extern "C" fn gfxCreateEvent(
-    device: VkDevice,
-    pCreateInfo: *const VkEventCreateInfo,
+    _gpu: VkDevice,
+    _pCreateInfo: *const VkEventCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
-    pEvent: *mut VkEvent,
+    _pEvent: *mut VkEvent,
 ) -> VkResult {
     // Vulkan portability doesn't currently support events, but some
     // test cases use them so fail with an obvious error message.
@@ -1090,51 +1091,52 @@ pub extern "C" fn gfxCreateEvent(
 }
 #[inline]
 pub extern "C" fn gfxDestroyEvent(
-    device: VkDevice,
-    event: VkEvent,
+    _gpu: VkDevice,
+    _event: VkEvent,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxGetEventStatus(device: VkDevice, event: VkEvent) -> VkResult {
+pub extern "C" fn gfxGetEventStatus(_gpu: VkDevice, _event: VkEvent) -> VkResult {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxSetEvent(device: VkDevice, event: VkEvent) -> VkResult {
+pub extern "C" fn gfxSetEvent(_gpu: VkDevice, _event: VkEvent) -> VkResult {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxResetEvent(device: VkDevice, event: VkEvent) -> VkResult {
+pub extern "C" fn gfxResetEvent(_gpu: VkDevice, _event: VkEvent) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCreateQueryPool(
-    device: VkDevice,
-    pCreateInfo: *const VkQueryPoolCreateInfo,
+    _gpu: VkDevice,
+    _pCreateInfo: *const VkQueryPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
-    pQueryPool: *mut VkQueryPool,
+    _pQueryPool: *mut VkQueryPool,
 ) -> VkResult {
-    unimplemented!()
+    //TODO
+    VkResult::VK_ERROR_DEVICE_LOST
 }
 #[inline]
 pub extern "C" fn gfxDestroyQueryPool(
-    device: VkDevice,
-    queryPool: VkQueryPool,
+    _gpu: VkDevice,
+    _queryPool: VkQueryPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxGetQueryPoolResults(
-    device: VkDevice,
-    queryPool: VkQueryPool,
-    firstQuery: u32,
-    queryCount: u32,
-    dataSize: usize,
-    pData: *mut ::std::os::raw::c_void,
-    stride: VkDeviceSize,
-    flags: VkQueryResultFlags,
+    _gpu: VkDevice,
+    _queryPool: VkQueryPool,
+    _firstQuery: u32,
+    _queryCount: u32,
+    _dataSize: usize,
+    _pData: *mut ::std::os::raw::c_void,
+    _stride: VkDeviceSize,
+    _flags: VkQueryResultFlags,
 ) -> VkResult {
     unimplemented!()
 }
@@ -1180,22 +1182,34 @@ pub extern "C" fn gfxCreateBufferView(
     pView: *mut VkBufferView,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
+    let end = if info.range as i32 == VK_WHOLE_SIZE {
+        None
+    } else {
+        Some(info.offset + info.range)
+    };
 
-    let view = gpu.device
+    let view_result = gpu.device
         .create_buffer_view(
             match *info.buffer {
                 Buffer::Buffer(ref buffer) => buffer,
                 Buffer::Unbound(_) => unimplemented!(),
             },
             conv::map_format(info.format),
-            info.offset .. info.offset + info.range,
-        )
-        .expect("Error creating buffer view");
+            (Some(info.offset), end),
+        );
 
-    unsafe {
-        *pView = Handle::new(view);
+    match view_result {
+        Ok(view) => {
+            unsafe {
+                *pView = Handle::new(view);
+            }
+            VkResult::VK_SUCCESS
+        }
+        Err(e) => {
+            error!("Buffer view not supported: {:?}", e);
+            VkResult::VK_INCOMPLETE
+        }
     }
-    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyBufferView(
@@ -1256,10 +1270,10 @@ pub extern "C" fn gfxDestroyImage(
 }
 #[inline]
 pub extern "C" fn gfxGetImageSubresourceLayout(
-    device: VkDevice,
-    image: VkImage,
-    pSubresource: *const VkImageSubresource,
-    pLayout: *mut VkSubresourceLayout,
+    _gpu: VkDevice,
+    _image: VkImage,
+    _pSubresource: *const VkImageSubresource,
+    _pLayout: *mut VkSubresourceLayout,
 ) {
     unimplemented!()
 }
@@ -1340,53 +1354,51 @@ pub extern "C" fn gfxDestroyShaderModule(
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
-    device: VkDevice,
-    pCreateInfo: *const VkPipelineCacheCreateInfo,
+    _gpu: VkDevice,
+    _pCreateInfo: *const VkPipelineCacheCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    // unimplemented!()
-    // TODO
-
+    //TODO
+    unsafe { *pPipelineCache = Handle::new(()) };
     VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipelineCache(
-    device: VkDevice,
+    _gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    let _ = pipelineCache.unbox();
 }
 #[inline]
 pub extern "C" fn gfxGetPipelineCacheData(
-    device: VkDevice,
-    pipelineCache: VkPipelineCache,
+    _gpu: VkDevice,
+    _pipelineCache: VkPipelineCache,
     pDataSize: *mut usize,
-    pData: *mut ::std::os::raw::c_void,
+    _pData: *mut ::std::os::raw::c_void,
 ) -> VkResult {
-    unimplemented!()
+    unsafe { *pDataSize = 0; }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxMergePipelineCaches(
-    device: VkDevice,
-    dstCache: VkPipelineCache,
-    srcCacheCount: u32,
-    pSrcCaches: *const VkPipelineCache,
+    _device: VkDevice,
+    _dstCache: VkPipelineCache,
+    _srcCacheCount: u32,
+    _pSrcCaches: *const VkPipelineCache,
 ) -> VkResult {
-    unimplemented!()
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxCreateGraphicsPipelines(
     gpu: VkDevice,
-    pipelineCache: VkPipelineCache,
+    _pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkGraphicsPipelineCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    // assert!(pipelineCache.is_null());
-
     let infos = unsafe {
         slice::from_raw_parts(pCreateInfos, createInfoCount as _)
     };
@@ -1732,7 +1744,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
             if let Some(base_pso) = info.basePipelineHandle.as_ref() {
                 match *base_pso {
-                    Pipeline::Graphics(ref graphics) => pso::BasePipeline::Pipeline(graphics),
+                    Pipeline::Graphics(ref pso) => pso::BasePipeline::Pipeline(pso),
                     Pipeline::Compute(_) => panic!("Base pipeline handle must be a graphics pipeline"),
                 }
             } else if is_derivative && info.basePipelineIndex > 0 {
@@ -1776,14 +1788,113 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 }
 #[inline]
 pub extern "C" fn gfxCreateComputePipelines(
-    device: VkDevice,
-    pipelineCache: VkPipelineCache,
+    gpu: VkDevice,
+    _pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkComputePipelineCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    unimplemented!()
+    let infos = unsafe {
+        slice::from_raw_parts(pCreateInfos, createInfoCount as _)
+    };
+
+    let mut shader_stages = Vec::with_capacity(infos.len());
+
+    // Collect all information which we will borrow later. Need to work around
+    // the borrow checker here.
+    // TODO: try to refactor it once we have a more generic API
+    for info in infos {
+        let name = unsafe { CStr::from_ptr(info.stage.pName).to_owned() };
+        let specialization = unsafe { info.stage
+            .pSpecializationInfo
+            .as_ref()
+            .map(|specialization| {
+                let _data = slice::from_raw_parts(
+                    specialization.pData,
+                    specialization.dataSize as _,
+                );
+                let entries = slice::from_raw_parts(
+                    specialization.pMapEntries,
+                    specialization.mapEntryCount as _,
+                );
+
+                entries
+                    .into_iter()
+                    .map(|_entry| {
+                        // Currently blocked due to lack of specialization type knowledge
+                        unimplemented!()
+                    })
+                    .collect::<Vec<pso::Specialization>>()
+            })
+            .unwrap_or(vec![])
+        };
+
+        shader_stages.push((
+            name.into_string().unwrap(),
+            specialization,
+        ));
+    }
+
+    let descs = infos.into_iter().zip(&shader_stages).map(|(info, &(ref entry, ref specialization))| {
+        let shader = pso::EntryPoint {
+            entry,
+            module: &*info.stage.module,
+            specialization,
+        };
+        let layout = &*info.layout;
+
+        let flags = {
+            let mut flags = pso::PipelineCreationFlags::empty();
+
+            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT as u32 != 0 {
+                flags |= pso::PipelineCreationFlags::DISABLE_OPTIMIZATION;
+            }
+            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT as u32 != 0 {
+                flags |= pso::PipelineCreationFlags::ALLOW_DERIVATIVES;
+            }
+
+            flags
+        };
+
+        let parent = {
+            let is_derivative = info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DERIVATIVE_BIT as u32 != 0;
+
+            if let Some(base_pso) = info.basePipelineHandle.as_ref() {
+                match *base_pso {
+                    Pipeline::Graphics(_) => panic!("Base pipeline handle must be a compute pipeline"),
+                    Pipeline::Compute(ref pso) => pso::BasePipeline::Pipeline(pso),
+                }
+            } else if is_derivative && info.basePipelineIndex > 0 {
+                pso::BasePipeline::Index(info.basePipelineIndex as _)
+            } else {
+                pso::BasePipeline::None // TODO
+            }
+        };
+
+        pso::ComputePipelineDesc {
+            shader,
+            layout,
+            flags,
+            parent,
+        }
+    }).collect::<Vec<_>>();
+
+    let pipelines = gpu.device.create_compute_pipelines(&descs);
+
+    let pipelines = unsafe {
+        slice::from_raw_parts_mut(pPipelines, descs.len())
+            .into_iter()
+            .zip(pipelines.into_iter())
+    };
+
+    for (pipeline, raw) in pipelines {
+        if let Ok(raw) = raw {
+            *pipeline = Handle::new(Pipeline::Compute(raw));
+        }
+    }
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipeline(
@@ -1976,15 +2087,16 @@ pub extern "C" fn gfxDestroyDescriptorPool(
 }
 #[inline]
 pub extern "C" fn gfxResetDescriptorPool(
-    device: VkDevice,
-    descriptorPool: VkDescriptorPool,
-    flags: VkDescriptorPoolResetFlags,
+    _gpu: VkDevice,
+    mut descriptorPool: VkDescriptorPool,
+    _flags: VkDescriptorPoolResetFlags,
 ) -> VkResult {
-    unimplemented!()
+    descriptorPool.reset();
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxAllocateDescriptorSets(
-    _device: VkDevice,
+    _gpu: VkDevice,
     pAllocateInfo: *const VkDescriptorSetAllocateInfo,
     pDescriptorSets: *mut VkDescriptorSet,
 ) -> VkResult {
@@ -2294,6 +2406,7 @@ pub extern "C" fn gfxCreateRenderPass(
     let subpasses = attachment_refs
         .iter()
         .map(|attachment_ref| {
+            let _ = &attachment_ref.resolve;
             pass::SubpassDesc {
                 colors: &attachment_ref.color,
                 depth_stencil: attachment_ref.depth_stencil.as_ref(),
@@ -2362,9 +2475,9 @@ pub extern "C" fn gfxDestroyRenderPass(
 }
 #[inline]
 pub extern "C" fn gfxGetRenderAreaGranularity(
-    device: VkDevice,
-    renderPass: VkRenderPass,
-    pGranularity: *mut VkExtent2D,
+    _gpu: VkDevice,
+    _renderPass: VkRenderPass,
+    _pGranularity: *mut VkExtent2D,
 ) {
     unimplemented!()
 }
@@ -2437,7 +2550,6 @@ pub extern "C" fn gfxAllocateCommandBuffers(
     };
 
     let count = info.commandBufferCount as usize;
-
     let cmd_bufs = info.commandPool.pool.allocate(count, level);
 
     let output = unsafe { slice::from_raw_parts_mut(pCommandBuffers, count) };
@@ -2496,10 +2608,12 @@ pub extern "C" fn gfxEndCommandBuffer(mut commandBuffer: VkCommandBuffer) -> VkR
 }
 #[inline]
 pub extern "C" fn gfxResetCommandBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     flags: VkCommandBufferResetFlags,
 ) -> VkResult {
-    unimplemented!()
+    let release_resources = flags & VkCommandBufferResetFlagBits::VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT as u32 != 0;
+    commandBuffer.reset(release_resources);
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxCmdBindPipeline(
@@ -2543,54 +2657,54 @@ pub extern "C" fn gfxCmdSetScissor(
     commandBuffer.set_scissors(firstScissor, scissors);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetLineWidth(commandBuffer: VkCommandBuffer, lineWidth: f32) {
+pub extern "C" fn gfxCmdSetLineWidth(_commandBuffer: VkCommandBuffer, _lineWidth: f32) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBias(
-    commandBuffer: VkCommandBuffer,
-    depthBiasConstantFactor: f32,
-    depthBiasClamp: f32,
-    depthBiasSlopeFactor: f32,
+    _commandBuffer: VkCommandBuffer,
+    _depthBiasConstantFactor: f32,
+    _depthBiasClamp: f32,
+    _depthBiasSlopeFactor: f32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetBlendConstants(
-    commandBuffer: VkCommandBuffer,
-    blendConstants: *const f32,
+    _commandBuffer: VkCommandBuffer,
+    _blendConstants: *const f32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBounds(
-    commandBuffer: VkCommandBuffer,
-    minDepthBounds: f32,
-    maxDepthBounds: f32,
+    _commandBuffer: VkCommandBuffer,
+    _minDepthBounds: f32,
+    _maxDepthBounds: f32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilCompareMask(
-    commandBuffer: VkCommandBuffer,
-    faceMask: VkStencilFaceFlags,
-    compareMask: u32,
+    _commandBuffer: VkCommandBuffer,
+    _faceMask: VkStencilFaceFlags,
+    _compareMask: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilWriteMask(
-    commandBuffer: VkCommandBuffer,
-    faceMask: VkStencilFaceFlags,
-    writeMask: u32,
+    _commandBuffer: VkCommandBuffer,
+    _faceMask: VkStencilFaceFlags,
+    _writeMask: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilReference(
-    commandBuffer: VkCommandBuffer,
-    faceMask: VkStencilFaceFlags,
-    reference: u32,
+    _commandBuffer: VkCommandBuffer,
+    _faceMask: VkStencilFaceFlags,
+    _reference: u32,
 ) {
     unimplemented!()
 }
@@ -2606,6 +2720,7 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     pDynamicOffsets: *const u32,
 ) {
     assert_eq!(dynamicOffsetCount, 0); // TODO
+    let _ = pDynamicOffsets;
 
     let descriptor_sets = unsafe {
         slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
@@ -2712,38 +2827,38 @@ pub extern "C" fn gfxCmdDrawIndexed(
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndirect(
-    commandBuffer: VkCommandBuffer,
-    buffer: VkBuffer,
-    offset: VkDeviceSize,
-    drawCount: u32,
-    stride: u32,
+    _commandBuffer: VkCommandBuffer,
+    _buffer: VkBuffer,
+    _offset: VkDeviceSize,
+    _drawCount: u32,
+    _stride: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexedIndirect(
-    commandBuffer: VkCommandBuffer,
-    buffer: VkBuffer,
-    offset: VkDeviceSize,
-    drawCount: u32,
-    stride: u32,
+    _commandBuffer: VkCommandBuffer,
+    _buffer: VkBuffer,
+    _offset: VkDeviceSize,
+    _drawCount: u32,
+    _stride: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatch(
-    commandBuffer: VkCommandBuffer,
-    groupCountX: u32,
-    groupCountY: u32,
-    groupCountZ: u32,
+    _commandBuffer: VkCommandBuffer,
+    _groupCountX: u32,
+    _groupCountY: u32,
+    _groupCountZ: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatchIndirect(
-    commandBuffer: VkCommandBuffer,
-    buffer: VkBuffer,
-    offset: VkDeviceSize,
+    _commandBuffer: VkCommandBuffer,
+    _buffer: VkBuffer,
+    _offset: VkDeviceSize,
 ) {
     unimplemented!()
 }
@@ -2815,7 +2930,7 @@ pub extern "C" fn gfxCmdCopyImage(
 }
 #[inline]
 pub extern "C" fn gfxCmdBlitImage(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
     dstImage: VkImage,
@@ -2824,7 +2939,31 @@ pub extern "C" fn gfxCmdBlitImage(
     pRegions: *const VkImageBlit,
     filter: VkFilter,
 ) {
-    unimplemented!()
+    let regions = unsafe {
+            slice::from_raw_parts(pRegions, regionCount as _)
+        }
+        .iter()
+        .map(|r| com::ImageBlit {
+            src_subresource: conv::map_subresource_layers(r.srcSubresource),
+            src_bounds: conv::map_offset(r.srcOffsets[0]) .. conv::map_offset(r.srcOffsets[1]),
+            dst_subresource: conv::map_subresource_layers(r.dstSubresource),
+            dst_bounds: conv::map_offset(r.dstOffsets[0]) .. conv::map_offset(r.dstOffsets[1]),
+        });
+
+    commandBuffer.blit_image(
+        match *srcImage {
+            Image::Image(ref src) => src,
+            Image::Unbound(_) => panic!("Bound src image expected!"),
+        },
+        conv::map_image_layout(srcImageLayout),
+        match *dstImage {
+            Image::Image(ref dst) => dst,
+            Image::Unbound(_) => panic!("Bound dst image expected!"),
+        },
+        conv::map_image_layout(dstImageLayout),
+        conv::map_filter(filter),
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBufferToImage(
@@ -2898,43 +3037,59 @@ pub extern "C" fn gfxCmdCopyImageToBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdUpdateBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     dstBuffer: VkBuffer,
     dstOffset: VkDeviceSize,
     dataSize: VkDeviceSize,
     pData: *const ::std::os::raw::c_void,
 ) {
-    unimplemented!()
+    commandBuffer.update_buffer(
+        match *dstBuffer {
+            Buffer::Buffer(ref buf) => buf,
+            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
+        },
+        dstOffset,
+        unsafe {
+            slice::from_raw_parts(pData as _, dataSize as _)
+        },
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdFillBuffer(
-    commandBuffer: VkCommandBuffer,
+    mut commandBuffer: VkCommandBuffer,
     dstBuffer: VkBuffer,
     dstOffset: VkDeviceSize,
     size: VkDeviceSize,
     data: u32,
 ) {
-    unimplemented!()
+    commandBuffer.fill_buffer(
+        match *dstBuffer {
+            Buffer::Buffer(ref buf) => buf,
+            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
+        },
+        dstOffset .. dstOffset + size,
+        data,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdClearColorImage(
-    commandBuffer: VkCommandBuffer,
-    image: VkImage,
-    imageLayout: VkImageLayout,
-    pColor: *const VkClearColorValue,
-    rangeCount: u32,
-    pRanges: *const VkImageSubresourceRange,
+    _commandBuffer: VkCommandBuffer,
+    _image: VkImage,
+    _imageLayout: VkImageLayout,
+    _pColor: *const VkClearColorValue,
+    _rangeCount: u32,
+    _pRanges: *const VkImageSubresourceRange,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdClearDepthStencilImage(
-    commandBuffer: VkCommandBuffer,
-    image: VkImage,
-    imageLayout: VkImageLayout,
-    pDepthStencil: *const VkClearDepthStencilValue,
-    rangeCount: u32,
-    pRanges: *const VkImageSubresourceRange,
+    _commandBuffer: VkCommandBuffer,
+    _image: VkImage,
+    _imageLayout: VkImageLayout,
+    _pDepthStencil: *const VkClearDepthStencilValue,
+    _rangeCount: u32,
+    _pRanges: *const VkImageSubresourceRange,
 ) {
     unimplemented!()
 }
@@ -2979,45 +3134,45 @@ pub extern "C" fn gfxCmdClearAttachments(
 }
 #[inline]
 pub extern "C" fn gfxCmdResolveImage(
-    commandBuffer: VkCommandBuffer,
-    srcImage: VkImage,
-    srcImageLayout: VkImageLayout,
-    dstImage: VkImage,
-    dstImageLayout: VkImageLayout,
-    regionCount: u32,
-    pRegions: *const VkImageResolve,
+    _commandBuffer: VkCommandBuffer,
+    _srcImage: VkImage,
+    _srcImageLayout: VkImageLayout,
+    _dstImage: VkImage,
+    _dstImageLayout: VkImageLayout,
+    _regionCount: u32,
+    _pRegions: *const VkImageResolve,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetEvent(
-    commandBuffer: VkCommandBuffer,
-    event: VkEvent,
-    stageMask: VkPipelineStageFlags,
+    _commandBuffer: VkCommandBuffer,
+    _event: VkEvent,
+    _stageMask: VkPipelineStageFlags,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdResetEvent(
-    commandBuffer: VkCommandBuffer,
-    event: VkEvent,
-    stageMask: VkPipelineStageFlags,
+    _commandBuffer: VkCommandBuffer,
+    _event: VkEvent,
+    _stageMask: VkPipelineStageFlags,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdWaitEvents(
-    commandBuffer: VkCommandBuffer,
-    eventCount: u32,
-    pEvents: *const VkEvent,
-    srcStageMask: VkPipelineStageFlags,
-    dstStageMask: VkPipelineStageFlags,
-    memoryBarrierCount: u32,
-    pMemoryBarriers: *const VkMemoryBarrier,
-    bufferMemoryBarrierCount: u32,
-    pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
-    imageMemoryBarrierCount: u32,
-    pImageMemoryBarriers: *const VkImageMemoryBarrier,
+    _commandBuffer: VkCommandBuffer,
+    _eventCount: u32,
+    _pEvents: *const VkEvent,
+    _srcStageMask: VkPipelineStageFlags,
+    _dstStageMask: VkPipelineStageFlags,
+    _memoryBarrierCount: u32,
+    _pMemoryBarriers: *const VkMemoryBarrier,
+    _bufferMemoryBarrierCount: u32,
+    _pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
+    _imageMemoryBarrierCount: u32,
+    _pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
     unimplemented!()
 }
@@ -3089,49 +3244,49 @@ pub extern "C" fn gfxCmdPipelineBarrier(
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginQuery(
-    commandBuffer: VkCommandBuffer,
-    queryPool: VkQueryPool,
-    query: u32,
-    flags: VkQueryControlFlags,
+    _commandBuffer: VkCommandBuffer,
+    _queryPool: VkQueryPool,
+    _query: u32,
+    _flags: VkQueryControlFlags,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdEndQuery(
-    commandBuffer: VkCommandBuffer,
-    queryPool: VkQueryPool,
-    query: u32,
+    _commandBuffer: VkCommandBuffer,
+    _queryPool: VkQueryPool,
+    _query: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdResetQueryPool(
-    commandBuffer: VkCommandBuffer,
-    queryPool: VkQueryPool,
-    firstQuery: u32,
-    queryCount: u32,
+    _commandBuffer: VkCommandBuffer,
+    _queryPool: VkQueryPool,
+    _firstQuery: u32,
+    _queryCount: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdWriteTimestamp(
-    commandBuffer: VkCommandBuffer,
-    pipelineStage: VkPipelineStageFlagBits,
-    queryPool: VkQueryPool,
-    query: u32,
+    _commandBuffer: VkCommandBuffer,
+    _pipelineStage: VkPipelineStageFlagBits,
+    _queryPool: VkQueryPool,
+    _query: u32,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyQueryPoolResults(
-    commandBuffer: VkCommandBuffer,
-    queryPool: VkQueryPool,
-    firstQuery: u32,
-    queryCount: u32,
-    dstBuffer: VkBuffer,
-    dstOffset: VkDeviceSize,
-    stride: VkDeviceSize,
-    flags: VkQueryResultFlags,
+    _commandBuffer: VkCommandBuffer,
+    _queryPool: VkQueryPool,
+    _firstQuery: u32,
+    _queryCount: u32,
+    _dstBuffer: VkBuffer,
+    _dstOffset: VkDeviceSize,
+    _stride: VkDeviceSize,
+    _flags: VkQueryResultFlags,
 ) {
     unimplemented!()
 }
@@ -3199,11 +3354,16 @@ pub extern "C" fn gfxCmdBeginRenderPass(
     );
 }
 #[inline]
-pub extern "C" fn gfxCmdNextSubpass(commandBuffer: VkCommandBuffer, contents: VkSubpassContents) {
-    unimplemented!()
+pub extern "C" fn gfxCmdNextSubpass(
+    mut commandBuffer: VkCommandBuffer,
+    contents: VkSubpassContents,
+) {
+    commandBuffer.next_subpass(conv::map_subpass_contents(contents));
 }
 #[inline]
-pub extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
+pub extern "C" fn gfxCmdEndRenderPass(
+    mut commandBuffer: VkCommandBuffer,
+) {
     commandBuffer.end_render_pass();
 }
 #[inline]
@@ -3370,7 +3530,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
 }
 #[inline]
 pub extern "C" fn gfxDestroySwapchainKHR(
-    device: VkDevice,
+    _gpu: VkDevice,
     mut swapchain: VkSwapchainKHR,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
@@ -3381,7 +3541,7 @@ pub extern "C" fn gfxDestroySwapchainKHR(
 }
 #[inline]
 pub extern "C" fn gfxGetSwapchainImagesKHR(
-    device: VkDevice,
+    _gpu: VkDevice,
     swapchain: VkSwapchainKHR,
     pSwapchainImageCount: *mut u32,
     pSwapchainImages: *mut VkImage,
@@ -3413,146 +3573,146 @@ pub extern "C" fn gfxGetSwapchainImagesKHR(
 
 #[inline]
 pub extern "C" fn gfxCmdProcessCommandsNVX(
-    commandBuffer: VkCommandBuffer,
-    pProcessCommandsInfo: *const VkCmdProcessCommandsInfoNVX,
+    _commandBuffer: VkCommandBuffer,
+    _pProcessCommandsInfo: *const VkCmdProcessCommandsInfoNVX,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdReserveSpaceForCommandsNVX(
-    commandBuffer: VkCommandBuffer,
-    pReserveSpaceInfo: *const VkCmdReserveSpaceForCommandsInfoNVX,
+    _commandBuffer: VkCommandBuffer,
+    _pReserveSpaceInfo: *const VkCmdReserveSpaceForCommandsInfoNVX,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCreateIndirectCommandsLayoutNVX(
-    device: VkDevice,
-    pCreateInfo: *const VkIndirectCommandsLayoutCreateInfoNVX,
+    _gpu: VkDevice,
+    _pCreateInfo: *const VkIndirectCommandsLayoutCreateInfoNVX,
     _pAllocator: *const VkAllocationCallbacks,
-    pIndirectCommandsLayout: *mut VkIndirectCommandsLayoutNVX,
+    _pIndirectCommandsLayout: *mut VkIndirectCommandsLayoutNVX,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxDestroyIndirectCommandsLayoutNVX(
-    device: VkDevice,
-    indirectCommandsLayout: VkIndirectCommandsLayoutNVX,
+    _gpu: VkDevice,
+    _indirectCommandsLayout: VkIndirectCommandsLayoutNVX,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCreateObjectTableNVX(
-    device: VkDevice,
-    pCreateInfo: *const VkObjectTableCreateInfoNVX,
+    _gpu: VkDevice,
+    _pCreateInfo: *const VkObjectTableCreateInfoNVX,
     _pAllocator: *const VkAllocationCallbacks,
-    pObjectTable: *mut VkObjectTableNVX,
+    _pObjectTable: *mut VkObjectTableNVX,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxDestroyObjectTableNVX(
-    device: VkDevice,
-    objectTable: VkObjectTableNVX,
+    _gpu: VkDevice,
+    _objectTable: VkObjectTableNVX,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxRegisterObjectsNVX(
-    device: VkDevice,
-    objectTable: VkObjectTableNVX,
-    objectCount: u32,
-    ppObjectTableEntries: *const *const VkObjectTableEntryNVX,
-    pObjectIndices: *const u32,
+    _gpu: VkDevice,
+    _objectTable: VkObjectTableNVX,
+    _objectCount: u32,
+    _ppObjectTableEntries: *const *const VkObjectTableEntryNVX,
+    _pObjectIndices: *const u32,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxUnregisterObjectsNVX(
-    device: VkDevice,
-    objectTable: VkObjectTableNVX,
-    objectCount: u32,
-    pObjectEntryTypes: *const VkObjectEntryTypeNVX,
-    pObjectIndices: *const u32,
+    _gpu: VkDevice,
+    _objectTable: VkObjectTableNVX,
+    _objectCount: u32,
+    _pObjectEntryTypes: *const VkObjectEntryTypeNVX,
+    _pObjectIndices: *const u32,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
-    physicalDevice: VkPhysicalDevice,
-    pFeatures: *mut VkDeviceGeneratedCommandsFeaturesNVX,
-    pLimits: *mut VkDeviceGeneratedCommandsLimitsNVX,
+    _physicalDevice: VkPhysicalDevice,
+    _pFeatures: *mut VkDeviceGeneratedCommandsFeaturesNVX,
+    _pLimits: *mut VkDeviceGeneratedCommandsLimitsNVX,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetViewportWScalingNV(
-    commandBuffer: VkCommandBuffer,
-    firstViewport: u32,
-    viewportCount: u32,
-    pViewportWScalings: *const VkViewportWScalingNV,
+    _commandBuffer: VkCommandBuffer,
+    _firstViewport: u32,
+    _viewportCount: u32,
+    _pViewportWScalings: *const VkViewportWScalingNV,
 ) {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxReleaseDisplayEXT(
-    physicalDevice: VkPhysicalDevice,
-    display: VkDisplayKHR,
+    _physicalDevice: VkPhysicalDevice,
+    _display: VkDisplayKHR,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2EXT(
-    physicalDevice: VkPhysicalDevice,
-    surface: VkSurfaceKHR,
-    pSurfaceCapabilities: *mut VkSurfaceCapabilities2EXT,
+    _physicalDevice: VkPhysicalDevice,
+    _surface: VkSurfaceKHR,
+    _pSurfaceCapabilities: *mut VkSurfaceCapabilities2EXT,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxDisplayPowerControlEXT(
-    device: VkDevice,
-    display: VkDisplayKHR,
-    pDisplayPowerInfo: *const VkDisplayPowerInfoEXT,
+    _gpu: VkDevice,
+    _display: VkDisplayKHR,
+    _pDisplayPowerInfo: *const VkDisplayPowerInfoEXT,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxRegisterDeviceEventEXT(
-    device: VkDevice,
-    pDeviceEventInfo: *const VkDeviceEventInfoEXT,
+    _gpu: VkDevice,
+    _pDeviceEventInfo: *const VkDeviceEventInfoEXT,
     _pAllocator: *const VkAllocationCallbacks,
-    pFence: *mut VkFence,
+    _pFence: *mut VkFence,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxRegisterDisplayEventEXT(
-    device: VkDevice,
-    display: VkDisplayKHR,
-    pDisplayEventInfo: *const VkDisplayEventInfoEXT,
+    _gpu: VkDevice,
+    _display: VkDisplayKHR,
+    _pDisplayEventInfo: *const VkDisplayEventInfoEXT,
     _pAllocator: *const VkAllocationCallbacks,
-    pFence: *mut VkFence,
+    _pFence: *mut VkFence,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxGetSwapchainCounterEXT(
-    device: VkDevice,
-    swapchain: VkSwapchainKHR,
-    counter: VkSurfaceCounterFlagBitsEXT,
-    pCounterValue: *mut u64,
+    _gpu: VkDevice,
+    _swapchain: VkSwapchainKHR,
+    _counter: VkSurfaceCounterFlagBitsEXT,
+    _pCounterValue: *mut u64,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDiscardRectangleEXT(
-    commandBuffer: VkCommandBuffer,
-    firstDiscardRectangle: u32,
-    discardRectangleCount: u32,
-    pDiscardRectangles: *const VkRect2D,
+    _commandBuffer: VkCommandBuffer,
+    _firstDiscardRectangle: u32,
+    _discardRectangleCount: u32,
+    _pDiscardRectangles: *const VkRect2D,
 ) {
     unimplemented!()
 }

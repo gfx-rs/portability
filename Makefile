@@ -1,5 +1,6 @@
 VULKAN_DIR=modules/vulkan-docs/src
 CTS_DIR=../VK-GL-CTS
+CHERRY_DIR=../cherry
 BINDING=target/vulkan.rs
 NATIVE_DIR=target/native
 TARGET=$(NATIVE_DIR)/test
@@ -41,9 +42,12 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all release binding run cts cts-pick cts-debug clean
+.PHONY: all rebuild debug release binding run cts cts-pick cts-debug clean cherry
 
 all: $(TARGET)
+
+rebuild:
+	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
 
 debug:
 	cargo build --manifest-path libportability/Cargo.toml --features "$(BACKEND) debug"
@@ -91,3 +95,7 @@ cts-debug: $(TARGET)
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)
 	cargo clean
+
+cherry:
+	cd $(CHERRY_DIR)
+	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go

@@ -10,11 +10,15 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 | -------- | ---- | ---- | --- | -- | - | ---- | - | - | - | - |
 | *Vulkan* | 7759 | 2155 | 131 | 34 | 0 | 5439 | 0 | 0 | 0 | 0 |
 | *DX12*   | 3576 | 1258 | 70  | 0  | 0 | 2248 | 0 | 0 | 0 | 0 |
-| *Metal*  | 3538 | 1215 | 109 | 0  | 0 | 2214 | 0 | 0 | 0 | 0 |
+| *Metal*  | 7687 | 2072 | 112 | 39 | 0 | 5464 | 0 | 0 | 0 | 0 |
 
-Vulkan is currently stopping on "dEQP-VK.api.command_buffers.render_pass_continue" (secondary render passes). DX12 and Metal - on the lack of `VkBufferView` implementations.
+Current blockers:
+- *Vulkan*: "api.command_buffers.render_pass_continue" (secondary render passes).
+- *DX12*: lack of `VkBufferView` implementation.
+- *Metal*: "api.buffer_view.access.suballocation.buffer_view_memory_test_complete" (missing R32Uint support).
 
-Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems.
+
+Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems. When investigating a particular failure, it's handy to do `make cts-debug name=<test_name>`, which runs a single test under system debugger (gdb/lldb).
 
 ## Check out
 ```
