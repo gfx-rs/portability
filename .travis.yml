@@ -52,3 +52,4 @@ script:
   - if [[ $TRAVIS_RUST_VERSION == "nightly" && $TRAVIS_BRANCH == "staging" ]]; then exit; fi
   - export PATH=$PATH:$HOME/deps/bin
   - make
+  - if [[ $TRAVIS_RUST_VERSION == "nightly" ]]; then make debug release; fi

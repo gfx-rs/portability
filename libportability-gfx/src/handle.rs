@@ -1,13 +1,38 @@
 use VK_NULL_HANDLE;
 use std::{borrow, cmp, fmt, ops};
+#[cfg(feature = "nightly")]
+use std::collections::HashMap;
+#[cfg(feature = "nightly")]
+use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "nightly")]
+lazy_static! {
+    static ref REGISTRY: Arc<Mutex<HashMap<usize, &'static str>>> = Arc::new(Mutex::new(HashMap::new()));
+}
 
 #[repr(C)]
 pub struct Handle<T>(*mut T);
 
-impl<T> Handle<T> {
+#[cfg(feature = "nightly")]
+impl Handle<()> {
+    pub fn report_leaks() {
+        println!("Leaked handles:");
+        let mut map = REGISTRY.lock().unwrap();
+        for (_, type_id) in map.drain() {
+            println!("\t{:?}", type_id);
+        }
+    }
+}
+
+impl<T: 'static> Handle<T> {
     pub fn new(value: T) -> Self {
         let ptr = Box::into_raw(Box::new(value));
+        #[cfg(feature = "nightly")]
+        {
+            use std::intrinsics::type_name;
+            let name = unsafe { type_name::<T>() };
+            REGISTRY.lock().unwrap().insert(ptr as _, name);
+        }
         Handle(ptr)
     }
 
@@ -19,6 +44,10 @@ impl<T> Handle<T> {
         if self.0 == VK_NULL_HANDLE as *mut T {
             None
         } else {
+            #[cfg(feature = "nightly")]
+            {
+                REGISTRY.lock().unwrap().remove(&(self.0 as _)).unwrap();
+            }
             Some(*unsafe { Box::from_raw(self.0) })
         }
     }

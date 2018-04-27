@@ -1,9 +1,29 @@
 use hal::{buffer, command, error, format, image, memory, pass, pso, query, window};
-use hal::{IndexType, PatchSize, Primitive};
+use hal::{IndexType, Limits, PatchSize, Primitive};
 
 use std::mem;
 
 use super::*;
+
+
+pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
+    VkPhysicalDeviceLimits {
+        maxImageDimension1D: limits.max_texture_size as _,
+        maxImageDimension2D: limits.max_texture_size as _,
+        maxImageDimension3D: limits.max_texture_size as _,
+        maxImageDimensionCube: limits.max_texture_size as _,
+        maxTessellationPatchSize: limits.max_patch_size as _,
+        maxViewports: limits.max_viewports as _,
+        maxComputeWorkGroupCount: limits.max_compute_group_count,
+        maxComputeWorkGroupSize: limits.max_compute_group_size,
+        optimalBufferCopyOffsetAlignment: limits.min_buffer_copy_offset_alignment,
+        optimalBufferCopyRowPitchAlignment: limits.min_buffer_copy_pitch_alignment,
+        minTexelBufferOffsetAlignment: limits.min_texel_buffer_offset_alignment,
+        minUniformBufferOffsetAlignment: limits.min_uniform_buffer_offset_alignment,
+        minStorageBufferOffsetAlignment: limits.min_storage_buffer_offset_alignment,
+        .. unsafe { mem::zeroed() } //TODO
+    }
+}
 
 pub fn format_from_hal(format: format::Format) -> VkFormat {
     // HAL formats have the same numeric representation as Vulkan formats
@@ -555,11 +575,11 @@ pub fn map_compare_op(op: VkCompareOp) -> pso::Comparison {
     }
 }
 
-pub fn map_logic_op(op: VkLogicOp) -> pso::LogicOp {
+pub fn map_logic_op(_op: VkLogicOp) -> pso::LogicOp {
     unimplemented!()
 }
 
-pub fn map_stencil_op(op: VkStencilOp) -> pso::StencilOp {
+pub fn map_stencil_op(_op: VkStencilOp) -> pso::StencilOp {
     unimplemented!()
 }
 
@@ -647,7 +667,7 @@ pub fn map_wrap_mode(mode: VkSamplerAddressMode) -> image::WrapMode {
         VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT => image::WrapMode::Mirror,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE => image::WrapMode::Clamp,
         VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER => image::WrapMode::Border,
-        other => {
+        _ => {
             warn!("Non-covered sampler address mode: {:?}", mode);
             image::WrapMode::Clamp
         }

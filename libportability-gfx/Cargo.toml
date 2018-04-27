@@ -13,7 +13,7 @@ name = "portability_gfx"
 [features]
 default = []
 dispatch = []
-#default = ["env_logger"] # uncomment for debugging
+nightly = []
 
 [dependencies]
 lazy_static = "1.0"
