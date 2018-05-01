@@ -60,8 +60,10 @@ pub extern "C" fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    for adapter in instance.unbox().unwrap().adapters {
-        let _ = adapter.unbox();
+    if let Some(i) = instance.unbox() {
+        for adapter in i.adapters {
+            let _ = adapter.unbox();
+        }
     }
     #[cfg(feature = "nightly")]
     {
@@ -571,9 +573,11 @@ pub extern "C" fn gfxCreateDevice(
 #[inline]
 pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
     // release all the owned command queues
-    for (_, family) in gpu.unbox().unwrap().queues {
-        for queue in family {
-            let _ = queue.unbox();
+    if let Some(d) = gpu.unbox() {
+        for (_, family) in d.queues {
+            for queue in family {
+                let _ = queue.unbox();
+            }
         }
     }
 }
@@ -2519,11 +2523,12 @@ pub extern "C" fn gfxDestroyCommandPool(
     commandPool: VkCommandPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    let pool = commandPool.unbox().unwrap();
-    for cmd_buf in pool.buffers {
-        let _ = cmd_buf.unbox();
+    if let Some(cp) = commandPool.unbox() {
+        for cmd_buf in cp.buffers {
+            let _ = cmd_buf.unbox();
+        }
+        gpu.device.destroy_command_pool(cp.pool);
     }
-    gpu.device.destroy_command_pool(pool.pool);
 }
 
 #[inline]
@@ -2573,7 +2578,7 @@ pub extern "C" fn gfxFreeCommandBuffers(
     };
     commandPool.buffers.retain(|buf| !slice.contains(buf));
 
-    let buffers = slice.iter().map(|buffer| buffer.unbox().unwrap()).collect();
+    let buffers = slice.iter().filter_map(|buffer| buffer.unbox()).collect();
     unsafe { commandPool.pool.free(buffers) };
 }
 
