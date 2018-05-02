@@ -839,7 +839,15 @@ pub extern "C" fn gfxFlushMappedMemoryRanges(
             slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
         }
         .iter()
-        .map(|r| (&*r.memory, r.offset .. r.offset + r.size));
+        .map(|r| {
+            let range = if r.size == VK_WHOLE_SIZE as VkDeviceSize {
+                (Some(r.offset), None)
+            } else {
+                (Some(r.offset), Some(r.offset + r.size))
+            };
+
+            (&*r.memory, range)
+        });
 
     gpu.device.flush_mapped_memory_ranges(ranges);
     VkResult::VK_SUCCESS
@@ -854,7 +862,15 @@ pub extern "C" fn gfxInvalidateMappedMemoryRanges(
             slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
         }
         .iter()
-        .map(|r| (&*r.memory, r.offset .. r.offset + r.size));
+        .map(|r| {
+            let range = if r.size == VK_WHOLE_SIZE as VkDeviceSize {
+                (Some(r.offset), None)
+            } else {
+                (Some(r.offset), Some(r.offset + r.size))
+            };
+
+            (&*r.memory, range)
+        });
 
     gpu.device.invalidate_mapped_memory_ranges(ranges);
     VkResult::VK_SUCCESS
@@ -1507,12 +1523,12 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             set
         };
 
-        let rasterizer = {
+        let (rasterizer, rasterizer_discard) = {
             let state = unsafe { &*info.pRasterizationState };
 
             assert_eq!(state.rasterizerDiscardEnable, VK_FALSE); // TODO
 
-            pso::Rasterizer {
+            let rasterizer = pso::Rasterizer {
                 polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
                 cull_face: conv::map_cull_face(state.cullMode),
                 front_face: conv::map_front_face(state.frontFace),
@@ -1527,7 +1543,9 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     None
                 },
                 conservative: false,
-            }
+            };
+
+            (rasterizer, state.rasterizerDiscardEnable == VK_TRUE)
         };
 
         let (vertex_buffers, attributes) = {
@@ -1645,9 +1663,23 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             blend_desc
         };
 
-        if !info.pMultisampleState.is_null() {
-            warn!("Multisampling is not supported yet");
-        }
+        let multisampling = if !rasterizer_discard && !info.pMultisampleState.is_null() {
+            let multisampling = unsafe { *info.pMultisampleState };
+
+            Some(pso::Multisampling {
+                rasterization_samples: multisampling.rasterizationSamples as _,
+                sample_shading: if multisampling.sampleShadingEnable == VK_TRUE {
+                    Some(multisampling.minSampleShading)
+                } else {
+                    None
+                },
+                sample_mask: !0, // TODO
+                alpha_coverage: multisampling.alphaToCoverageEnable == VK_TRUE,
+                alpha_to_one: multisampling.alphaToOneEnable == VK_TRUE,
+            })
+        } else {
+            None
+        };
 
         // TODO: `pDepthStencilState` could contain garbage, but implementations
         //        can ignore it in some circumstances. How to handle it?
@@ -1766,6 +1798,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             input_assembler,
             blender,
             depth_stencil,
+            multisampling,
             baked_states,
             layout,
             subpass,
@@ -2325,6 +2358,7 @@ pub extern "C" fn gfxCreateRenderPass(
 
             pass::Attachment {
                 format: conv::map_format(attachment.format),
+                samples: attachment.samples as u32 as _,
                 ops: pass::AttachmentOps {
                     load: conv::map_attachment_load_op(attachment.loadOp),
                     store: conv::map_attachment_store_op(attachment.storeOp),
@@ -2373,16 +2407,12 @@ pub extern "C" fn gfxCreateRenderPass(
         let resolve = if subpass.pResolveAttachments.is_null() {
             Vec::new()
         } else {
-            warn!("TODO: implement resolve attachments");
-            Vec::new()
-            /*
             unsafe {
                 slice::from_raw_parts(subpass.pResolveAttachments, subpass.colorAttachmentCount as _)
                     .into_iter()
                     .map(map_attachment_ref)
                     .collect()
             }
-            */
         };
         let depth_stencil = unsafe {
             subpass
@@ -2415,6 +2445,7 @@ pub extern "C" fn gfxCreateRenderPass(
                 colors: &attachment_ref.color,
                 depth_stencil: attachment_ref.depth_stencil.as_ref(),
                 inputs: &attachment_ref.input,
+                resolves: &attachment_ref.resolve,
                 preserves: &attachment_ref.preserve,
             }
         })
