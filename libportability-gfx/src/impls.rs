@@ -877,7 +877,7 @@ pub extern "C" fn gfxBindBufferMemory(
     let temp = unsafe { mem::zeroed() };
 
     *buffer = match mem::replace(&mut *buffer, temp) {
-        Buffer::Buffer(_) => panic!("An non-sparse buffer can only be bound once!"),
+        Buffer::Buffer(_) => panic!("A non-sparse buffer can only be bound once!"),
         Buffer::Unbound(unbound) => {
             Buffer::Buffer(
                 gpu.device
@@ -2852,20 +2852,23 @@ pub extern "C" fn gfxCmdDrawIndexedIndirect(
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatch(
-    _commandBuffer: VkCommandBuffer,
-    _groupCountX: u32,
-    _groupCountY: u32,
-    _groupCountZ: u32,
+    mut commandBuffer: VkCommandBuffer,
+    groupCountX: u32,
+    groupCountY: u32,
+    groupCountZ: u32,
 ) {
-    unimplemented!()
+    commandBuffer.dispatch([groupCountX, groupCountY, groupCountZ])
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatchIndirect(
-    _commandBuffer: VkCommandBuffer,
-    _buffer: VkBuffer,
-    _offset: VkDeviceSize,
+    mut commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
 ) {
-    unimplemented!()
+    match *buffer {
+        Buffer::Buffer(ref b) => commandBuffer.dispatch_indirect(b, offset),
+        Buffer::Unbound(_) => panic!("Bound buffer expected!"),
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBuffer(
