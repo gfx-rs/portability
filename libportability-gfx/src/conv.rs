@@ -21,6 +21,9 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         minTexelBufferOffsetAlignment: limits.min_texel_buffer_offset_alignment,
         minUniformBufferOffsetAlignment: limits.min_uniform_buffer_offset_alignment,
         minStorageBufferOffsetAlignment: limits.min_storage_buffer_offset_alignment,
+        framebufferColorSampleCounts: limits.framebuffer_color_samples_count as _,
+        framebufferDepthSampleCounts: limits.framebuffer_depth_samples_count as _,
+        framebufferStencilSampleCounts: limits.framebuffer_stencil_samples_count as _,
         .. unsafe { mem::zeroed() } //TODO
     }
 }
