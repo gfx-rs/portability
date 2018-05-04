@@ -6,9 +6,10 @@ NATIVE_DIR=target/native
 TARGET=$(NATIVE_DIR)/test
 OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
 LIB_EXTENSION=
-TEST_LIST=conformance/deqp.txt
+TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
-DEQP=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/deqp-vk
+DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
+DEQP=cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
@@ -81,16 +82,16 @@ $(TEST_LIST): $(TEST_LIST_SOURCE)
 	cat $(TEST_LIST_SOURCE) | grep -v -e ".event" -e "query" >$(TEST_LIST)
 
 cts: $(TARGET) $(TEST_LIST)
-	-LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEQP) --deqp-caselist-file=$(TEST_LIST)
+	($(DEQP) --deqp-caselist-file=$(TEST_LIST))
 	python $(CTS_DIR)/scripts/log/log_to_xml.py TestResults.qpa conformance/last.xml
 	mv TestResults.qpa conformance/last.qpa
 	firefox conformance/last.xml
 
 cts-pick: $(TARGET)
-	-LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEQP) -n $(name)
+	($(DEQP) -n $(name))
 
 cts-debug: $(TARGET)
-	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP) -n $(name)
+	(cd $(DEQP_DIR) && $(DEBUGGER) ./deqp-vk -n $(name))
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)
