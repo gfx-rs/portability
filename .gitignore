@@ -1,6 +1,7 @@
-/build/
-/target/
+build/
+target/
 conformance/*.xml
 conformance/*.qpa
 conformance/*.txt
 **/*.rs.bk
+.vscode/
