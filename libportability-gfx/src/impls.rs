@@ -1557,6 +1557,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     input_state.vertexBindingDescriptionCount as _,
                 )
             };
+
             let attributes = unsafe {
                 slice::from_raw_parts(
                     input_state.pVertexAttributeDescriptions,
@@ -1565,11 +1566,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             };
 
             let bindings = bindings
-                .into_iter()
-                .enumerate()
-                .map(|(i, binding)| {
-                    assert_eq!(i, binding.binding as _); // TODO: currently need to be in order
-
+                .iter()
+                .map(|binding| {
                     let rate = match binding.inputRate {
                         VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => 0,
                         VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => 1,
@@ -1577,6 +1575,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     };
 
                     pso::VertexBufferDesc {
+                        binding: binding.binding,
                         stride: binding.stride,
                         rate,
                     }
@@ -1754,6 +1753,11 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 unsafe { info.pColorBlendState.as_ref() }
                     .map(|cbs| cbs.blendConstants)
             },
+            depth_bounds: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_DEPTH_BOUNDS) {
+                None
+            } else {
+                None // TODO
+            }
         };
 
         let layout = &*info.layout;
@@ -2222,11 +2226,18 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                     ))
                     .collect::<Vec<_>>()
             }
-            pso::DescriptorType::UniformTexelBuffer |
+            pso::DescriptorType::UniformTexelBuffer => {
+                texel_buffer_views
+                    .into_iter()
+                    .map(|view| pso::Descriptor::UniformTexelBuffer(
+                        &**view,
+                    ))
+                    .collect::<Vec<_>>()
+            }
             pso::DescriptorType::StorageTexelBuffer => {
                 texel_buffer_views
                     .into_iter()
-                    .map(|view| pso::Descriptor::TexelBuffer(
+                    .map(|view| pso::Descriptor::StorageTexelBuffer(
                         &**view,
                     ))
                     .collect::<Vec<_>>()
@@ -2809,8 +2820,6 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
     pBuffers: *const VkBuffer,
     pOffsets: *const VkDeviceSize,
 ) {
-    assert_eq!(firstBinding, 0); // TODO
-
     let buffers = unsafe {
         slice::from_raw_parts(pBuffers, bindingCount as _)
     };
@@ -2831,7 +2840,7 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
         })
         .collect();
 
-    commandBuffer.bind_vertex_buffers(pso::VertexBufferSet(views));
+    commandBuffer.bind_vertex_buffers(firstBinding, pso::VertexBufferSet(views));
 }
 #[inline]
 pub extern "C" fn gfxCmdDraw(
@@ -3101,12 +3110,17 @@ pub extern "C" fn gfxCmdFillBuffer(
     size: VkDeviceSize,
     data: u32,
 ) {
+    let range = if size == VK_WHOLE_SIZE as VkDeviceSize {
+        (Some(dstOffset), None)
+    } else {
+        (Some(dstOffset), Some(dstOffset + size))
+    };
     commandBuffer.fill_buffer(
         match *dstBuffer {
             Buffer::Buffer(ref buf) => buf,
             Buffer::Unbound(_) => panic!("Bound buffer expected!"),
         },
-        dstOffset .. dstOffset + size,
+        range,
         data,
     );
 }
