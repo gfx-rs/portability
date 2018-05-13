@@ -91,12 +91,12 @@ cts-pick: $(TARGET)
 	($(DEQP) -n $(name))
 
 cts-debug: $(TARGET)
-	(cd $(DEQP_DIR) && $(DEBUGGER) ./deqp-vk -n $(name))
+	#(cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) ./deqp-vk -n $(name))
+	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP_DIR)/deqp-vk -n $(name)
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)
 	cargo clean
 
-cherry:
-	cd $(CHERRY_DIR)
-	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
+cherry: $(TARGET)
+	cd $(CHERRY_DIR) && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
