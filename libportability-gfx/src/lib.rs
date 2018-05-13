@@ -31,6 +31,10 @@ use std::collections::HashMap;
 
 pub use impls::*;
 
+#[cfg(feature = "env_logger")]
+lazy_static! {
+    static ref _LOGGER: () = env_logger::init();
+}
 
 // Vulkan objects
 pub type VkInstance = Handle<RawInstance>;

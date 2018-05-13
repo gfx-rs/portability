@@ -37,13 +37,6 @@ pub extern "C" fn gfxCreateInstance(
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
 ) -> VkResult {
-    // Note: is this the best place to enable logging?
-    #[cfg(feature = "env_logger")]
-    {
-        use env_logger;
-        env_logger::init();
-    }
-
     let backend = back::Instance::create("portability", 1);
     let adapters = backend
         .enumerate_adapters()
@@ -1756,8 +1749,9 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             depth_bounds: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_DEPTH_BOUNDS) {
                 None
             } else {
-                None // TODO
-            }
+                unsafe { info.pDepthStencilState.as_ref() }
+                    .map(|db| db.minDepthBounds .. db.maxDepthBounds)
+            },
         };
 
         let layout = &*info.layout;
@@ -3126,25 +3120,55 @@ pub extern "C" fn gfxCmdFillBuffer(
 }
 #[inline]
 pub extern "C" fn gfxCmdClearColorImage(
-    _commandBuffer: VkCommandBuffer,
-    _image: VkImage,
-    _imageLayout: VkImageLayout,
-    _pColor: *const VkClearColorValue,
-    _rangeCount: u32,
-    _pRanges: *const VkImageSubresourceRange,
+    mut commandBuffer: VkCommandBuffer,
+    image: VkImage,
+    imageLayout: VkImageLayout,
+    pColor: *const VkClearColorValue,
+    rangeCount: u32,
+    pRanges: *const VkImageSubresourceRange,
 ) {
-    unimplemented!()
+    let subresource_ranges = unsafe {
+        slice::from_raw_parts(pRanges, rangeCount as _)
+    };
+    commandBuffer.clear_image(
+        match *image {
+            Image::Image(ref image) => image,
+            Image::Unbound(_) => panic!("Bound image expected!"),
+        },
+        conv::map_image_layout(imageLayout),
+        unsafe { mem::transmute(*pColor) },
+        unsafe { mem::zeroed() },
+        subresource_ranges
+            .iter()
+            .cloned()
+            .map(conv::map_subresource_range),
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdClearDepthStencilImage(
-    _commandBuffer: VkCommandBuffer,
-    _image: VkImage,
-    _imageLayout: VkImageLayout,
-    _pDepthStencil: *const VkClearDepthStencilValue,
-    _rangeCount: u32,
-    _pRanges: *const VkImageSubresourceRange,
+    mut commandBuffer: VkCommandBuffer,
+    image: VkImage,
+    imageLayout: VkImageLayout,
+    pDepthStencil: *const VkClearDepthStencilValue,
+    rangeCount: u32,
+    pRanges: *const VkImageSubresourceRange,
 ) {
-    unimplemented!()
+    let subresource_ranges = unsafe {
+        slice::from_raw_parts(pRanges, rangeCount as _)
+    };
+    commandBuffer.clear_image(
+        match *image {
+            Image::Image(ref image) => image,
+            Image::Unbound(_) => panic!("Bound image expected!"),
+        },
+        conv::map_image_layout(imageLayout),
+        unsafe { mem::zeroed() },
+        unsafe { mem::transmute(*pDepthStencil) },
+        subresource_ranges
+            .iter()
+            .cloned()
+            .map(conv::map_subresource_range),
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdClearAttachments(
@@ -3398,7 +3422,7 @@ pub extern "C" fn gfxCmdBeginRenderPass(
     };
     let contents = conv::map_subpass_contents(contents);
 
-    commandBuffer.begin_render_pass_raw(
+    commandBuffer.begin_render_pass(
         &*info.renderPass,
         &*info.framebuffer,
         render_area,

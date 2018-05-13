@@ -170,9 +170,17 @@ pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> image::Sub
     image::SubresourceRange {
         aspects: map_aspect(subresource.aspectMask),
         levels: subresource.baseMipLevel as _
-            ..(subresource.baseMipLevel + subresource.levelCount) as _,
+            .. if subresource.levelCount as i32 == VK_REMAINING_MIP_LEVELS {
+                !0
+            } else {
+                (subresource.baseMipLevel + subresource.levelCount) as _
+            },
         layers: subresource.baseArrayLayer as _
-            ..(subresource.baseArrayLayer + subresource.layerCount) as _,
+            .. if subresource.layerCount as i32 == VK_REMAINING_ARRAY_LAYERS {
+                !0
+            } else {
+                (subresource.baseArrayLayer + subresource.layerCount) as _
+            },
     }
 }
 
