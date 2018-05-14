@@ -908,13 +908,13 @@ pub extern "C" fn gfxBindImageMemory(
     let temp = unsafe { mem::zeroed() };
 
     *image = match mem::replace(&mut *image, temp) {
-        Image::Image(_) => panic!("An non-sparse image can only be bound once!"),
-        Image::Unbound(unbound) => {
-            Image::Image(
-                gpu.device
-                    .bind_image_memory(&memory, memoryOffset, unbound)
-                    .unwrap() // TODO
-            )
+        Image::Image { .. } => panic!("An non-sparse image can only be bound once!"),
+        Image::Unbound { raw, mip_levels, array_layers } => {
+            Image::Image {
+                raw: gpu.device.bind_image_memory(&memory, memoryOffset, raw).unwrap(), // TODO
+                mip_levels,
+                array_layers,
+            }
         }
     };
 
@@ -944,8 +944,8 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
     let req = match *image {
-        Image::Image(_) => unimplemented!(),
-        Image::Unbound(ref image) => gpu.device.get_image_requirements(image),
+        Image::Image { .. } => unimplemented!(),
+        Image::Unbound { ref raw, .. } => gpu.device.get_image_requirements(raw),
     };
 
     *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
@@ -1263,7 +1263,11 @@ pub extern "C" fn gfxCreateImage(
         .expect("Error on creating image");
 
     unsafe {
-        *pImage = Handle::new(Image::Unbound(image));
+        *pImage = Handle::new(Image::Unbound {
+            raw: image,
+            mip_levels: info.mipLevels,
+            array_layers: info.arrayLayers,
+        });
     }
     VkResult::VK_SUCCESS
 }
@@ -1274,8 +1278,8 @@ pub extern "C" fn gfxDestroyImage(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     match image.unbox() {
-        Some(Image::Image(image)) => gpu.device.destroy_image(image),
-        Some(Image::Unbound(_)) => {
+        Some(Image::Image { raw, .. }) => gpu.device.destroy_image(raw),
+        Some(Image::Unbound { .. }) => {
             warn!("Trying to destroy a non-bound image, ignoring");
         }
         None => {}
@@ -1301,18 +1305,15 @@ pub extern "C" fn gfxCreateImageView(
     assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
     assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
 
-    let image = match *info.image {
-        Image::Image(ref image) => image,
-        // Non-sparse images must be bound prior.
-        Image::Unbound(_) => panic!("Can't create view for unbound image"),
-    };
+    // Non-sparse images must be bound prior.
+    let image = info.image.expect("Can't create view for unbound image");
 
     let view = gpu.device.create_image_view(
         image,
         conv::map_view_kind(info.viewType),
         conv::map_format(info.format).unwrap(),
         conv::map_swizzle(info.components),
-        conv::map_subresource_range(info.subresourceRange),
+        info.image.map_subresource_range(info.subresourceRange),
     );
 
     match view {
@@ -2248,11 +2249,8 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                             Some(buffer.offset + buffer.range)
                         };
                         pso::Descriptor::Buffer(
-                            match *buffer.buffer {
-                                Buffer::Buffer(ref buf) => buf,
-                                // Non-sparse buffer need to be bound to device memory.
-                                Buffer::Unbound(_) => panic!("Buffer needs to be bound"),
-                            },
+                            // Non-sparse buffer need to be bound to device memory.
+                            buffer.buffer.expect("Buffer needs to be bound"),
                             Some(buffer.offset) .. end,
                         )
                     })
@@ -2796,10 +2794,7 @@ pub extern "C" fn gfxCmdBindIndexBuffer(
 ) {
     commandBuffer.bind_index_buffer(
         IndexBufferView {
-            buffer: match *buffer {
-                Buffer::Buffer(ref b) => b,
-                Buffer::Unbound(_) => panic!("Bound index buffer expected."),
-            },
+            buffer: buffer.expect("Bound index buffer expected."),
             offset,
             index_type: conv::map_index_type(indexType),
         }
@@ -2825,10 +2820,7 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
         .into_iter()
         .zip(offsets.into_iter())
         .map(|(buffer, offset)| {
-            let buffer = match **buffer {
-                Buffer::Buffer(ref buffer) => buffer,
-                Buffer::Unbound(_) => panic!("Non-sparse buffers need to be bound to device memory."),
-            };
+            let buffer = buffer.expect("Non-sparse buffers need to be bound to device memory.");
 
             (buffer, *offset as _)
         })
@@ -2899,10 +2891,7 @@ pub extern "C" fn gfxCmdDispatchIndirect(
     buffer: VkBuffer,
     offset: VkDeviceSize,
 ) {
-    match *buffer {
-        Buffer::Buffer(ref b) => commandBuffer.dispatch_indirect(b, offset),
-        Buffer::Unbound(_) => panic!("Bound buffer expected!"),
-    }
+    commandBuffer.dispatch_indirect(buffer.expect("Bound buffer expected!"), offset)
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBuffer(
@@ -2923,14 +2912,8 @@ pub extern "C" fn gfxCmdCopyBuffer(
         });
 
     commandBuffer.copy_buffer(
-        match *srcBuffer {
-            Buffer::Buffer(ref src) => src,
-            Buffer::Unbound(_) => panic!("Bound src buffer expected!"),
-        },
-        match *dstBuffer {
-            Buffer::Buffer(ref dst) => dst,
-            Buffer::Unbound(_) => panic!("Bound dst buffer expected!"),
-        },
+        srcBuffer.expect("Bound src buffer expected!"),
+        dstBuffer.expect("Bound dst buffer expected!"),
         regions,
     );
 }
@@ -2949,23 +2932,17 @@ pub extern "C" fn gfxCmdCopyImage(
         }
         .iter()
         .map(|r| com::ImageCopy {
-            src_subresource: conv::map_subresource_layers(r.srcSubresource),
+            src_subresource: srcImage.map_subresource_layers(r.srcSubresource),
             src_offset: conv::map_offset(r.srcOffset),
-            dst_subresource: conv::map_subresource_layers(r.dstSubresource),
+            dst_subresource: dstImage.map_subresource_layers(r.dstSubresource),
             dst_offset: conv::map_offset(r.dstOffset),
             extent: conv::map_extent(r.extent),
         });
 
     commandBuffer.copy_image(
-        match *srcImage {
-            Image::Image(ref src) => src,
-            Image::Unbound(_) => panic!("Bound src image expected!"),
-        },
+        srcImage.expect("Bound src image expected!"),
         conv::map_image_layout(srcImageLayout),
-        match *dstImage {
-            Image::Image(ref dst) => dst,
-            Image::Unbound(_) => panic!("Bound dst image expected!"),
-        },
+        dstImage.expect("Bound dst image expected!"),
         conv::map_image_layout(dstImageLayout),
         regions,
     );
@@ -2986,22 +2963,16 @@ pub extern "C" fn gfxCmdBlitImage(
         }
         .iter()
         .map(|r| com::ImageBlit {
-            src_subresource: conv::map_subresource_layers(r.srcSubresource),
+            src_subresource: srcImage.map_subresource_layers(r.srcSubresource),
             src_bounds: conv::map_offset(r.srcOffsets[0]) .. conv::map_offset(r.srcOffsets[1]),
-            dst_subresource: conv::map_subresource_layers(r.dstSubresource),
+            dst_subresource: dstImage.map_subresource_layers(r.dstSubresource),
             dst_bounds: conv::map_offset(r.dstOffsets[0]) .. conv::map_offset(r.dstOffsets[1]),
         });
 
     commandBuffer.blit_image(
-        match *srcImage {
-            Image::Image(ref src) => src,
-            Image::Unbound(_) => panic!("Bound src image expected!"),
-        },
+        srcImage.expect("Bound src image expected!"),
         conv::map_image_layout(srcImageLayout),
-        match *dstImage {
-            Image::Image(ref dst) => dst,
-            Image::Unbound(_) => panic!("Bound dst image expected!"),
-        },
+        dstImage.expect("Bound dst image expected!"),
         conv::map_image_layout(dstImageLayout),
         conv::map_filter(filter),
         regions,
@@ -3024,20 +2995,14 @@ pub extern "C" fn gfxCmdCopyBufferToImage(
             buffer_offset: r.bufferOffset,
             buffer_width: r.bufferRowLength,
             buffer_height: r.bufferImageHeight,
-            image_layers: conv::map_subresource_layers(r.imageSubresource),
+            image_layers: dstImage.map_subresource_layers(r.imageSubresource),
             image_offset: conv::map_offset(r.imageOffset),
             image_extent: conv::map_extent(r.imageExtent),
         });
 
     commandBuffer.copy_buffer_to_image(
-        match *srcBuffer {
-            Buffer::Buffer(ref b) => b,
-            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
-        },
-        match *dstImage {
-            Image::Image(ref i) => i,
-            Image::Unbound(_) => panic!("Bound image expected!"),
-        },
+        srcBuffer.expect("Bound buffer expected!"),
+        dstImage.expect("Bound image expected!"),
         conv::map_image_layout(dstImageLayout),
         regions,
     );
@@ -3059,21 +3024,15 @@ pub extern "C" fn gfxCmdCopyImageToBuffer(
             buffer_offset: r.bufferOffset,
             buffer_width: r.bufferRowLength,
             buffer_height: r.bufferImageHeight,
-            image_layers: conv::map_subresource_layers(r.imageSubresource),
+            image_layers: srcImage.map_subresource_layers(r.imageSubresource),
             image_offset: conv::map_offset(r.imageOffset),
             image_extent: conv::map_extent(r.imageExtent),
         });
 
     commandBuffer.copy_image_to_buffer(
-        match *srcImage {
-            Image::Image(ref i) => i,
-            Image::Unbound(_) => panic!("Bound image expected!"),
-        },
+        srcImage.expect("Bound image expected!"),
         conv::map_image_layout(srcImageLayout),
-        match *dstBuffer {
-            Buffer::Buffer(ref b) => b,
-            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
-        },
+        dstBuffer.expect("Bound buffer expected!"),
         regions,
     );
 }
@@ -3086,10 +3045,7 @@ pub extern "C" fn gfxCmdUpdateBuffer(
     pData: *const ::std::os::raw::c_void,
 ) {
     commandBuffer.update_buffer(
-        match *dstBuffer {
-            Buffer::Buffer(ref buf) => buf,
-            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
-        },
+        dstBuffer.expect("Bound buffer expected!"),
         dstOffset,
         unsafe {
             slice::from_raw_parts(pData as _, dataSize as _)
@@ -3110,10 +3066,7 @@ pub extern "C" fn gfxCmdFillBuffer(
         (Some(dstOffset), Some(dstOffset + size))
     };
     commandBuffer.fill_buffer(
-        match *dstBuffer {
-            Buffer::Buffer(ref buf) => buf,
-            Buffer::Unbound(_) => panic!("Bound buffer expected!"),
-        },
+        dstBuffer.expect("Bound buffer expected!"),
         range,
         data,
     );
@@ -3131,17 +3084,13 @@ pub extern "C" fn gfxCmdClearColorImage(
         slice::from_raw_parts(pRanges, rangeCount as _)
     };
     commandBuffer.clear_image(
-        match *image {
-            Image::Image(ref image) => image,
-            Image::Unbound(_) => panic!("Bound image expected!"),
-        },
+        image.expect("Bound image expected!"),
         conv::map_image_layout(imageLayout),
         unsafe { mem::transmute(*pColor) },
         unsafe { mem::zeroed() },
         subresource_ranges
             .iter()
-            .cloned()
-            .map(conv::map_subresource_range),
+            .map(|&range| image.map_subresource_range(range)),
     );
 }
 #[inline]
@@ -3157,17 +3106,13 @@ pub extern "C" fn gfxCmdClearDepthStencilImage(
         slice::from_raw_parts(pRanges, rangeCount as _)
     };
     commandBuffer.clear_image(
-        match *image {
-            Image::Image(ref image) => image,
-            Image::Unbound(_) => panic!("Bound image expected!"),
-        },
+        image.expect("Bound image expected!"),
         conv::map_image_layout(imageLayout),
         unsafe { mem::zeroed() },
         unsafe { mem::transmute(*pDepthStencil) },
         subresource_ranges
             .iter()
-            .cloned()
-            .map(conv::map_subresource_range),
+            .map(|&range| image.map_subresource_range(range)),
     );
 }
 #[inline]
@@ -3292,10 +3237,7 @@ pub extern "C" fn gfxCmdPipelineBarrier(
         .iter()
         .map(|b| memory::Barrier::Buffer {
             states: conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask),
-            target: match *b.buffer {
-                Buffer::Buffer(ref b) => b,
-                Buffer::Unbound(_) => panic!("Bound buffer is needed here!"),
-            },
+            target: b.buffer.expect("Bound buffer is needed here!"),
         });
 
     let image_barriers = unsafe {
@@ -3306,11 +3248,8 @@ pub extern "C" fn gfxCmdPipelineBarrier(
             states:
                 (conv::map_image_access(b.srcAccessMask), conv::map_image_layout(b.oldLayout)) ..
                 (conv::map_image_access(b.dstAccessMask), conv::map_image_layout(b.newLayout)),
-            target: match *b.image {
-                Image::Image(ref i) => i,
-                Image::Unbound(_) => panic!("Bound image is needed here!"),
-            },
-            range: conv::map_subresource_range(b.subresourceRange),
+            target: b.image.expect("Bound image is needed here!"),
+            range: b.image.map_subresource_range(b.subresourceRange),
         });
 
     commandBuffer.pipeline_barrier(
@@ -3590,7 +3529,11 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     let images = match backbuffers {
         hal::Backbuffer::Images(images) => images
             .into_iter()
-            .map(|image| Handle::new(Image::Image(image)))
+            .map(|image| Handle::new(Image::Image {
+                raw: image,
+                mip_levels: 1,
+                array_layers: 1,
+            }))
             .collect(),
         hal::Backbuffer::Framebuffer(_) => panic!(
             "Expected backbuffer images. Backends returning only framebuffers are not supported!"

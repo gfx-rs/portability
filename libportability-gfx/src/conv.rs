@@ -157,34 +157,7 @@ fn map_swizzle_component(
     }
 }
 
-pub fn map_subresource_layers(subresource: VkImageSubresourceLayers) -> image::SubresourceLayers {
-    image::SubresourceLayers {
-        aspects: map_aspect(subresource.aspectMask),
-        level: subresource.mipLevel as _,
-        layers: subresource.baseArrayLayer as _
-            ..(subresource.baseArrayLayer + subresource.layerCount) as _,
-    }
-}
-
-pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> image::SubresourceRange {
-    image::SubresourceRange {
-        aspects: map_aspect(subresource.aspectMask),
-        levels: subresource.baseMipLevel as _
-            .. if subresource.levelCount as i32 == VK_REMAINING_MIP_LEVELS {
-                !0
-            } else {
-                (subresource.baseMipLevel + subresource.levelCount) as _
-            },
-        layers: subresource.baseArrayLayer as _
-            .. if subresource.layerCount as i32 == VK_REMAINING_ARRAY_LAYERS {
-                !0
-            } else {
-                (subresource.baseArrayLayer + subresource.layerCount) as _
-            },
-    }
-}
-
-fn map_aspect(aspects: VkImageAspectFlags) -> format::Aspects {
+pub fn map_aspect(aspects: VkImageAspectFlags) -> format::Aspects {
     let mut flags = format::Aspects::empty();
     if aspects & VkImageAspectFlagBits::VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
         flags |= format::Aspects::COLOR;

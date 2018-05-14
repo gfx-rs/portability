@@ -79,13 +79,84 @@ pub enum Pipeline<B: hal::Backend> {
 }
 
 pub enum Image<B: hal::Backend> {
-    Image(B::Image),
-    Unbound(B::UnboundImage),
+    Image { raw: B::Image, mip_levels: u32, array_layers: u32 },
+    Unbound { raw: B::UnboundImage, mip_levels: u32, array_layers: u32 },
+}
+
+impl<B: hal::Backend> Image<B> {
+    fn expect(&self, msg: &str) -> &B::Image {
+        match *self {
+            Image::Image { ref raw, .. } => raw,
+            Image::Unbound { .. } => expect_failed(msg),
+        }
+    }
+
+    fn mip_levels(&self) -> u32 {
+        match *self {
+            Image::Image { mip_levels, .. } => mip_levels,
+            Image::Unbound { mip_levels, .. } => mip_levels,
+        }
+    }
+
+    fn array_layers(&self) -> u32 {
+        match *self {
+            Image::Image { array_layers, .. } => array_layers,
+            Image::Unbound { array_layers, .. } => array_layers,
+        }
+    }
+
+    fn map_subresource_layers(&self, subresource: VkImageSubresourceLayers) -> hal::image::SubresourceLayers {
+        let layer_end = if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
+            self.array_layers()
+        } else {
+            subresource.baseArrayLayer + subresource.layerCount
+        };
+        hal::image::SubresourceLayers {
+            aspects: conv::map_aspect(subresource.aspectMask),
+            level: subresource.mipLevel as _,
+            layers: subresource.baseArrayLayer as _ .. layer_end as _,
+        }
+    }
+
+    fn map_subresource_range(&self,
+        subresource: VkImageSubresourceRange,
+    ) -> hal::image::SubresourceRange {
+        let level_end = if subresource.levelCount == VK_REMAINING_MIP_LEVELS as _ {
+            self.mip_levels()
+        } else {
+            subresource.baseMipLevel + subresource.levelCount
+        };
+        let layer_end = if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
+            self.array_layers()
+        } else {
+            subresource.baseArrayLayer + subresource.layerCount
+        };
+        hal::image::SubresourceRange {
+            aspects: conv::map_aspect(subresource.aspectMask),
+            levels: subresource.baseMipLevel as _ .. level_end as _,
+            layers: subresource.baseArrayLayer as _ .. layer_end as _,
+        }
+    }
 }
 
 pub enum Buffer<B: hal::Backend> {
     Buffer(B::Buffer),
     Unbound(B::UnboundBuffer),
+}
+
+impl<B: hal::Backend> Buffer<B> {
+    fn expect(&self, msg: &str) -> &B::Buffer {
+        match *self {
+            Buffer::Buffer(ref buf) => buf,
+            Buffer::Unbound(_) => expect_failed(msg),
+        }
+    }
+}
+
+#[inline(never)]
+#[cold]
+fn expect_failed(msg: &str) -> ! {
+    panic!("{}", msg)
 }
 
 pub struct CommandPool<B: hal::Backend> {
