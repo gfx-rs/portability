@@ -1804,14 +1804,14 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             flags,
             parent,
         }
-    }).collect::<Vec<_>>();
+    });
 
-    let pipelines = gpu.device.create_graphics_pipelines(&descs);
+    let pipelines = gpu.device.create_graphics_pipelines(descs);
 
     let pipelines = unsafe {
-        slice::from_raw_parts_mut(pPipelines, descs.len())
+        slice::from_raw_parts_mut(pPipelines, infos.len())
             .into_iter()
-            .zip(pipelines.into_iter())
+            .zip(pipelines)
     };
 
     for (pipeline, raw) in pipelines {
@@ -2442,15 +2442,12 @@ pub extern "C" fn gfxCreateRenderPass(
 
     let subpasses = attachment_refs
         .iter()
-        .map(|attachment_ref| {
-            let _ = &attachment_ref.resolve;
-            pass::SubpassDesc {
-                colors: &attachment_ref.color,
-                depth_stencil: attachment_ref.depth_stencil.as_ref(),
-                inputs: &attachment_ref.input,
-                resolves: &attachment_ref.resolve,
-                preserves: &attachment_ref.preserve,
-            }
+        .map(|attachment_ref| pass::SubpassDesc {
+            colors: &attachment_ref.color,
+            depth_stencil: attachment_ref.depth_stencil.as_ref(),
+            inputs: &attachment_ref.input,
+            resolves: &attachment_ref.resolve,
+            preserves: &attachment_ref.preserve,
         })
         .collect::<Vec<_>>();
 
@@ -3156,15 +3153,31 @@ pub extern "C" fn gfxCmdClearAttachments(
 }
 #[inline]
 pub extern "C" fn gfxCmdResolveImage(
-    _commandBuffer: VkCommandBuffer,
-    _srcImage: VkImage,
-    _srcImageLayout: VkImageLayout,
-    _dstImage: VkImage,
-    _dstImageLayout: VkImageLayout,
-    _regionCount: u32,
-    _pRegions: *const VkImageResolve,
+    mut commandBuffer: VkCommandBuffer,
+    srcImage: VkImage,
+    srcImageLayout: VkImageLayout,
+    dstImage: VkImage,
+    dstImageLayout: VkImageLayout,
+    regionCount: u32,
+    pRegions: *const VkImageResolve,
 ) {
-    unimplemented!()
+    let regions = unsafe {
+        slice::from_raw_parts(pRegions, regionCount as _)
+    }.iter().cloned().map(|resolve| com::ImageResolve {
+        src_subresource: srcImage.map_subresource_layers(resolve.srcSubresource),
+        src_offset: conv::map_offset(resolve.srcOffset),
+        dst_subresource: srcImage.map_subresource_layers(resolve.dstSubresource),
+        dst_offset: conv::map_offset(resolve.dstOffset),
+        extent: conv::map_extent(resolve.extent),
+    });
+
+    commandBuffer.resolve_image(
+        srcImage.expect("Bound image expected!"),
+        conv::map_image_layout(srcImageLayout),
+        dstImage.expect("Bound image expected!"),
+        conv::map_image_layout(dstImageLayout),
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdSetEvent(
