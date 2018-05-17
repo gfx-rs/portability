@@ -1485,6 +1485,29 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     let mut cur_shader_stage = 0;
 
     let descs = infos.into_iter().map(|info| {
+        let (rasterizer, rasterizer_discard) = {
+            let state = unsafe { &*info.pRasterizationState };
+
+            let rasterizer = pso::Rasterizer {
+                polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
+                cull_face: conv::map_cull_face(state.cullMode),
+                front_face: conv::map_front_face(state.frontFace),
+                depth_clamping: state.depthClampEnable == VK_TRUE,
+                depth_bias: if state.depthBiasEnable == VK_TRUE {
+                    Some(pso::DepthBias {
+                        const_factor: state.depthBiasConstantFactor,
+                        clamp: state.depthBiasClamp,
+                        slope_factor: state.depthBiasSlopeFactor,
+                    })
+                } else {
+                    None
+                },
+                conservative: false,
+            };
+
+            (rasterizer, state.rasterizerDiscardEnable == VK_TRUE)
+        };
+
         let shaders = {
             let mut set: pso::GraphicsShaderSet<_> = unsafe { mem::zeroed() };
 
@@ -1509,37 +1532,12 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => { set.hull = Some(entry_point); }
                     VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => { set.domain = Some(entry_point); }
                     VK_SHADER_STAGE_GEOMETRY_BIT => { set.geometry = Some(entry_point); }
-                    VK_SHADER_STAGE_FRAGMENT_BIT => { set.fragment = Some(entry_point); }
+                    VK_SHADER_STAGE_FRAGMENT_BIT if !rasterizer_discard => { set.fragment = Some(entry_point); }
                     stage => panic!("Unexpected shader stage: {:?}", stage),
                 }
             }
 
             set
-        };
-
-        let (rasterizer, rasterizer_discard) = {
-            let state = unsafe { &*info.pRasterizationState };
-
-            assert_eq!(state.rasterizerDiscardEnable, VK_FALSE); // TODO
-
-            let rasterizer = pso::Rasterizer {
-                polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
-                cull_face: conv::map_cull_face(state.cullMode),
-                front_face: conv::map_front_face(state.frontFace),
-                depth_clamping: state.depthClampEnable == VK_TRUE,
-                depth_bias: if state.depthBiasEnable == VK_TRUE {
-                    Some(pso::DepthBias {
-                        const_factor: state.depthBiasConstantFactor,
-                        clamp: state.depthBiasClamp,
-                        slope_factor: state.depthBiasSlopeFactor,
-                    })
-                } else {
-                    None
-                },
-                conservative: false,
-            };
-
-            (rasterizer, state.rasterizerDiscardEnable == VK_TRUE)
         };
 
         let (vertex_buffers, attributes) = {
@@ -1676,70 +1674,80 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
         // TODO: `pDepthStencilState` could contain garbage, but implementations
         //        can ignore it in some circumstances. How to handle it?
-        let depth_stencil = unsafe { info
-            .pDepthStencilState
-            .as_ref()
-            .map(|state| {
-                let depth_test = if state.depthTestEnable == VK_TRUE {
-                    pso::DepthTest::On {
-                        fun: conv::map_compare_op(state.depthCompareOp),
-                        write: state.depthWriteEnable == VK_TRUE,
+        let depth_stencil = if !rasterizer_discard {
+            unsafe { info
+                .pDepthStencilState
+                .as_ref()
+                .map(|state| {
+                    let depth_test = if state.depthTestEnable == VK_TRUE {
+                        pso::DepthTest::On {
+                            fun: conv::map_compare_op(state.depthCompareOp),
+                            write: state.depthWriteEnable == VK_TRUE,
+                        }
+                    } else {
+                        pso::DepthTest::Off
+                    };
+
+                    fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
+                        // TODO: reference value
+                        pso::StencilFace {
+                            fun: conv::map_compare_op(state.compareOp),
+                            mask_read: state.compareMask,
+                            mask_write: state.writeMask,
+                            op_fail: conv::map_stencil_op(state.failOp),
+                            op_depth_fail: conv::map_stencil_op(state.depthFailOp),
+                            op_pass: conv::map_stencil_op(state.passOp),
+                        }
                     }
-                } else {
-                    pso::DepthTest::Off
-                };
 
-                fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
-                    // TODO: reference value
-                    pso::StencilFace {
-                        fun: conv::map_compare_op(state.compareOp),
-                        mask_read: state.compareMask,
-                        mask_write: state.writeMask,
-                        op_fail: conv::map_stencil_op(state.failOp),
-                        op_depth_fail: conv::map_stencil_op(state.depthFailOp),
-                        op_pass: conv::map_stencil_op(state.passOp),
+                    let stencil_test = if state.stencilTestEnable == VK_TRUE {
+                        pso::StencilTest::On {
+                            front: map_stencil_state(state.front),
+                            back: map_stencil_state(state.back),
+                        }
+                    } else {
+                        pso::StencilTest::Off
+                    };
+
+                    // TODO: depth bounds
+
+                    pso::DepthStencilDesc {
+                        depth: depth_test,
+                        depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
+                        stencil: stencil_test,
                     }
-                }
-
-                let stencil_test = if state.stencilTestEnable == VK_TRUE {
-                    pso::StencilTest::On {
-                        front: map_stencil_state(state.front),
-                        back: map_stencil_state(state.back),
-                    }
-                } else {
-                    pso::StencilTest::Off
-                };
-
-                // TODO: depth bounds
-
-                pso::DepthStencilDesc {
-                    depth: depth_test,
-                    depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
-                    stencil: stencil_test,
-                }
-            })
+                })
+            }
+        } else {
+            None
         };
 
-        let vp_state = unsafe { &*info.pViewportState };
+        let vp_state = if !rasterizer_discard {
+            unsafe { info.pViewportState.as_ref() }
+        } else {
+            None
+        };
         let empty_dyn_states = [];
         let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
-            Some(state) => unsafe {
+            Some(state) if !rasterizer_discard => unsafe {
                 slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
             },
-            None => &empty_dyn_states,
+            _ => &empty_dyn_states,
         };
         let baked_states = pso::BakedStates {
             viewport: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_VIEWPORT) {
                 None
             } else {
-                unsafe { vp_state.pViewports.as_ref() }
+                vp_state
+                    .and_then(|vp| unsafe { vp.pViewports.as_ref() })
                     .map(conv::map_viewport)
             },
             scissor: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_SCISSOR) {
                 None
             } else {
-                unsafe { vp_state.pScissors.as_ref() }
-                    .map(conv::map_rect)
+                vp_state
+                    .and_then(|vp| unsafe { vp.pScissors.as_ref() })
+                    .map(conv::map_rect)      
             },
             blend_color: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_BLEND_CONSTANTS) {
                 None
