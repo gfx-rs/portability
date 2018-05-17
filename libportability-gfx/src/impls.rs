@@ -2715,18 +2715,19 @@ pub extern "C" fn gfxCmdSetDepthBias(
 }
 #[inline]
 pub extern "C" fn gfxCmdSetBlendConstants(
-    _commandBuffer: VkCommandBuffer,
-    _blendConstants: *const f32,
+    mut commandBuffer: VkCommandBuffer,
+    blendConstants: *const f32,
 ) {
-    unimplemented!()
+    let value = unsafe { *(blendConstants as *const hal::pso::ColorValue) };
+    commandBuffer.set_blend_constants(value);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBounds(
-    _commandBuffer: VkCommandBuffer,
-    _minDepthBounds: f32,
-    _maxDepthBounds: f32,
+    mut commandBuffer: VkCommandBuffer,
+    minDepthBounds: f32,
+    maxDepthBounds: f32,
 ) {
-    unimplemented!()
+    commandBuffer.set_depth_bounds(minDepthBounds .. maxDepthBounds);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilCompareMask(
