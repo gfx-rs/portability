@@ -1404,6 +1404,7 @@ pub extern "C" fn gfxMergePipelineCaches(
 ) -> VkResult {
     VkResult::VK_SUCCESS
 }
+
 #[inline]
 pub extern "C" fn gfxCreateGraphicsPipelines(
     gpu: VkDevice,
@@ -1433,45 +1434,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             let specialization = unsafe { stage
                 .pSpecializationInfo
                 .as_ref()
-                .map(|specialization| {
-                    let data = slice::from_raw_parts(
-                        specialization.pData as *const u8,
-                        specialization.dataSize as _,
-                    );
-                    let entries = slice::from_raw_parts(
-                        specialization.pMapEntries,
-                        specialization.mapEntryCount as _,
-                    );
-
-                    entries
-                        .into_iter()
-                        .map(|entry| {
-                            let offset = entry.offset as usize;
-                            pso::Specialization {
-                                id: entry.constantID,
-                                value: match entry.size {
-                                    4 => pso::Constant::U32(
-                                        data[offset] as u32 |
-                                        (data[offset+1] as u32) << 8 |
-                                        (data[offset+2] as u32) << 16 |
-                                        (data[offset+3] as u32) << 24
-                                    ),
-                                    8 => pso::Constant::U64(
-                                        data[offset] as u64 |
-                                        (data[offset+1] as u64) << 8 |
-                                        (data[offset+2] as u64) << 16 |
-                                        (data[offset+3] as u64) << 24 |
-                                        (data[offset+4] as u64) << 32 |
-                                        (data[offset+5] as u64) << 40 |
-                                        (data[offset+6] as u64) << 48 |
-                                        (data[offset+7] as u64) << 56
-                                    ),
-                                    size => panic!("Unexpected specialization constant size: {:?}", size),
-                                },
-                            }
-                        })
-                        .collect::<Vec<pso::Specialization>>()
-                })
+                .map(conv::map_specialization_info)
                 .unwrap_or(vec![])
             };
 
@@ -1853,24 +1816,7 @@ pub extern "C" fn gfxCreateComputePipelines(
         let specialization = unsafe { info.stage
             .pSpecializationInfo
             .as_ref()
-            .map(|specialization| {
-                let _data = slice::from_raw_parts(
-                    specialization.pData,
-                    specialization.dataSize as _,
-                );
-                let entries = slice::from_raw_parts(
-                    specialization.pMapEntries,
-                    specialization.mapEntryCount as _,
-                );
-
-                entries
-                    .into_iter()
-                    .map(|_entry| {
-                        // Currently blocked due to lack of specialization type knowledge
-                        unimplemented!()
-                    })
-                    .collect::<Vec<pso::Specialization>>()
-            })
+            .map(conv::map_specialization_info)
             .unwrap_or(vec![])
         };
 
