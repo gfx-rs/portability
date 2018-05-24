@@ -1243,7 +1243,6 @@ pub extern "C" fn gfxCreateImage(
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
     assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
-    assert_eq!(info.tiling, VkImageTiling::VK_IMAGE_TILING_OPTIMAL); // TODO
     assert_eq!(info.initialLayout, VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED); // TODO
 
     let image = gpu.device
