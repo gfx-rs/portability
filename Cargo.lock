@@ -13,7 +13,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "ash"
-version = "0.24.1"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lazy_static 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -252,7 +252,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "gfx-backend-dx12"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#15caeea2bc4a62f44abbcf55065d0ae48fbcba38"
+source = "git+https://github.com/gfx-rs/gfx#d09ef94da58cac14f0ffd1f329073ee50c8a01f4"
 dependencies = [
  "bitflags 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -268,7 +268,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-metal"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#15caeea2bc4a62f44abbcf55065d0ae48fbcba38"
+source = "git+https://github.com/gfx-rs/gfx#d09ef94da58cac14f0ffd1f329073ee50c8a01f4"
 dependencies = [
  "block 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "cocoa 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -288,9 +288,9 @@ dependencies = [
 [[package]]
 name = "gfx-backend-vulkan"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#15caeea2bc4a62f44abbcf55065d0ae48fbcba38"
+source = "git+https://github.com/gfx-rs/gfx#d09ef94da58cac14f0ffd1f329073ee50c8a01f4"
 dependencies = [
- "ash 0.24.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ash 0.24.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx-hal 0.1.0 (git+https://github.com/gfx-rs/gfx)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -306,7 +306,7 @@ dependencies = [
 [[package]]
 name = "gfx-hal"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#15caeea2bc4a62f44abbcf55065d0ae48fbcba38"
+source = "git+https://github.com/gfx-rs/gfx#d09ef94da58cac14f0ffd1f329073ee50c8a01f4"
 dependencies = [
  "bitflags 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -884,7 +884,7 @@ dependencies = [
 [metadata]
 "checksum aho-corasick 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "d6531d44de723825aa81398a6415283229725a00fa30713812ab9323faa82fc4"
 "checksum android_glue 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "000444226fcff248f2bc4c7625be32c63caccfecc2723a2b9f78a7487a49c407"
-"checksum ash 0.24.1 (registry+https://github.com/rust-lang/crates.io-index)" = "24a99e9d7b9dc7bede98eda7746cd1c1fe0e437efae46a0d7ab7e7baa5cdf8ee"
+"checksum ash 0.24.2 (registry+https://github.com/rust-lang/crates.io-index)" = "5c8a478185c0a8ceea60c8cfb7a2e7420e6e30e95550384a77c2a9386c7c111c"
 "checksum atty 0.2.10 (registry+https://github.com/rust-lang/crates.io-index)" = "2fc4a1aa4c24c0718a250f0681885c1af91419d242f29eb8f2ab28502d80dbd1"
 "checksum backtrace 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)" = "dbdd17cd962b570302f5297aea8648d5923e22e555c2ed2d8b2e34eca646bf6d"
 "checksum backtrace-sys 0.1.19 (registry+https://github.com/rust-lang/crates.io-index)" = "3951a5d75651d5817056daf3132ed9cd7918bc7f2afc313b379009e832209a4d"
