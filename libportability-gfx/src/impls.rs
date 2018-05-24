@@ -3157,7 +3157,7 @@ pub extern "C" fn gfxCmdClearAttachments(
                 panic!("Unexpected mask {:?}", at.aspectMask);
             }
         }),
-        rects.iter().map(|r| conv::map_rect(&r.rect)), //TODO: layers!
+        rects.iter().map(conv::map_clear_rect),
     );
 }
 #[inline]

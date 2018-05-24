@@ -683,6 +683,13 @@ pub fn map_rect(rect: &VkRect2D) -> pso::Rect {
     }
 }
 
+pub fn map_clear_rect(rect: &VkClearRect) -> pso::ClearRect {
+    pso::ClearRect {
+        rect: map_rect(&rect.rect),
+        layers: rect.baseArrayLayer as _ .. (rect.baseArrayLayer + rect.layerCount) as _
+    }
+}
+
 pub fn map_viewport(vp: &VkViewport) -> pso::Viewport {
     pso::Viewport {
         rect: pso::Rect {
