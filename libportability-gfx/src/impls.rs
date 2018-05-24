@@ -2646,8 +2646,8 @@ pub extern "C" fn gfxCmdSetScissor(
     commandBuffer.set_scissors(firstScissor, scissors);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetLineWidth(_commandBuffer: VkCommandBuffer, _lineWidth: f32) {
-    unimplemented!()
+pub extern "C" fn gfxCmdSetLineWidth(mut commandBuffer: VkCommandBuffer, lineWidth: f32) {
+    commandBuffer.set_line_width(lineWidth);
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBias(
