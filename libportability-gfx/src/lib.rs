@@ -31,11 +31,6 @@ use std::collections::HashMap;
 
 pub use impls::*;
 
-#[cfg(feature = "env_logger")]
-lazy_static! {
-    static ref _LOGGER: () = env_logger::init();
-}
-
 // Vulkan objects
 pub type VkInstance = Handle<RawInstance>;
 pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
@@ -102,6 +97,14 @@ impl<B: hal::Backend> Image<B> {
         match *self {
             Image::Image { array_layers, .. } => array_layers,
             Image::Unbound { array_layers, .. } => array_layers,
+        }
+    }
+
+    fn map_subresource(&self, subresource: VkImageSubresource) -> hal::image::Subresource {
+        hal::image::Subresource {
+            aspects: conv::map_aspect(subresource.aspectMask),
+            level: subresource.mipLevel as _,
+            layer: subresource.arrayLayer as _,
         }
     }
 
