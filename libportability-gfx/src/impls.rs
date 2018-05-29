@@ -2678,12 +2678,16 @@ pub extern "C" fn gfxCmdSetLineWidth(mut commandBuffer: VkCommandBuffer, lineWid
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBias(
-    _commandBuffer: VkCommandBuffer,
-    _depthBiasConstantFactor: f32,
-    _depthBiasClamp: f32,
-    _depthBiasSlopeFactor: f32,
+    mut commandBuffer: VkCommandBuffer,
+    depthBiasConstantFactor: f32,
+    depthBiasClamp: f32,
+    depthBiasSlopeFactor: f32,
 ) {
-    unimplemented!()
+    commandBuffer.set_depth_bias(pso::DepthBias {
+        const_factor: depthBiasConstantFactor,
+        clamp: depthBiasClamp,
+        slope_factor: depthBiasSlopeFactor,
+    });
 }
 #[inline]
 pub extern "C" fn gfxCmdSetBlendConstants(
