@@ -12,8 +12,14 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxImageDimension2D: limits.max_texture_size as _,
         maxImageDimension3D: limits.max_texture_size as _,
         maxImageDimensionCube: limits.max_texture_size as _,
+        maxTexelBufferElements: limits.max_texture_size as _, //TODO
         maxTessellationPatchSize: limits.max_patch_size as _,
         maxViewports: limits.max_viewports as _,
+        maxVertexInputAttributes: limits.max_vertex_input_attributes as _,
+        maxVertexInputBindings: limits.max_vertex_input_bindings as _,
+        maxVertexInputAttributeOffset: limits.max_vertex_input_attribute_offset as _,
+        maxVertexInputBindingStride: limits.max_vertex_input_binding_stride as _,
+        maxVertexOutputComponents: limits.max_vertex_output_components as _,
         maxComputeWorkGroupCount: limits.max_compute_group_count,
         maxComputeWorkGroupSize: limits.max_compute_group_size,
         optimalBufferCopyOffsetAlignment: limits.min_buffer_copy_offset_alignment,
@@ -24,6 +30,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         framebufferColorSampleCounts: limits.framebuffer_color_samples_count as _,
         framebufferDepthSampleCounts: limits.framebuffer_depth_samples_count as _,
         framebufferStencilSampleCounts: limits.framebuffer_stencil_samples_count as _,
+        nonCoherentAtomSize: limits.non_coherent_atom_size as _,
         .. unsafe { mem::zeroed() } //TODO
     }
 }
@@ -511,7 +518,11 @@ pub fn map_cull_face(cull: VkCullModeFlags) -> Option<pso::CullFace> {
     if cull == VK_CULL_MODE_NONE as _ { None }
     else if cull == VK_CULL_MODE_FRONT_BIT as _ { Some(pso::CullFace::Front) }
     else if cull == VK_CULL_MODE_BACK_BIT as _ { Some(pso::CullFace::Back) }
-    else if cull == VK_CULL_MODE_FRONT_AND_BACK as _ { unimplemented!() } // TODO: can we support it?
+    else if cull == VK_CULL_MODE_FRONT_AND_BACK as _ {
+        // TODO: can we support it?
+        error!("VK_CULL_MODE_FRONT_AND_BACK is not supported yet");
+        Some(pso::CullFace::Front)
+    }
     else { panic!("Unexpected cull mode: {:?}", cull) }
 }
 
@@ -523,24 +534,23 @@ pub fn map_front_face(face: VkFrontFace) -> pso::FrontFace {
     }
 }
 
-pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSize) -> hal::Primitive {
+pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSize) -> Option<hal::Primitive> {
     use super::VkPrimitiveTopology::*;
 
-    match topology {
+    Some(match topology {
         VK_PRIMITIVE_TOPOLOGY_POINT_LIST => Primitive::PointList,
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST => Primitive::LineList,
         VK_PRIMITIVE_TOPOLOGY_LINE_STRIP => Primitive::LineStrip,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST => Primitive::TriangleList,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP => Primitive::TriangleStrip,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN =>
-            panic!("`VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN` not supported in portability"),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN => return None,
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY => Primitive::LineListAdjacency,
         VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY => Primitive::LineStripAdjacency,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY => Primitive::TriangleListAdjacency,
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY => Primitive::TriangleStripAdjacency,
         VK_PRIMITIVE_TOPOLOGY_PATCH_LIST => Primitive::PatchList(patch_size),
-        _ => panic!("Unexpected primitive topology: {:?}", topology),
-    }
+        _ => return None,
+    })
 }
 
 pub fn map_compare_op(op: VkCompareOp) -> pso::Comparison {
@@ -684,9 +694,10 @@ pub fn map_rect(rect: &VkRect2D) -> pso::Rect {
 }
 
 pub fn map_clear_rect(rect: &VkClearRect) -> pso::ClearRect {
+    let base = rect.baseArrayLayer as image::Layer;
     pso::ClearRect {
         rect: map_rect(&rect.rect),
-        layers: rect.baseArrayLayer as _ .. (rect.baseArrayLayer + rect.layerCount) as _
+        layers: base .. base + rect.layerCount as image::Layer,
     }
 }
 

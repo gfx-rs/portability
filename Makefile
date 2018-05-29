@@ -9,7 +9,7 @@ LIB_EXTENSION=
 TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
-DEQP=cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
+DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
@@ -87,7 +87,8 @@ cts: $(TARGET) $(TEST_LIST)
 	mv TestResults.qpa conformance/last.qpa
 	firefox conformance/last.xml
 
-cts-pick: $(TARGET)
+cts-pick:
+	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger
 	($(DEQP) -n $(name))
 
 cts-debug: $(TARGET)

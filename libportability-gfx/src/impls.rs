@@ -37,6 +37,12 @@ pub extern "C" fn gfxCreateInstance(
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
 ) -> VkResult {
+    #[cfg(feature = "env_logger")]
+    {
+        use env_logger;
+        let _ = env_logger::try_init();
+    }
+
     let backend = back::Instance::create("portability", 1);
     let adapters = backend
         .enumerate_adapters()
@@ -1286,12 +1292,25 @@ pub extern "C" fn gfxDestroyImage(
 }
 #[inline]
 pub extern "C" fn gfxGetImageSubresourceLayout(
-    _gpu: VkDevice,
-    _image: VkImage,
-    _pSubresource: *const VkImageSubresource,
-    _pLayout: *mut VkSubresourceLayout,
+    gpu: VkDevice,
+    image: VkImage,
+    pSubresource: *const VkImageSubresource,
+    pLayout: *mut VkSubresourceLayout,
 ) {
-    unimplemented!()
+    let footprint = gpu.device.get_image_subresource_footprint(
+        image.expect("Bound image expected!"),
+        image.map_subresource(unsafe { *pSubresource} ),
+    );
+    let sub_layout = VkSubresourceLayout {
+        offset: footprint.slice.start,
+        size: footprint.slice.end - footprint.slice.start,
+        rowPitch: footprint.row_pitch,
+        depthPitch: footprint.depth_pitch,
+        arrayPitch: footprint.array_pitch,
+    };
+    unsafe {
+        *pLayout = sub_layout;
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreateImageView(
@@ -1562,13 +1581,21 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
             assert_eq!(input_state.primitiveRestartEnable, VK_FALSE); // TODO
 
+            let primitive = match conv::map_primitive_topology(
+                input_state.topology,
+                tessellation_state
+                    .map(|state| state.patchControlPoints as _)
+                    .unwrap_or(0),
+            ) {
+                Some(primitive) => primitive,
+                None => {
+                    error!("Primitive topology {:?} is not supported", input_state.topology);
+                    hal::Primitive::PointList
+                },
+            };
+
             pso::InputAssemblerDesc {
-                primitive: conv::map_primitive_topology(
-                    input_state.topology,
-                    tessellation_state
-                        .map(|state| state.patchControlPoints as _)
-                        .unwrap_or(0),
-                ),
+                primitive,
                 primitive_restart: pso::PrimitiveRestart::Disabled, // TODO
             }
         };
@@ -2809,23 +2836,33 @@ pub extern "C" fn gfxCmdDrawIndexed(
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndirect(
-    _commandBuffer: VkCommandBuffer,
-    _buffer: VkBuffer,
-    _offset: VkDeviceSize,
-    _drawCount: u32,
-    _stride: u32,
+    mut commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
+    drawCount: u32,
+    stride: u32,
 ) {
-    unimplemented!()
+    commandBuffer.draw_indirect(
+        buffer.expect("Bound buffer expected!"),
+        offset,
+        drawCount,
+        stride,
+    )
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexedIndirect(
-    _commandBuffer: VkCommandBuffer,
-    _buffer: VkBuffer,
-    _offset: VkDeviceSize,
-    _drawCount: u32,
-    _stride: u32,
+    mut commandBuffer: VkCommandBuffer,
+    buffer: VkBuffer,
+    offset: VkDeviceSize,
+    drawCount: u32,
+    stride: u32,
 ) {
-    unimplemented!()
+    commandBuffer.draw_indexed_indirect(
+        buffer.expect("Bound buffer expected!"),
+        offset,
+        drawCount,
+        stride,
+    )
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatch(
@@ -2842,7 +2879,10 @@ pub extern "C" fn gfxCmdDispatchIndirect(
     buffer: VkBuffer,
     offset: VkDeviceSize,
 ) {
-    commandBuffer.dispatch_indirect(buffer.expect("Bound buffer expected!"), offset)
+    commandBuffer.dispatch_indirect(
+        buffer.expect("Bound buffer expected!"),
+        offset,
+    )
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBuffer(
