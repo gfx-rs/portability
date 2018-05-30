@@ -18,6 +18,8 @@ extern crate lazy_static;
 extern crate log;
 #[cfg(feature = "env_logger")]
 extern crate env_logger;
+#[cfg(feature = "renderdoc")]
+extern crate renderdoc;
 
 mod conv;
 mod handle;
@@ -66,6 +68,10 @@ pub struct RawInstance {
 pub struct Gpu<B: hal::Backend> {
     device: B::Device,
     queues: HashMap<QueueFamilyIndex, Vec<VkQueue>>,
+    #[cfg(feature = "renderdoc")]
+    renderdoc: renderdoc::RenderDoc<renderdoc::V110>,
+    #[cfg(feature = "renderdoc")]
+    capturing: *mut (),
 }
 
 pub enum Pipeline<B: hal::Backend> {
