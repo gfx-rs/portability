@@ -81,19 +81,23 @@ run: $(TARGET)
 $(TEST_LIST): $(TEST_LIST_SOURCE)
 	cat $(TEST_LIST_SOURCE) | grep -v -e ".event" -e "query" >$(TEST_LIST)
 
-cts: $(TARGET) $(TEST_LIST)
+ifdef pick
+cts:
+	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger
+	($(DEQP) -n $(pick))
+else
+ifdef debug
+cts: $(LIBRARY)
+	#(cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) ./deqp-vk -n $(debug))
+	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP_DIR)/deqp-vk -n $(debug)
+else
+cts: $(LIBRARY) $(TEST_LIST)
 	($(DEQP) --deqp-caselist-file=$(TEST_LIST))
 	python $(CTS_DIR)/scripts/log/log_to_xml.py TestResults.qpa conformance/last.xml
 	mv TestResults.qpa conformance/last.qpa
 	firefox conformance/last.xml
-
-cts-pick:
-	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger
-	($(DEQP) -n $(name))
-
-cts-debug: $(TARGET)
-	#(cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) ./deqp-vk -n $(name))
-	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP_DIR)/deqp-vk -n $(name)
+endif #debug
+endif #pick
 
 clean:
 	rm -f $(OBJECTS) $(TARGET) $(BINDING)

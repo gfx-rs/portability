@@ -18,7 +18,7 @@ Current blockers:
 - *Metal*: "api.buffer_view.access.suballocation.buffer_view_memory_test_complete" (missing R32Uint support).
 
 
-Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems. When investigating a particular failure, it's handy to do `make cts-debug name=<test_name>`, which runs a single test under system debugger (gdb/lldb).
+Please visit [our wiki](https://github.com/gfx-rs/portability/wiki/Vulkan-CTS-status) for CTS hookup instructions. Once everything is set, you can generate the new results by calling `make cts` on Unix systems. When investigating a particular failure, it's handy to do `make cts debug=<test_name>`, which runs a single test under system debugger (gdb/lldb). For simply inspecting the log output, one can also do `make cts pick=<test_name>`.
 
 ## Check out
 ```
