@@ -10,7 +10,8 @@ use hal::command::RawCommandBuffer;
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
-use std::mem;
+use std::{mem, ptr};
+use std::os::raw::c_void;
 
 use super::*;
 
@@ -537,6 +538,12 @@ pub extern "C" fn gfxCreateDevice(
         })
         .collect::<Vec<_>>();
 
+    #[cfg(feature = "renderdoc")]
+    let mut renderdoc = {
+        use renderdoc::RenderDoc;
+        RenderDoc::new().expect("Failed to init renderdoc")
+    };
+
     let gpu = adapter.physical_device.open(&request_infos);
 
     match gpu {
@@ -555,14 +562,28 @@ pub extern "C" fn gfxCreateDevice(
                 })
                 .collect();
 
+            #[cfg(feature = "renderdoc")]
+            let rd_device = {
+                use renderdoc::api::RenderDocV100;
+
+                let rd_device = unsafe { gpu.device.as_raw() };
+                renderdoc.start_frame_capture(rd_device, ::std::ptr::null());
+                rd_device
+            };
+
             let gpu = Gpu {
                 device: gpu.device,
                 queues,
+                #[cfg(feature = "renderdoc")]
+                renderdoc,
+                #[cfg(feature = "renderdoc")]
+                capturing: rd_device as *mut _,
             };
 
             unsafe {
                 *pDevice = DispatchHandle::new(gpu);
             }
+
             VkResult::VK_SUCCESS
         }
         Err(err) => conv::map_err_device_creation(err),
@@ -570,9 +591,16 @@ pub extern "C" fn gfxCreateDevice(
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
+pub extern "C" fn gfxDestroyDevice(mut gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
     // release all the owned command queues
     if let Some(d) = gpu.unbox() {
+        #[cfg(feature = "renderdoc")]
+        {
+            use renderdoc::api::RenderDocV100;
+            let device = gpu.capturing as *mut c_void;
+            gpu.renderdoc.end_frame_capture(device as *mut _, ptr::null());
+        }
+
         for (_, family) in d.queues {
             for queue in family {
                 let _ = queue.unbox();
@@ -1736,7 +1764,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             } else {
                 vp_state
                     .and_then(|vp| unsafe { vp.pScissors.as_ref() })
-                    .map(conv::map_rect)      
+                    .map(conv::map_rect)
             },
             blend_color: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_BLEND_CONSTANTS) {
                 None
