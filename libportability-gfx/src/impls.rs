@@ -2026,25 +2026,32 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
         slice::from_raw_parts(info.pBindings, info.bindingCount as _)
     };
 
-    let bindings = layout_bindings
+    let sampler_iter = layout_bindings
         .iter()
-        .map(|binding| {
-            if !binding.pImmutableSamplers.is_null() {
-                warn!("immutable samplers are not supported yet");
+        .flat_map(|binding| {
+            if binding.pImmutableSamplers.is_null() {
+                (&[]).into_iter().cloned()
+            } else {
+                let slice = unsafe {
+                    slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _)
+                };
+                slice.iter().cloned()
             }
+        });
 
-            pso::DescriptorSetLayoutBinding {
-                binding: binding.binding as _,
-                ty: conv::map_descriptor_type(binding.descriptorType),
-                count: binding.descriptorCount as _,
-                stage_flags: conv::map_stage_flags(binding.stageFlags),
-
-            }
-        })
-        .collect::<Vec<_>>();
+    let mut bindings = Vec::with_capacity(layout_bindings.len());
+    for binding in layout_bindings {
+        bindings.push(pso::DescriptorSetLayoutBinding {
+            binding: binding.binding as _,
+            ty: conv::map_descriptor_type(binding.descriptorType),
+            count: binding.descriptorCount as _,
+            stage_flags: conv::map_stage_flags(binding.stageFlags),
+            immutable_samplers: !binding.pImmutableSamplers.is_null(),
+        });
+    }
 
     let set_layout = gpu.device
-        .create_descriptor_set_layout(&bindings);
+        .create_descriptor_set_layout(&bindings, sampler_iter);
 
     unsafe { *pSetLayout = Handle::new(set_layout); }
     VkResult::VK_SUCCESS
