@@ -23,6 +23,10 @@ log = "0.4"
 version = "0.5"
 optional = true
 
+[dependencies.renderdoc]
+version = "0.3"
+optional = true
+
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/hal"

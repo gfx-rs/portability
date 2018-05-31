@@ -20,3 +20,4 @@ build: false
 test_script:
   - cargo build --manifest-path libportability/Cargo.toml --features vulkan
   - cargo build --manifest-path libportability/Cargo.toml --features dx12
+  - cargo build --manifest-path libportability-gfx/Cargo.toml --features "gfx-backend-dx12 renderdoc"
