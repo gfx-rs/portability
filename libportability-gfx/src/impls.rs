@@ -10,7 +10,10 @@ use hal::command::RawCommandBuffer;
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
-use std::{mem, ptr};
+use std::mem;
+#[cfg(feature = "renderdoc")]
+use std::ptr;
+#[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
 
 use super::*;
@@ -591,14 +594,14 @@ pub extern "C" fn gfxCreateDevice(
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyDevice(mut gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
+pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
     // release all the owned command queues
-    if let Some(d) = gpu.unbox() {
+    if let Some(mut d) = gpu.unbox() {
         #[cfg(feature = "renderdoc")]
         {
             use renderdoc::api::RenderDocV100;
             let device = gpu.capturing as *mut c_void;
-            gpu.renderdoc.end_frame_capture(device as *mut _, ptr::null());
+            d.renderdoc.end_frame_capture(device as *mut _, ptr::null());
         }
 
         for (_, family) in d.queues {
@@ -1006,10 +1009,10 @@ pub extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties(
     _samples: VkSampleCountFlagBits,
     _usage: VkImageUsageFlags,
     _tiling: VkImageTiling,
-    _pPropertyCount: *mut u32,
+    pPropertyCount: *mut u32,
     _pProperties: *mut VkSparseImageFormatProperties,
 ) {
-    unimplemented!()
+    unsafe { *pPropertyCount = 0; } //TODO
 }
 #[inline]
 pub extern "C" fn gfxQueueBindSparse(
