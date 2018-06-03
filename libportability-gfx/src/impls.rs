@@ -2186,12 +2186,22 @@ pub extern "C" fn gfxAllocateDescriptorSets(
 #[inline]
 pub extern "C" fn gfxFreeDescriptorSets(
     _device: VkDevice,
-    _descriptorPool: VkDescriptorPool,
-    _descriptorSetCount: u32,
-    _pDescriptorSets: *const VkDescriptorSet,
+    mut descriptorPool: VkDescriptorPool,
+    descriptorSetCount: u32,
+    pDescriptorSets: *const VkDescriptorSet,
 ) -> VkResult {
-    error!("gfxFreeDescriptorSets not implemented");
-    VkResult::VK_NOT_READY
+    let descriptor_sets = unsafe {
+        slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
+    };
+
+    descriptorPool.free_sets(
+        &descriptor_sets
+            .into_iter()
+            .filter_map(|set| set.unbox())
+            .collect::<Vec<_>>()
+    );
+
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxUpdateDescriptorSets(
