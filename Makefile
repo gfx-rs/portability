@@ -104,4 +104,4 @@ clean:
 	cargo clean
 
 cherry: $(TARGET)
-	cd $(CHERRY_DIR) && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
+	cd $(CHERRY_DIR) && rm -f Cherry.db && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go

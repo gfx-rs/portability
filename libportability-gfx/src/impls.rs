@@ -10,9 +10,7 @@ use hal::command::RawCommandBuffer;
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
-use std::mem;
-#[cfg(feature = "renderdoc")]
-use std::ptr;
+use std::{mem, ptr};
 #[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
 
@@ -604,7 +602,7 @@ pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocati
             d.renderdoc.end_frame_capture(device as *mut _, ptr::null());
         }
 
-        for (_, family) in d.queues {
+        for (_, family) in d.queues.drain() {
             for queue in family {
                 let _ = queue.unbox();
             }
@@ -1142,10 +1140,12 @@ pub extern "C" fn gfxCreateEvent(
 #[inline]
 pub extern "C" fn gfxDestroyEvent(
     _gpu: VkDevice,
-    _event: VkEvent,
+    event: VkEvent,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if event != ptr::null_mut() {
+        unimplemented!()
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetEventStatus(_gpu: VkDevice, _event: VkEvent) -> VkResult {
@@ -1172,10 +1172,12 @@ pub extern "C" fn gfxCreateQueryPool(
 #[inline]
 pub extern "C" fn gfxDestroyQueryPool(
     _gpu: VkDevice,
-    _queryPool: VkQueryPool,
+    queryPool: VkQueryPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if queryPool != ptr::null_mut() {
+        unimplemented!()
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetQueryPoolResults(
@@ -1484,7 +1486,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 .pSpecializationInfo
                 .as_ref()
                 .map(conv::map_specialization_info)
-                .unwrap_or(vec![])
+                .unwrap_or_default()
             };
 
             shader_stages.push((
@@ -1863,69 +1865,74 @@ pub extern "C" fn gfxCreateComputePipelines(
         slice::from_raw_parts(pCreateInfos, createInfoCount as _)
     };
 
-    let mut shader_stages = Vec::with_capacity(infos.len());
-
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
     // TODO: try to refactor it once we have a more generic API
-    for info in infos {
-        let name = unsafe { CStr::from_ptr(info.stage.pName).to_owned() };
-        let specialization = unsafe { info.stage
-            .pSpecializationInfo
-            .as_ref()
-            .map(conv::map_specialization_info)
-            .unwrap_or(vec![])
-        };
+    let shader_stages = infos
+        .iter()
+        .map(|info| {
+            let name = unsafe { CStr::from_ptr(info.stage.pName).to_owned() };
+            let specialization = unsafe { info.stage
+                .pSpecializationInfo
+                .as_ref()
+                .map(conv::map_specialization_info)
+                .unwrap_or_default()
+            };
 
-        shader_stages.push((
-            name.into_string().unwrap(),
-            specialization,
-        ));
-    }
+            (
+                name.into_string().unwrap(),
+                specialization,
+            )
+        })
+        .collect::<Vec<_>>();
 
-    let descs = infos.into_iter().zip(&shader_stages).map(|(info, &(ref entry, ref specialization))| {
-        let shader = pso::EntryPoint {
-            entry,
-            module: &*info.stage.module,
-            specialization,
-        };
-        let layout = &*info.layout;
+    let descs = infos
+        .into_iter()
+        .zip(&shader_stages)
+        .map(|(info, &(ref entry, ref specialization))| {
+            let shader = pso::EntryPoint {
+                entry,
+                module: &*info.stage.module,
+                specialization,
+            };
+            let layout = &*info.layout;
 
-        let flags = {
-            let mut flags = pso::PipelineCreationFlags::empty();
+            let flags = {
+                let mut flags = pso::PipelineCreationFlags::empty();
 
-            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT as u32 != 0 {
-                flags |= pso::PipelineCreationFlags::DISABLE_OPTIMIZATION;
-            }
-            if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT as u32 != 0 {
-                flags |= pso::PipelineCreationFlags::ALLOW_DERIVATIVES;
-            }
-
-            flags
-        };
-
-        let parent = {
-            let is_derivative = info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DERIVATIVE_BIT as u32 != 0;
-
-            if let Some(base_pso) = info.basePipelineHandle.as_ref() {
-                match *base_pso {
-                    Pipeline::Graphics(_) => panic!("Base pipeline handle must be a compute pipeline"),
-                    Pipeline::Compute(ref pso) => pso::BasePipeline::Pipeline(pso),
+                if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DISABLE_OPTIMIZATION_BIT as u32 != 0 {
+                    flags |= pso::PipelineCreationFlags::DISABLE_OPTIMIZATION;
                 }
-            } else if is_derivative && info.basePipelineIndex > 0 {
-                pso::BasePipeline::Index(info.basePipelineIndex as _)
-            } else {
-                pso::BasePipeline::None // TODO
-            }
-        };
+                if info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT as u32 != 0 {
+                    flags |= pso::PipelineCreationFlags::ALLOW_DERIVATIVES;
+                }
 
-        pso::ComputePipelineDesc {
-            shader,
-            layout,
-            flags,
-            parent,
-        }
-    }).collect::<Vec<_>>();
+                flags
+            };
+
+            let parent = {
+                let is_derivative = info.flags & VkPipelineCreateFlagBits::VK_PIPELINE_CREATE_DERIVATIVE_BIT as u32 != 0;
+
+                if let Some(base_pso) = info.basePipelineHandle.as_ref() {
+                    match *base_pso {
+                        Pipeline::Graphics(_) => panic!("Base pipeline handle must be a compute pipeline"),
+                        Pipeline::Compute(ref pso) => pso::BasePipeline::Pipeline(pso),
+                    }
+                } else if is_derivative && info.basePipelineIndex > 0 {
+                    pso::BasePipeline::Index(info.basePipelineIndex as _)
+                } else {
+                    pso::BasePipeline::None // TODO
+                }
+            };
+
+            pso::ComputePipelineDesc {
+                shader,
+                layout,
+                flags,
+                parent,
+            }
+        })
+        .collect::<Vec<_>>();
 
     let pipelines = gpu.device.create_compute_pipelines(&descs);
 
@@ -2540,9 +2547,10 @@ pub extern "C" fn gfxDestroyRenderPass(
 pub extern "C" fn gfxGetRenderAreaGranularity(
     _gpu: VkDevice,
     _renderPass: VkRenderPass,
-    _pGranularity: *mut VkExtent2D,
+    pGranularity: *mut VkExtent2D,
 ) {
-    unimplemented!()
+    let granularity = VkExtent2D { width: 1, height: 1 }; //TODO?
+    unsafe { *pGranularity = granularity };
 }
 
 #[inline]
