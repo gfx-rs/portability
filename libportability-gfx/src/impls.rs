@@ -10,9 +10,7 @@ use hal::command::RawCommandBuffer;
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
-use std::mem;
-#[cfg(feature = "renderdoc")]
-use std::ptr;
+use std::{mem, ptr};
 #[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
 
@@ -596,11 +594,12 @@ pub extern "C" fn gfxCreateDevice(
 #[inline]
 pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
     // release all the owned command queues
-    if let Some(mut d) = gpu.unbox() {
+    if let Some(d) = gpu.unbox() {
         #[cfg(feature = "renderdoc")]
         {
             use renderdoc::api::RenderDocV100;
             let device = gpu.capturing as *mut c_void;
+            let mut d = d;
             d.renderdoc.end_frame_capture(device as *mut _, ptr::null());
         }
 
@@ -1142,10 +1141,12 @@ pub extern "C" fn gfxCreateEvent(
 #[inline]
 pub extern "C" fn gfxDestroyEvent(
     _gpu: VkDevice,
-    _event: VkEvent,
+    event: VkEvent,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if event != ptr::null_mut() {
+        unimplemented!()
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetEventStatus(_gpu: VkDevice, _event: VkEvent) -> VkResult {
@@ -1172,10 +1173,12 @@ pub extern "C" fn gfxCreateQueryPool(
 #[inline]
 pub extern "C" fn gfxDestroyQueryPool(
     _gpu: VkDevice,
-    _queryPool: VkQueryPool,
+    queryPool: VkQueryPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    unimplemented!()
+    if queryPool != ptr::null_mut() {
+        unimplemented!()
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetQueryPoolResults(
@@ -2540,9 +2543,10 @@ pub extern "C" fn gfxDestroyRenderPass(
 pub extern "C" fn gfxGetRenderAreaGranularity(
     _gpu: VkDevice,
     _renderPass: VkRenderPass,
-    _pGranularity: *mut VkExtent2D,
+    pGranularity: *mut VkExtent2D,
 ) {
-    unimplemented!()
+    let granularity = VkExtent2D { width: 1, height: 1 }; //TODO?
+    unsafe { *pGranularity = granularity };
 }
 
 #[inline]
