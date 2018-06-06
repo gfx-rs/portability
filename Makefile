@@ -43,7 +43,7 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release binding run cts cts-pick cts-debug clean cherry
+.PHONY: all rebuild debug debug-version release binding run cts cts-pick cts-debug clean cherry
 
 all: $(TARGET)
 
@@ -52,6 +52,9 @@ rebuild:
 
 debug:
 	cargo build --manifest-path libportability/Cargo.toml --features "$(BACKEND) debug"
+
+debug-version:
+	cargo rustc --manifest-path libportability/Cargo.toml --features "$(BACKEND) debug" -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
 release: $(LIBRARY_FAST)
 
