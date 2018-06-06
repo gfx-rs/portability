@@ -277,6 +277,16 @@ pub extern "C" fn vkCreateWin32SurfaceKHR(
 }
 
 #[no_mangle]
+pub extern "C" fn vkCreateMacOSSurfaceMVK(
+    instance: VkInstance,
+    pCreateInfos: *const VkMacOSSurfaceCreateInfoMVK,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    gfxCreateMacOSSurfaceMVK(instance, pCreateInfos, pAllocator, pSurface)
+}
+
+#[no_mangle]
 pub extern "C" fn vkCreateXcbSurfaceKHR(
     instance: VkInstance,
     pCreateInfos: *const VkXcbSurfaceCreateInfoKHR,
