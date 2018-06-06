@@ -277,7 +277,7 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
             driverVersion: DRIVER_VERSION,
             vendorID: adapter_info.vendor as _,
             deviceID: adapter_info.device as _,
-            deviceType: VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_OTHER, // TODO
+            deviceType: VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, // TODO
             deviceName: device_name,
             pipelineCacheUUID: [0; 16usize],
             limits,
@@ -354,6 +354,9 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
 
         vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
+        vkCreateMacOSSurfaceMVK, PFN_vkCreateMacOSSurfaceMVK => gfxCreateMacOSSurfaceMVK,
+
+        vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR => gfxDestroySurfaceKHR,
     }
 }
 
@@ -624,7 +627,12 @@ lazy_static! {
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_WIN32_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_WIN32_SURFACE_SPEC_VERSION,
-            }
+            },
+            #[cfg(target_os="macos")]
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_MVK_MACOS_SURFACE_EXTENSION_NAME
+                specVersion: VK_MVK_MACOS_SURFACE_SPEC_VERSION,
+            },
         ];
 
         extensions[0]
@@ -637,6 +645,12 @@ lazy_static! {
             .extensionName[..VK_KHR_WIN32_SURFACE_EXTENSION_NAME.len()]
             .copy_from_slice(unsafe {
                 mem::transmute(VK_KHR_WIN32_SURFACE_EXTENSION_NAME as &[u8])
+            });
+        #[cfg(target_os = "macos")]
+        extensions[1]
+            .extensionName[..VK_MVK_MACOS_SURFACE_EXTENSION_NAME.len()]
+            .copy_from_slice(unsafe {
+                mem::transmute(VK_MVK_MACOS_SURFACE_EXTENSION_NAME as &[u8])
             });
 
         extensions.to_vec()
@@ -3892,4 +3906,28 @@ pub extern "C" fn gfxQueuePresentKHR(
     queue.present(swapchains, wait_semaphores);
 
     VkResult::VK_SUCCESS
+}
+
+#[inline]
+pub extern "C" fn gfxCreateMacOSSurfaceMVK(
+    instance: VkInstance,
+    pCreateInfo: *const VkMacOSSurfaceCreateInfoMVK,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    assert!(pAllocator.is_null());
+    let info = unsafe { &*pCreateInfo };
+    #[cfg(target_os="macos")]
+    unsafe {
+        assert_eq!(info.flags, 0);
+        *pSurface = Handle::new(
+            instance.backend.create_surface_from_nsview(info.pView),
+        );
+        VkResult::VK_SUCCESS
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (instance, info, pSurface);
+        unreachable!()
+    }
 }

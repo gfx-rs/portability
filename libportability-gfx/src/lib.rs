@@ -288,8 +288,11 @@ pub const VK_KHR_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 25;
 pub const VK_KHR_SURFACE_EXTENSION_NAME: &'static [u8; 15usize] =
     b"VK_KHR_surface\x00";
 pub const VK_KHR_WIN32_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 6;
+pub const VK_MVK_MACOS_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 2;
 pub const VK_KHR_WIN32_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
     b"VK_KHR_win32_surface\x00";
+pub const VK_MVK_MACOS_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
+    b"VK_MVK_macos_surface\x00";
 pub const VK_KHR_swapchain: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SWAPCHAIN_SPEC_VERSION: ::std::os::raw::c_uint = 68;
 pub const VK_KHR_SWAPCHAIN_EXTENSION_NAME: &'static [u8; 17usize] =
@@ -4866,6 +4869,18 @@ pub struct VkXcbSurfaceCreateInfoKHR {
 impl Clone for VkXcbSurfaceCreateInfoKHR {
     fn clone(&self) -> Self { *self }
 }
+pub type VkMacOSSurfaceCreateFlagsMVK = VkFlags;
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkMacOSSurfaceCreateInfoMVK {
+    pub sType: VkStructureType,
+    pub pNext: *mut ::std::os::raw::c_void,
+    pub flags: VkMacOSSurfaceCreateFlagsMVK,
+    pub pView: *mut ::std::os::raw::c_void,
+}
+impl Clone for VkMacOSSurfaceCreateInfoMVK {
+    fn clone(&self) -> Self { *self }
+}
 #[repr(C)]
 #[derive(Debug, Copy)]
 pub struct VkPhysicalDeviceFeatures2KHR {
@@ -6916,6 +6931,13 @@ pub type PFN_vkDestroyInstance = ::std::option::Option<unsafe extern "C" fn(
 pub type PFN_vkCreateWin32SurfaceKHR = ::std::option::Option<unsafe extern "C" fn(
     instance: VkInstance,
     pCreateInfo: *const VkWin32SurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult>;
+
+pub type PFN_vkCreateMacOSSurfaceMVK = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pCreateInfo: *const VkMacOSSurfaceCreateInfoMVK,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult>;
