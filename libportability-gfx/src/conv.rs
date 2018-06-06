@@ -414,8 +414,8 @@ pub fn map_descriptor_type(ty: VkDescriptorType) -> pso::DescriptorType {
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::StorageBuffer,
         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT => pso::DescriptorType::InputAttachment,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER => pso::DescriptorType::CombinedImageSampler,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC |
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => unimplemented!(),
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC => pso::DescriptorType::UniformBufferDynamic,
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => pso::DescriptorType::StorageBufferDynamic,
         _ => panic!("Unexpected descriptor type: {:?}", ty),
     }
 }
@@ -514,18 +514,23 @@ pub fn map_polygon_mode(mode: VkPolygonMode, line_width: f32) -> pso::PolygonMod
     }
 }
 
-pub fn map_cull_face(cull: VkCullModeFlags) -> Option<pso::CullFace> {
-    use super::VkCullModeFlagBits::*;
-
-    if cull == VK_CULL_MODE_NONE as _ { None }
-    else if cull == VK_CULL_MODE_FRONT_BIT as _ { Some(pso::CullFace::Front) }
-    else if cull == VK_CULL_MODE_BACK_BIT as _ { Some(pso::CullFace::Back) }
-    else if cull == VK_CULL_MODE_FRONT_AND_BACK as _ {
-        // TODO: can we support it?
-        error!("VK_CULL_MODE_FRONT_AND_BACK is not supported yet");
-        Some(pso::CullFace::Front)
+pub fn map_stencil_face(face: VkStencilFaceFlags) -> pso::Face {
+    match unsafe { mem::transmute(face) } {
+        VkStencilFaceFlagBits::VK_STENCIL_FACE_FRONT_BIT => pso::Face::FRONT,
+        VkStencilFaceFlagBits::VK_STENCIL_FACE_BACK_BIT  => pso::Face::BACK,
+        VkStencilFaceFlagBits::VK_STENCIL_FRONT_AND_BACK => pso::Face::all(),
+        _ => panic!("Unexpected stencil face: {:?}", face),
     }
-    else { panic!("Unexpected cull mode: {:?}", cull) }
+}
+
+pub fn map_cull_face(cull: VkCullModeFlags) -> pso::Face {
+    match unsafe { mem::transmute(cull) } {
+        VkCullModeFlagBits::VK_CULL_MODE_NONE => pso::Face::empty(),
+        VkCullModeFlagBits::VK_CULL_MODE_FRONT_BIT => pso::Face::FRONT,
+        VkCullModeFlagBits::VK_CULL_MODE_BACK_BIT => pso::Face::BACK,
+        VkCullModeFlagBits::VK_CULL_MODE_FRONT_AND_BACK => pso::Face::all(),
+        _ => panic!("Unexpected cull face: {:?}", cull),
+    }
 }
 
 pub fn map_front_face(face: VkFrontFace) -> pso::FrontFace {
