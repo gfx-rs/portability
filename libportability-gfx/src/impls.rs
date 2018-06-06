@@ -1307,7 +1307,13 @@ pub extern "C" fn gfxCreateImage(
                 info.samples,
             ),
             info.mipLevels as _,
-            conv::map_format(info.format).unwrap(),
+            match conv::map_format(info.format) {
+                Some(format) => format,
+                None => {
+                    error!("Attempted to create an image with format {:?}", info.format);
+                    return VkResult::VK_ERROR_OUT_OF_HOST_MEMORY
+                }
+            },
             conv::map_tiling(info.tiling),
             conv::map_image_usage(info.usage),
             unsafe { mem::transmute(info.flags) },
@@ -1708,6 +1714,14 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             None
         };
 
+        let empty_dyn_states = [];
+        let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
+            Some(state) if !rasterizer_discard => unsafe {
+                slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
+            },
+            _ => &empty_dyn_states,
+        };
+
         // TODO: `pDepthStencilState` could contain garbage, but implementations
         //        can ignore it in some circumstances. How to handle it?
         let depth_stencil = if !rasterizer_discard {
@@ -1724,12 +1738,25 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                         pso::DepthTest::Off
                     };
 
-                    fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
+                    fn map_stencil_state(state: VkStencilOpState, dyn_states: &[VkDynamicState]) -> pso::StencilFace {
                         // TODO: reference value
                         pso::StencilFace {
                             fun: conv::map_compare_op(state.compareOp),
-                            mask_read: state.compareMask,
-                            mask_write: state.writeMask,
+                            mask_read: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(state.compareMask)
+                            },
+                            mask_write: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_WRITE_MASK) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(state.writeMask)
+                            },
+                            reference: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_REFERENCE) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(state.reference)
+                            },
                             op_fail: conv::map_stencil_op(state.failOp),
                             op_depth_fail: conv::map_stencil_op(state.depthFailOp),
                             op_pass: conv::map_stencil_op(state.passOp),
@@ -1738,8 +1765,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
                     let stencil_test = if state.stencilTestEnable == VK_TRUE {
                         pso::StencilTest::On {
-                            front: map_stencil_state(state.front),
-                            back: map_stencil_state(state.back),
+                            front: map_stencil_state(state.front, &dyn_states),
+                            back: map_stencil_state(state.back, &dyn_states),
                         }
                     } else {
                         pso::StencilTest::Off
@@ -1753,22 +1780,16 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                         stencil: stencil_test,
                     }
                 })
+                .unwrap_or_default()
             }
         } else {
-            None
+            pso::DepthStencilDesc::default()
         };
 
         let vp_state = if !rasterizer_discard {
             unsafe { info.pViewportState.as_ref() }
         } else {
             None
-        };
-        let empty_dyn_states = [];
-        let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
-            Some(state) if !rasterizer_discard => unsafe {
-                slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
-            },
-            _ => &empty_dyn_states,
         };
         let baked_states = pso::BakedStates {
             viewport: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_VIEWPORT) {
@@ -2260,8 +2281,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
             }
             pso::DescriptorType::InputAttachment |
             pso::DescriptorType::SampledImage |
-            pso::DescriptorType::StorageImage |
-            pso::DescriptorType::UniformImageDynamic => {
+            pso::DescriptorType::StorageImage => {
                 image_info
                     .into_iter()
                     .map(|image| pso::Descriptor::Image(
@@ -2288,7 +2308,8 @@ pub extern "C" fn gfxUpdateDescriptorSets(
             }
             pso::DescriptorType::UniformBuffer |
             pso::DescriptorType::StorageBuffer |
-            pso::DescriptorType::UniformBufferDynamic => {
+            pso::DescriptorType::UniformBufferDynamic |
+            pso::DescriptorType::StorageBufferDynamic => {
                 buffer_info
                     .into_iter()
                     .map(|buffer| {
@@ -2470,7 +2491,7 @@ pub extern "C" fn gfxCreateRenderPass(
             subpass
                 .pDepthStencilAttachment
                 .as_ref()
-                .map(|attachment| map_attachment_ref(attachment))
+                .map(map_attachment_ref)
         };
 
         let preserve = unsafe {
@@ -2781,7 +2802,7 @@ pub extern "C" fn gfxCmdSetStencilCompareMask(
     _faceMask: VkStencilFaceFlags,
     _compareMask: u32,
 ) {
-    unimplemented!()
+    error!("gfxCmdSetStencilCompareMask not implemented");
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilWriteMask(
@@ -2789,15 +2810,18 @@ pub extern "C" fn gfxCmdSetStencilWriteMask(
     _faceMask: VkStencilFaceFlags,
     _writeMask: u32,
 ) {
-    unimplemented!()
+    error!("gfxCmdSetStencilWriteMask not implemented");
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilReference(
-    _commandBuffer: VkCommandBuffer,
-    _faceMask: VkStencilFaceFlags,
-    _reference: u32,
+    mut commandBuffer: VkCommandBuffer,
+    faceMask: VkStencilFaceFlags,
+    reference: u32,
 ) {
-    unimplemented!()
+    commandBuffer.set_stencil_reference(
+        conv::map_stencil_face(faceMask),
+        reference,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdBindDescriptorSets(
@@ -2810,13 +2834,13 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     dynamicOffsetCount: u32,
     pDynamicOffsets: *const u32,
 ) {
-    assert_eq!(dynamicOffsetCount, 0); // TODO
-    let _ = pDynamicOffsets;
-
     let descriptor_sets = unsafe {
         slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
             .into_iter()
             .map(|set| &**set)
+    };
+    let offsets = unsafe {
+        slice::from_raw_parts(pDynamicOffsets, dynamicOffsetCount as _)
     };
 
     match pipelineBindPoint {
@@ -2825,6 +2849,7 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
                 &*layout,
                 firstSet as _,
                 descriptor_sets,
+                offsets,
             );
         }
         VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => {
@@ -2832,6 +2857,7 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
                 &*layout,
                 firstSet as _,
                 descriptor_sets,
+                offsets,
             );
         }
         _ => panic!("Unexpected pipeline bind point: {:?}", pipelineBindPoint),
@@ -3198,22 +3224,19 @@ pub extern "C" fn gfxCmdClearAttachments(
         attachments.iter().map(|at| {
             use VkImageAspectFlagBits::*;
             if at.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
-                com::AttachmentClear::Color(
-                    at.colorAttachment as _,
-                    unsafe { at.clearValue.color.float32 }.into(), //TODO!
-                )
-            } else
-            if at.aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
-                com::AttachmentClear::Depth(unsafe {
-                    at.clearValue.depthStencil.depth
-                })
-            } else
-            if at.aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
-                com::AttachmentClear::Stencil(unsafe {
-                    at.clearValue.depthStencil.stencil
-                })
+                com::AttachmentClear::Color {
+                    index: at.colorAttachment as _,
+                    value: unsafe { at.clearValue.color.float32 }.into(), //TODO?
+                }
             } else {
-                panic!("Unexpected mask {:?}", at.aspectMask);
+                com::AttachmentClear::DepthStencil {
+                    depth: if at.aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
+                        Some(unsafe { at.clearValue.depthStencil.depth })
+                    } else { None },
+                    stencil: if at.aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
+                        Some(unsafe { at.clearValue.depthStencil.stencil })
+                    } else { None },
+                }
             }
         }),
         rects.iter().map(conv::map_clear_rect),

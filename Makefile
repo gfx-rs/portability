@@ -43,7 +43,7 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug debug-version release binding run cts cts-pick cts-debug clean cherry
+.PHONY: all rebuild debug debug-version release binding run cts clean cherry
 
 all: $(TARGET)
 
