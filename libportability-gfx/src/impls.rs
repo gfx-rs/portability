@@ -2798,19 +2798,25 @@ pub extern "C" fn gfxCmdSetDepthBounds(
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilCompareMask(
-    _commandBuffer: VkCommandBuffer,
-    _faceMask: VkStencilFaceFlags,
-    _compareMask: u32,
+    mut commandBuffer: VkCommandBuffer,
+    faceMask: VkStencilFaceFlags,
+    compareMask: u32,
 ) {
-    error!("gfxCmdSetStencilCompareMask not implemented");
+    commandBuffer.set_stencil_read_mask(
+        conv::map_stencil_face(faceMask),
+        compareMask,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilWriteMask(
-    _commandBuffer: VkCommandBuffer,
-    _faceMask: VkStencilFaceFlags,
-    _writeMask: u32,
+    mut commandBuffer: VkCommandBuffer,
+    faceMask: VkStencilFaceFlags,
+    writeMask: u32,
 ) {
-    error!("gfxCmdSetStencilWriteMask not implemented");
+    commandBuffer.set_stencil_write_mask(
+        conv::map_stencil_face(faceMask),
+        writeMask,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilReference(
