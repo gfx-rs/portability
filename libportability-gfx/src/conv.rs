@@ -37,6 +37,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
     }
 }
 
+#[inline]
 pub fn format_from_hal(format: format::Format) -> VkFormat {
     // HAL formats have the same numeric representation as Vulkan formats
     unsafe { mem::transmute(format) }
@@ -560,60 +561,34 @@ pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSi
     })
 }
 
+#[inline]
 pub fn map_compare_op(op: VkCompareOp) -> pso::Comparison {
-    use super::VkCompareOp::*;
-
-    match op {
-        VK_COMPARE_OP_NEVER => pso::Comparison::Never,
-        VK_COMPARE_OP_LESS => pso::Comparison::Less,
-        VK_COMPARE_OP_EQUAL => pso::Comparison::Equal,
-        VK_COMPARE_OP_LESS_OR_EQUAL => pso::Comparison::LessEqual,
-        VK_COMPARE_OP_GREATER => pso::Comparison::Greater,
-        VK_COMPARE_OP_NOT_EQUAL => pso::Comparison::NotEqual,
-        VK_COMPARE_OP_GREATER_OR_EQUAL => pso::Comparison::GreaterEqual,
-        VK_COMPARE_OP_ALWAYS => pso::Comparison::Always,
-        _ => panic!("Unexpected compare op: {:?}", op),
-    }
+    // Vulkan and HAL values are equal
+    unsafe { mem::transmute(op as u8) }
 }
 
-pub fn map_logic_op(_op: VkLogicOp) -> pso::LogicOp {
-    unimplemented!()
+#[inline]
+pub fn map_logic_op(op: VkLogicOp) -> pso::LogicOp {
+    // Vulkan and HAL values are equal
+    unsafe { mem::transmute(op as u8) }
 }
 
-pub fn map_stencil_op(_op: VkStencilOp) -> pso::StencilOp {
-    unimplemented!()
+#[inline]
+pub fn map_stencil_op(op: VkStencilOp) -> pso::StencilOp {
+    // Vulkan and HAL values are equal
+    unsafe { mem::transmute(op as u8) }
 }
 
+#[inline]
 pub fn map_color_components(mask: VkColorComponentFlags) -> pso::ColorMask {
     // Vulkan and HAL flags are equal
     unsafe { mem::transmute(mask as u8) }
 }
 
+#[inline]
 fn map_blend_factor(factor: VkBlendFactor) -> pso::Factor {
-    use hal::pso::Factor::*;
-    use super::VkBlendFactor::*;
-    match factor {
-        VK_BLEND_FACTOR_ZERO => Zero,
-        VK_BLEND_FACTOR_ONE => One,
-        VK_BLEND_FACTOR_SRC_COLOR => SrcColor,
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR => OneMinusSrcColor,
-        VK_BLEND_FACTOR_DST_COLOR => DstColor,
-        VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR => OneMinusDstColor,
-        VK_BLEND_FACTOR_SRC_ALPHA => SrcAlpha,
-        VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA => OneMinusSrcAlpha,
-        VK_BLEND_FACTOR_DST_ALPHA => DstAlpha,
-        VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA => OneMinusDstAlpha,
-        VK_BLEND_FACTOR_CONSTANT_COLOR => ConstColor,
-        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR => OneMinusConstColor,
-        VK_BLEND_FACTOR_CONSTANT_ALPHA => ConstAlpha,
-        VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA => OneMinusConstAlpha,
-        VK_BLEND_FACTOR_SRC_ALPHA_SATURATE => SrcAlphaSaturate,
-        VK_BLEND_FACTOR_SRC1_COLOR => Src1Color,
-        VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR => OneMinusSrc1Color,
-        VK_BLEND_FACTOR_SRC1_ALPHA => Src1Alpha,
-        VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA => OneMinusSrc1Alpha,
-        _ => panic!("Unexpected blend factor: {:?}", factor),
-    }
+    // Vulkan and HAL values are equal
+    unsafe { mem::transmute(factor as u8) }
 }
 
 pub fn map_blend_op(
@@ -736,11 +711,13 @@ pub fn map_index_type(ty: VkIndexType) -> IndexType {
     }
 }
 
+#[inline]
 pub fn map_query_control(flags: VkQueryControlFlags) -> query::QueryControl {
     // Vulkan and HAL flags are equal
     unsafe { mem::transmute(flags) }
 }
 
+#[inline]
 pub fn map_pipeline_statistics(flags: VkQueryPipelineStatisticFlags) -> query::PipelineStatistic {
     // Vulkan and HAL flags are equal
     unsafe { mem::transmute(flags) }
