@@ -132,6 +132,13 @@ pub fn extent2d_from_hal(extent: window::Extent2D) -> VkExtent2D {
     }
 }
 
+pub fn map_extent2d(extent: VkExtent2D) -> window::Extent2D {
+    window::Extent2D {
+        width: extent.width,
+        height: extent.height,
+    }
+}
+
 pub fn extent3d_from_hal(extent: image::Extent) -> VkExtent3D {
     VkExtent3D {
         width: extent.width,

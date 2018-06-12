@@ -1178,9 +1178,10 @@ pub extern "C" fn gfxCreateQueryPool(
     _gpu: VkDevice,
     _pCreateInfo: *const VkQueryPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
-    _pQueryPool: *mut VkQueryPool,
+    pQueryPool: *mut VkQueryPool,
 ) -> VkResult {
     //TODO
+    unsafe { *pQueryPool = ptr::null_mut() };
     VkResult::VK_ERROR_DEVICE_LOST
 }
 #[inline]
@@ -1199,12 +1200,19 @@ pub extern "C" fn gfxGetQueryPoolResults(
     _queryPool: VkQueryPool,
     _firstQuery: u32,
     _queryCount: u32,
-    _dataSize: usize,
-    _pData: *mut ::std::os::raw::c_void,
+    dataSize: usize,
+    pData: *mut ::std::os::raw::c_void,
     _stride: VkDeviceSize,
     _flags: VkQueryResultFlags,
 ) -> VkResult {
-    unimplemented!()
+    error!("Query pools are not implemented");
+    let slice = unsafe {
+        slice::from_raw_parts_mut(pData as *mut u8, dataSize)
+    };
+    for d in slice {
+        *d = 0; //TODO
+    }
+    VkResult::VK_ERROR_DEVICE_LOST
 }
 #[inline]
 pub extern "C" fn gfxCreateBuffer(
@@ -1307,13 +1315,8 @@ pub extern "C" fn gfxCreateImage(
                 info.samples,
             ),
             info.mipLevels as _,
-            match conv::map_format(info.format) {
-                Some(format) => format,
-                None => {
-                    error!("Attempted to create an image with format {:?}", info.format);
-                    return VkResult::VK_ERROR_OUT_OF_HOST_MEMORY
-                }
-            },
+            conv::map_format(info.format)
+                .expect(&format!("Unsupported image format: {:?}", info.format)),
             conv::map_tiling(info.tiling),
             conv::map_image_usage(info.usage),
             unsafe { mem::transmute(info.flags) },
@@ -3375,7 +3378,7 @@ pub extern "C" fn gfxCmdBeginQuery(
     _query: u32,
     _flags: VkQueryControlFlags,
 ) {
-    unimplemented!()
+    error!("Query pools are not implemented");
 }
 #[inline]
 pub extern "C" fn gfxCmdEndQuery(
@@ -3383,7 +3386,7 @@ pub extern "C" fn gfxCmdEndQuery(
     _queryPool: VkQueryPool,
     _query: u32,
 ) {
-    unimplemented!()
+    error!("Query pools are not implemented");
 }
 #[inline]
 pub extern "C" fn gfxCmdResetQueryPool(
@@ -3392,7 +3395,7 @@ pub extern "C" fn gfxCmdResetQueryPool(
     _firstQuery: u32,
     _queryCount: u32,
 ) {
-    unimplemented!()
+    error!("Query pools are not implemented");
 }
 #[inline]
 pub extern "C" fn gfxCmdWriteTimestamp(
@@ -3546,7 +3549,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         },
         minImageExtent: conv::extent2d_from_hal(caps.extents.start),
         maxImageExtent: conv::extent2d_from_hal(caps.extents.end),
-        maxImageArrayLayers: caps.max_image_layers,
+        maxImageArrayLayers: caps.max_image_layers as _,
         supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
@@ -3633,8 +3636,12 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         image_count: info.minImageCount,
         image_usage: conv::map_image_usage(info.imageUsage),
     };
-    let (swapchain, backbuffers) = gpu.device
-        .create_swapchain(&mut info.surface.clone(), config);
+    let (swapchain, backbuffers) = gpu.device.create_swapchain(
+        &mut info.surface.clone(),
+        config,
+        info.oldSwapchain.unbox().map(|s| s.raw),
+        &conv::map_extent2d(info.imageExtent),
+    );
 
     let images = match backbuffers {
         hal::Backbuffer::Images(images) => images
@@ -3917,8 +3924,8 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => FrameSync::Fence(&*fence),
     };
 
-    let frame = swapchain.raw.acquire_frame(sync);
-    unsafe { *pImageIndex = frame.id() as _; }
+    let frame = swapchain.raw.acquire_frame(sync).unwrap();
+    unsafe { *pImageIndex = frame; }
 
     VkResult::VK_SUCCESS
 }
@@ -3929,18 +3936,24 @@ pub extern "C" fn gfxQueuePresentKHR(
 ) -> VkResult {
     let info = unsafe { &*pPresentInfo };
 
-    let swapchains = unsafe {
-        slice::from_raw_parts_mut(info.pSwapchains as *mut VkSwapchainKHR, info.swapchainCount as _)
-            .into_iter()
-            .map(|swapchain| &mut swapchain.raw)
+    let swapchain_slice = unsafe {
+        slice::from_raw_parts(info.pSwapchains, info.swapchainCount as _)
     };
+    let index_slice = unsafe {
+        slice::from_raw_parts(info.pImageIndices, info.swapchainCount as _)
+    };
+    let swapchains = swapchain_slice
+        .into_iter()
+        .zip(index_slice)
+        .map(|(swapchain, index)| (&swapchain.raw, *index));
+
     let wait_semaphores = unsafe {
         slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)
             .into_iter()
             .map(|semaphore| &**semaphore)
     };
 
-    queue.present(swapchains, wait_semaphores);
+    queue.present(swapchains, wait_semaphores).unwrap();
 
     VkResult::VK_SUCCESS
 }
