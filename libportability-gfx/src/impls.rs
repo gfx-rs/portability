@@ -3602,7 +3602,12 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let modes = vec![VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR]; //TODO
+    let modes = vec![
+        VkPresentModeKHR::VK_PRESENT_MODE_IMMEDIATE_KHR,
+        VkPresentModeKHR::VK_PRESENT_MODE_MAILBOX_KHR,
+        VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR,
+        VkPresentModeKHR::VK_PRESENT_MODE_FIFO_RELAXED_KHR
+    ]; //TODO
     let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as usize) };
 
     if output.len() > modes.len() {
@@ -3631,6 +3636,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     ); // TODO
 
     let config = hal::SwapchainConfig {
+        present_mode: conv::map_present_mode(info.presentMode),
         color_format: conv::map_format(info.imageFormat).unwrap(),
         depth_stencil_format: None,
         image_count: info.minImageCount,
