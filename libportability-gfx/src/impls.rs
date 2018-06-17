@@ -312,7 +312,7 @@ pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetInstanceProcAddr(
-    _instance: VkInstance,
+    instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -324,6 +324,22 @@ pub extern "C" fn gfxGetInstanceProcAddr(
     let device_addr = gfxGetDeviceProcAddr(DispatchHandle::null(), pName);
     if device_addr.is_some() {
         return device_addr;
+    }
+
+    match name {
+        
+        "vkEnumerateInstanceVersion" |
+        "vkEnumerateInstanceExtensionProperties" |
+        "vkEnumerateInstanceLayerProperties" |
+        "vkCreateInstance" => {
+            // Instance is not required for these special cases
+            // See https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkGetInstanceProcAddr.html
+        },
+        _ => {
+            if instance.as_ref().is_none() {
+                return None;
+            }
+        }
     }
 
     proc_addr!{ name,
@@ -360,7 +376,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 
 #[inline]
 pub extern "C" fn gfxGetDeviceProcAddr(
-    _device: VkDevice,
+    device: VkDevice,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -368,6 +384,10 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         Ok(name) => name,
         Err(_) => return None,
     };
+
+    if device.as_ref().is_none() {
+        return None;
+    }
 
     proc_addr!{ name,
         vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr => gfxGetDeviceProcAddr,
