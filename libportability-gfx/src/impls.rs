@@ -3535,7 +3535,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _) = surface.capabilities_and_formats(&adapter.physical_device);
+    let (caps, _, _) = surface.compatibility(&adapter.physical_device);
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
@@ -3570,7 +3570,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     pSurfaceFormats: *mut VkSurfaceFormatKHR,
 ) -> VkResult {
     let formats = surface
-        .capabilities_and_formats(&adapter.physical_device)
+        .compatibility(&adapter.physical_device)
         .1
         .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
         .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
@@ -3597,27 +3597,38 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
 
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
-    _adapter: VkPhysicalDevice,
-    _surface: VkSurfaceKHR,
+    adapter: VkPhysicalDevice,
+    surface: VkSurfaceKHR,
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let modes = vec![
-        VkPresentModeKHR::VK_PRESENT_MODE_IMMEDIATE_KHR,
-        VkPresentModeKHR::VK_PRESENT_MODE_MAILBOX_KHR,
-        VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR,
-        VkPresentModeKHR::VK_PRESENT_MODE_FIFO_RELAXED_KHR
-    ]; //TODO
-    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as usize) };
+    let present_modes = surface
+        .compatibility(&adapter.physical_device)
+        .2;
 
-    if output.len() > modes.len() {
-        unsafe { *pPresentModeCount = modes.len() as u32 };
-    }
-    for (out, mode) in output.iter_mut().zip(modes) {
-        *out = mode;
+    let num_present_modes = present_modes.len();
+
+    // If NULL, number of present modes is returned.
+    if pPresentModes.is_null() {
+        unsafe { *pPresentModeCount = num_present_modes as _ };
+        return VkResult::VK_SUCCESS;
     }
 
-    VkResult::VK_SUCCESS
+    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as _) };
+    let num_output = output.len();
+    let (code, count) = if num_output < num_present_modes {
+        (VkResult::VK_INCOMPLETE, num_output)
+    } else {
+        (VkResult::VK_SUCCESS, num_present_modes)
+    };
+
+    for (out, present_mode) in output.iter_mut().zip(present_modes) {
+        *out = conv::map_present_mode_from_hal(present_mode);
+    }
+
+    unsafe { *pPresentModeCount = count as _ };
+    
+    code
 }
 
 #[inline]
