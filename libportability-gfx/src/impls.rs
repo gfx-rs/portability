@@ -645,6 +645,67 @@ pub extern "C" fn gfxCreateDevice(
         })
         .collect::<Vec<_>>();
 
+    if let Some(ef) = unsafe { dev_info.pEnabledFeatures.as_ref() } {
+        let supported = adapter.physical_device.features();
+        if (ef.robustBufferAccess != 0 && !supported.contains(Features::ROBUST_BUFFER_ACCESS)) ||
+            (ef.fullDrawIndexUint32 != 0 && !supported.contains(Features::FULL_DRAW_INDEX_U32)) ||
+            (ef.imageCubeArray != 0 && !supported.contains(Features::IMAGE_CUBE_ARRAY)) ||
+            (ef.independentBlend != 0 && !supported.contains(Features::INDEPENDENT_BLENDING)) ||
+            (ef.geometryShader != 0 && !supported.contains(Features::GEOMETRY_SHADER)) ||
+            (ef.tessellationShader != 0 && !supported.contains(Features::TESSELLATION_SHADER)) ||
+            (ef.sampleRateShading != 0 && !supported.contains(Features::SAMPLE_RATE_SHADING)) ||
+            (ef.dualSrcBlend != 0 && !supported.contains(Features::DUAL_SRC_BLENDING)) ||
+            (ef.logicOp != 0 && !supported.contains(Features::LOGIC_OP)) ||
+            (ef.multiDrawIndirect != 0 && !supported.contains(Features::MULTI_DRAW_INDIRECT)) ||
+            (ef.drawIndirectFirstInstance != 0 && !supported.contains(Features::DRAW_INDIRECT_FIRST_INSTANCE)) ||
+            (ef.depthClamp != 0 && !supported.contains(Features::DEPTH_CLAMP)) ||
+            (ef.depthBiasClamp != 0 && !supported.contains(Features::DEPTH_BIAS_CLAMP)) ||
+            (ef.fillModeNonSolid != 0 && !supported.contains(Features::NON_FILL_POLYGON_MODE)) ||
+            (ef.depthBounds != 0 && !supported.contains(Features::DEPTH_BOUNDS)) ||
+            (ef.wideLines != 0 && !supported.contains(Features::LINE_WIDTH)) ||
+            (ef.largePoints != 0 && !supported.contains(Features::POINT_SIZE)) ||
+            (ef.alphaToOne != 0 && !supported.contains(Features::ALPHA_TO_ONE)) ||
+            (ef.multiViewport != 0 && !supported.contains(Features::MULTI_VIEWPORTS)) ||
+            (ef.samplerAnisotropy != 0 && !supported.contains(Features::SAMPLER_ANISOTROPY)) ||
+            (ef.textureCompressionETC2 != 0 && !supported.contains(Features::FORMAT_ETC2)) ||
+            (ef.textureCompressionASTC_LDR != 0 && !supported.contains(Features::FORMAT_ASTC_LDR)) ||
+            (ef.textureCompressionBC != 0 && !supported.contains(Features::FORMAT_BC)) ||
+            (ef.occlusionQueryPrecise != 0 && !supported.contains(Features::PRECISE_OCCLUSION_QUERY)) ||
+            (ef.pipelineStatisticsQuery != 0 && !supported.contains(Features::PIPELINE_STATISTICS_QUERY)) ||
+            (ef.vertexPipelineStoresAndAtomics != 0 && !supported.contains(Features::VERTEX_STORES_AND_ATOMICS)) ||
+            (ef.fragmentStoresAndAtomics != 0 && !supported.contains(Features::FRAGMENT_STORES_AND_ATOMICS)) ||
+            (ef.shaderTessellationAndGeometryPointSize != 0 && !supported.contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE)) ||
+            (ef.shaderImageGatherExtended != 0 && !supported.contains(Features::SHADER_IMAGE_GATHER_EXTENDED)) ||
+            (ef.shaderStorageImageExtendedFormats != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS)) ||
+            (ef.shaderStorageImageMultisample != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE)) ||
+            (ef.shaderStorageImageReadWithoutFormat != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT)) ||
+            (ef.shaderStorageImageWriteWithoutFormat != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT)) ||
+            (ef.shaderUniformBufferArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderSampledImageArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderStorageBufferArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderStorageImageArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderClipDistance != 0 && !supported.contains(Features::SHADER_CLIP_DISTANCE)) ||
+            (ef.shaderCullDistance != 0 && !supported.contains(Features::SHADER_CULL_DISTANCE)) ||
+            (ef.shaderFloat64 != 0 && !supported.contains(Features::SHADER_FLOAT64)) ||
+            (ef.shaderInt64 != 0 && !supported.contains(Features::SHADER_INT64)) ||
+            (ef.shaderInt16 != 0 && !supported.contains(Features::SHADER_INT16)) ||
+            (ef.shaderResourceResidency != 0 && !supported.contains(Features::SHADER_RESOURCE_RESIDENCY)) ||
+            (ef.shaderResourceMinLod != 0 && !supported.contains(Features::SHADER_RESOURCE_MIN_LOD)) ||
+            (ef.sparseBinding != 0 && !supported.contains(Features::SPARSE_BINDING)) ||
+            (ef.sparseResidencyBuffer != 0 && !supported.contains(Features::SPARSE_RESIDENCY_BUFFER)) ||
+            (ef.sparseResidencyImage2D != 0 && !supported.contains(Features::SHADER_RESIDENCY_IMAGE_2D)) ||
+            (ef.sparseResidencyImage3D != 0 && !supported.contains(Features::SHADER_RESIDENSY_IMAGE_3D)) ||
+            (ef.sparseResidency2Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_2_SAMPLES)) ||
+            (ef.sparseResidency4Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_4_SAMPLES)) ||
+            (ef.sparseResidency8Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_8_SAMPLES)) ||
+            (ef.sparseResidency16Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_16_SAMPLES)) ||
+            (ef.sparseResidencyAliased != 0 && !supported.contains(Features::SPARSE_RESIDENCY_ALIASED)) ||
+            (ef.variableMultisampleRate != 0 && !supported.contains(Features::VARIABLE_MULTISAMPLE_RATE)) ||
+            (ef.inheritedQueries != 0 && !supported.contains(Features::INHERITED_QUERIES)) {
+            return VkResult::VK_ERROR_FEATURE_NOT_PRESENT;
+        }
+    }
+
     #[cfg(feature = "renderdoc")]
     let mut renderdoc = {
         use renderdoc::RenderDoc;
