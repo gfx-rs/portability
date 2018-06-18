@@ -55,6 +55,18 @@ pub extern "C" fn gfxCreateInstance(
     unsafe {
         let create_info = &*pCreateInfo;
 
+        let application_info = create_info.pApplicationInfo.as_ref();
+
+        if let Some(ai) = application_info {
+            // Compare major and minor parts of version only - patch is ignored
+            let (supported_major, supported_minor, _)  = VERSION;
+            let requested_major_minor = ai.apiVersion >> 12;
+            let version_supported = requested_major_minor & (supported_major << 10 | supported_minor) == requested_major_minor;
+            if !version_supported {
+                return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
+            }
+        }
+
         let enabled_extensions = if create_info.enabledExtensionCount == 0 {
             Vec::new()
         } else {
