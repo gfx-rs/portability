@@ -35,7 +35,7 @@ macro_rules! proc_addr {
 
 #[inline]
 pub extern "C" fn gfxCreateInstance(
-    _pCreateInfo: *const VkInstanceCreateInfo,
+    pCreateInfo: *const VkInstanceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
 ) -> VkResult {
@@ -52,7 +52,29 @@ pub extern "C" fn gfxCreateInstance(
         .map(Handle::new)
         .collect();
 
-    unsafe { *pInstance = Handle::new(RawInstance { backend, adapters }) };
+    unsafe {
+        let create_info = &*pCreateInfo;
+
+        let enabled_extensions = if create_info.enabledExtensionCount == 0 {
+            Vec::new()
+        } else {
+            slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
+                .iter()
+                .map(|raw| CStr::from_ptr(*raw)
+                    .to_str()
+                    .expect("Invalid extension name")
+                    .to_owned()
+                )
+                .collect()
+        };
+
+        *pInstance = Handle::new(RawInstance {
+            backend,
+            adapters,
+            enabled_extensions,
+        });
+    }
+
     VkResult::VK_SUCCESS
 }
 
@@ -326,20 +348,42 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         return device_addr;
     }
 
+    // Required instance
     match name {
-        
         "vkEnumerateInstanceVersion" |
         "vkEnumerateInstanceExtensionProperties" |
         "vkEnumerateInstanceLayerProperties" |
         "vkCreateInstance" => {
             // Instance is not required for these special cases
             // See https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkGetInstanceProcAddr.html
-        },
+        }
         _ => {
             if instance.as_ref().is_none() {
                 return None;
             }
         }
+    }
+
+    // Required extensions
+    match name {
+        "vkGetPhysicalDeviceSurfaceSupportKHR" |
+        "vkGetPhysicalDeviceSurfaceCapabilitiesKHR" |
+        "vkGetPhysicalDeviceSurfaceFormatsKHR" |
+        "vkGetPhysicalDeviceSurfacePresentModesKHR" |
+        "vkDestroySurfaceKHR"
+        => {
+            let surface_ext = unsafe { *VK_KHR_SURFACE_EXTENSION_NAME.as_ptr() };
+            let surface_extension_enabled = instance
+                .as_ref()
+                .unwrap()
+                .enabled_extensions
+                .iter()
+                .any(|e| unsafe { *e.as_ptr() } == surface_ext);
+            if !surface_extension_enabled {
+                return None;
+            }
+        }
+        _ => {}
     }
 
     proc_addr!{ name,
@@ -385,8 +429,31 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         Err(_) => return None,
     };
 
+    // Required device
     if device.as_ref().is_none() {
         return None;
+    }
+
+    // Required extensions
+    match name {
+        "vkCreateSwapchainKHR" |
+        "vkDestroySwapchainKHR" |
+        "vkGetSwapchainImagesKHR" |
+        "vkAcquireNextImageKHR" |
+        "vkQueuePresentKHR"
+        => {
+            let swapchain_ext = unsafe { *VK_KHR_SWAPCHAIN_EXTENSION_NAME.as_ptr() };
+            let swapchain_extension_enabled = device
+                .as_ref()
+                .unwrap()
+                .enabled_extensions
+                .iter()
+                .any(|e| unsafe { *e.as_ptr() } == swapchain_ext);
+            if !swapchain_extension_enabled {
+                return None;
+            }
+        }
+        _ => {}
     }
 
     proc_addr!{ name,
@@ -595,9 +662,25 @@ pub extern "C" fn gfxCreateDevice(
                 rd_device
             };
 
+            let enabled_extensions = if dev_info.enabledExtensionCount == 0 {
+                Vec::new()
+            } else {
+                unsafe {
+                    slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
+                        .iter()
+                        .map(|raw| CStr::from_ptr(*raw)
+                            .to_str()
+                            .expect("Invalid extension name")
+                            .to_owned()
+                        )
+                        .collect()
+                }
+            };
+
             let gpu = Gpu {
                 device: gpu.device,
                 queues,
+                enabled_extensions,
                 #[cfg(feature = "renderdoc")]
                 renderdoc,
                 #[cfg(feature = "renderdoc")]
