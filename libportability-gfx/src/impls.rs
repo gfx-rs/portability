@@ -70,14 +70,20 @@ pub extern "C" fn gfxCreateInstance(
         let enabled_extensions = if create_info.enabledExtensionCount == 0 {
             Vec::new()
         } else {
-            slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
+            let extensions = slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
                 .iter()
                 .map(|raw| CStr::from_ptr(*raw)
                     .to_str()
                     .expect("Invalid extension name")
                     .to_owned()
                 )
-                .collect()
+                .collect::<Vec<_>>();
+            for extension in &extensions {
+                if !INSTANCE_EXTENSION_NAMES.contains(&extension.as_str()) {
+                    return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
+                }
+            }
+            extensions
         };
 
         *pInstance = Handle::new(RawInstance {
@@ -384,13 +390,12 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         "vkGetPhysicalDeviceSurfacePresentModesKHR" |
         "vkDestroySurfaceKHR"
         => {
-            let surface_ext = unsafe { *VK_KHR_SURFACE_EXTENSION_NAME.as_ptr() };
             let surface_extension_enabled = instance
                 .as_ref()
                 .unwrap()
                 .enabled_extensions
                 .iter()
-                .any(|e| unsafe { *e.as_ptr() } == surface_ext);
+                .any(|e| e == INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE);
             if !surface_extension_enabled {
                 return None;
             }
@@ -454,13 +459,12 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         "vkAcquireNextImageKHR" |
         "vkQueuePresentKHR"
         => {
-            let swapchain_ext = unsafe { *VK_KHR_SWAPCHAIN_EXTENSION_NAME.as_ptr() };
             let swapchain_extension_enabled = device
                 .as_ref()
                 .unwrap()
                 .enabled_extensions
                 .iter()
-                .any(|e| unsafe { *e.as_ptr() } == swapchain_ext);
+                .any(|e| e == DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN);
             if !swapchain_extension_enabled {
                 return None;
             }
@@ -677,16 +681,22 @@ pub extern "C" fn gfxCreateDevice(
             let enabled_extensions = if dev_info.enabledExtensionCount == 0 {
                 Vec::new()
             } else {
-                unsafe {
-                    slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
-                        .iter()
-                        .map(|raw| CStr::from_ptr(*raw)
-                            .to_str()
-                            .expect("Invalid extension name")
-                            .to_owned()
-                        )
-                        .collect()
+                let extensions = unsafe {
+                        slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
+                            .iter()
+                            .map(|raw| CStr::from_ptr(*raw)
+                                .to_str()
+                                .expect("Invalid extension name")
+                                .to_owned()
+                            )
+                            .collect::<Vec<_>>()
+                    };
+                for extension in &extensions {
+                    if !DEVICE_EXTENSION_NAMES.contains(&extension.as_ref()) {
+                        return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
+                    }
                 }
+                extensions
             };
 
             let gpu = Gpu {
@@ -728,8 +738,26 @@ pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocati
     }
 }
 
+// TODO: Avoid redefining these somehow
+static INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE: &str = "VK_KHR_surface";
+#[cfg(target_os="windows")]
+static INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE: &str = "VK_KHR_win32_surface";
+#[cfg(target_os="macos")]
+static INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE: &str = "VK_MVK_macos_surface";
+static DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN: &str = "VK_KHR_swapchain";
+
 lazy_static! {
     // TODO: Request from backend
+    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static str> = {
+        vec![
+            INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE,
+            #[cfg(target_os="windows")]
+            INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE,
+            #[cfg(target_os="macos")]
+            INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE,
+        ]
+    };
+
     static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
         let mut extensions = [
             VkExtensionProperties {
@@ -767,6 +795,12 @@ lazy_static! {
             });
 
         extensions.to_vec()
+    };
+
+    static ref DEVICE_EXTENSION_NAMES: Vec<&'static str> = {
+        vec![
+            DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN,
+        ]
     };
 
     static ref DEVICE_EXTENSIONS: Vec<VkExtensionProperties> = {
