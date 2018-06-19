@@ -63,11 +63,13 @@ pub type QueueFamilyIndex = u32;
 pub struct RawInstance {
     pub backend: back::Instance,
     pub adapters: Vec<VkPhysicalDevice>,
+    pub enabled_extensions: Vec<String>,
 }
 
 pub struct Gpu<B: hal::Backend> {
     device: B::Device,
     queues: HashMap<QueueFamilyIndex, Vec<VkQueue>>,
+    enabled_extensions: Vec<String>,
     #[cfg(feature = "renderdoc")]
     renderdoc: renderdoc::RenderDoc<renderdoc::V110>,
     #[cfg(feature = "renderdoc")]

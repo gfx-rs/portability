@@ -569,6 +569,18 @@ pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSi
 }
 
 #[inline]
+pub fn map_present_mode(present_mode: VkPresentModeKHR) -> window::PresentMode {
+    // Vulkan and HAL values are equal
+    unsafe { mem::transmute(present_mode) }
+}
+
+#[inline]
+pub fn map_present_mode_from_hal(present_mode: window::PresentMode) -> VkPresentModeKHR {
+    // Vulkan and HAL values are equal
+    unsafe { mem::transmute(present_mode) }
+}
+
+#[inline]
 pub fn map_compare_op(op: VkCompareOp) -> pso::Comparison {
     // Vulkan and HAL values are equal
     unsafe { mem::transmute(op as u8) }

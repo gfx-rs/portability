@@ -35,7 +35,7 @@ macro_rules! proc_addr {
 
 #[inline]
 pub extern "C" fn gfxCreateInstance(
-    _pCreateInfo: *const VkInstanceCreateInfo,
+    pCreateInfo: *const VkInstanceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
 ) -> VkResult {
@@ -52,7 +52,47 @@ pub extern "C" fn gfxCreateInstance(
         .map(Handle::new)
         .collect();
 
-    unsafe { *pInstance = Handle::new(RawInstance { backend, adapters }) };
+    unsafe {
+        let create_info = &*pCreateInfo;
+
+        let application_info = create_info.pApplicationInfo.as_ref();
+
+        if let Some(ai) = application_info {
+            // Compare major and minor parts of version only - patch is ignored
+            let (supported_major, supported_minor, _)  = VERSION;
+            let requested_major_minor = ai.apiVersion >> 12;
+            let version_supported = requested_major_minor & (supported_major << 10 | supported_minor) == requested_major_minor;
+            if !version_supported {
+                return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
+            }
+        }
+
+        let enabled_extensions = if create_info.enabledExtensionCount == 0 {
+            Vec::new()
+        } else {
+            let extensions = slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
+                .iter()
+                .map(|raw| CStr::from_ptr(*raw)
+                    .to_str()
+                    .expect("Invalid extension name")
+                    .to_owned()
+                )
+                .collect::<Vec<_>>();
+            for extension in &extensions {
+                if !INSTANCE_EXTENSION_NAMES.contains(&extension.as_str()) {
+                    return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
+                }
+            }
+            extensions
+        };
+
+        *pInstance = Handle::new(RawInstance {
+            backend,
+            adapters,
+            enabled_extensions,
+        });
+    }
+
     VkResult::VK_SUCCESS
 }
 
@@ -312,7 +352,7 @@ pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetInstanceProcAddr(
-    _instance: VkInstance,
+    instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -324,6 +364,43 @@ pub extern "C" fn gfxGetInstanceProcAddr(
     let device_addr = gfxGetDeviceProcAddr(DispatchHandle::null(), pName);
     if device_addr.is_some() {
         return device_addr;
+    }
+
+    // Required instance
+    match name {
+        "vkEnumerateInstanceVersion" |
+        "vkEnumerateInstanceExtensionProperties" |
+        "vkEnumerateInstanceLayerProperties" |
+        "vkCreateInstance" => {
+            // Instance is not required for these special cases
+            // See https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkGetInstanceProcAddr.html
+        }
+        _ => {
+            if instance.as_ref().is_none() {
+                return None;
+            }
+        }
+    }
+
+    // Required extensions
+    match name {
+        "vkGetPhysicalDeviceSurfaceSupportKHR" |
+        "vkGetPhysicalDeviceSurfaceCapabilitiesKHR" |
+        "vkGetPhysicalDeviceSurfaceFormatsKHR" |
+        "vkGetPhysicalDeviceSurfacePresentModesKHR" |
+        "vkDestroySurfaceKHR"
+        => {
+            let surface_extension_enabled = instance
+                .as_ref()
+                .unwrap()
+                .enabled_extensions
+                .iter()
+                .any(|e| e == INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE);
+            if !surface_extension_enabled {
+                return None;
+            }
+        }
+        _ => {}
     }
 
     proc_addr!{ name,
@@ -360,7 +437,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 
 #[inline]
 pub extern "C" fn gfxGetDeviceProcAddr(
-    _device: VkDevice,
+    device: VkDevice,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -368,6 +445,32 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         Ok(name) => name,
         Err(_) => return None,
     };
+
+    // Required device
+    if device.as_ref().is_none() {
+        return None;
+    }
+
+    // Required extensions
+    match name {
+        "vkCreateSwapchainKHR" |
+        "vkDestroySwapchainKHR" |
+        "vkGetSwapchainImagesKHR" |
+        "vkAcquireNextImageKHR" |
+        "vkQueuePresentKHR"
+        => {
+            let swapchain_extension_enabled = device
+                .as_ref()
+                .unwrap()
+                .enabled_extensions
+                .iter()
+                .any(|e| e == DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN);
+            if !swapchain_extension_enabled {
+                return None;
+            }
+        }
+        _ => {}
+    }
 
     proc_addr!{ name,
         vkGetDeviceProcAddr, PFN_vkGetDeviceProcAddr => gfxGetDeviceProcAddr,
@@ -542,6 +645,67 @@ pub extern "C" fn gfxCreateDevice(
         })
         .collect::<Vec<_>>();
 
+    if let Some(ef) = unsafe { dev_info.pEnabledFeatures.as_ref() } {
+        let supported = adapter.physical_device.features();
+        if (ef.robustBufferAccess != 0 && !supported.contains(Features::ROBUST_BUFFER_ACCESS)) ||
+            (ef.fullDrawIndexUint32 != 0 && !supported.contains(Features::FULL_DRAW_INDEX_U32)) ||
+            (ef.imageCubeArray != 0 && !supported.contains(Features::IMAGE_CUBE_ARRAY)) ||
+            (ef.independentBlend != 0 && !supported.contains(Features::INDEPENDENT_BLENDING)) ||
+            (ef.geometryShader != 0 && !supported.contains(Features::GEOMETRY_SHADER)) ||
+            (ef.tessellationShader != 0 && !supported.contains(Features::TESSELLATION_SHADER)) ||
+            (ef.sampleRateShading != 0 && !supported.contains(Features::SAMPLE_RATE_SHADING)) ||
+            (ef.dualSrcBlend != 0 && !supported.contains(Features::DUAL_SRC_BLENDING)) ||
+            (ef.logicOp != 0 && !supported.contains(Features::LOGIC_OP)) ||
+            (ef.multiDrawIndirect != 0 && !supported.contains(Features::MULTI_DRAW_INDIRECT)) ||
+            (ef.drawIndirectFirstInstance != 0 && !supported.contains(Features::DRAW_INDIRECT_FIRST_INSTANCE)) ||
+            (ef.depthClamp != 0 && !supported.contains(Features::DEPTH_CLAMP)) ||
+            (ef.depthBiasClamp != 0 && !supported.contains(Features::DEPTH_BIAS_CLAMP)) ||
+            (ef.fillModeNonSolid != 0 && !supported.contains(Features::NON_FILL_POLYGON_MODE)) ||
+            (ef.depthBounds != 0 && !supported.contains(Features::DEPTH_BOUNDS)) ||
+            (ef.wideLines != 0 && !supported.contains(Features::LINE_WIDTH)) ||
+            (ef.largePoints != 0 && !supported.contains(Features::POINT_SIZE)) ||
+            (ef.alphaToOne != 0 && !supported.contains(Features::ALPHA_TO_ONE)) ||
+            (ef.multiViewport != 0 && !supported.contains(Features::MULTI_VIEWPORTS)) ||
+            (ef.samplerAnisotropy != 0 && !supported.contains(Features::SAMPLER_ANISOTROPY)) ||
+            (ef.textureCompressionETC2 != 0 && !supported.contains(Features::FORMAT_ETC2)) ||
+            (ef.textureCompressionASTC_LDR != 0 && !supported.contains(Features::FORMAT_ASTC_LDR)) ||
+            (ef.textureCompressionBC != 0 && !supported.contains(Features::FORMAT_BC)) ||
+            (ef.occlusionQueryPrecise != 0 && !supported.contains(Features::PRECISE_OCCLUSION_QUERY)) ||
+            (ef.pipelineStatisticsQuery != 0 && !supported.contains(Features::PIPELINE_STATISTICS_QUERY)) ||
+            (ef.vertexPipelineStoresAndAtomics != 0 && !supported.contains(Features::VERTEX_STORES_AND_ATOMICS)) ||
+            (ef.fragmentStoresAndAtomics != 0 && !supported.contains(Features::FRAGMENT_STORES_AND_ATOMICS)) ||
+            (ef.shaderTessellationAndGeometryPointSize != 0 && !supported.contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE)) ||
+            (ef.shaderImageGatherExtended != 0 && !supported.contains(Features::SHADER_IMAGE_GATHER_EXTENDED)) ||
+            (ef.shaderStorageImageExtendedFormats != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS)) ||
+            (ef.shaderStorageImageMultisample != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE)) ||
+            (ef.shaderStorageImageReadWithoutFormat != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT)) ||
+            (ef.shaderStorageImageWriteWithoutFormat != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT)) ||
+            (ef.shaderUniformBufferArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderSampledImageArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderStorageBufferArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderStorageImageArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING)) ||
+            (ef.shaderClipDistance != 0 && !supported.contains(Features::SHADER_CLIP_DISTANCE)) ||
+            (ef.shaderCullDistance != 0 && !supported.contains(Features::SHADER_CULL_DISTANCE)) ||
+            (ef.shaderFloat64 != 0 && !supported.contains(Features::SHADER_FLOAT64)) ||
+            (ef.shaderInt64 != 0 && !supported.contains(Features::SHADER_INT64)) ||
+            (ef.shaderInt16 != 0 && !supported.contains(Features::SHADER_INT16)) ||
+            (ef.shaderResourceResidency != 0 && !supported.contains(Features::SHADER_RESOURCE_RESIDENCY)) ||
+            (ef.shaderResourceMinLod != 0 && !supported.contains(Features::SHADER_RESOURCE_MIN_LOD)) ||
+            (ef.sparseBinding != 0 && !supported.contains(Features::SPARSE_BINDING)) ||
+            (ef.sparseResidencyBuffer != 0 && !supported.contains(Features::SPARSE_RESIDENCY_BUFFER)) ||
+            (ef.sparseResidencyImage2D != 0 && !supported.contains(Features::SHADER_RESIDENCY_IMAGE_2D)) ||
+            (ef.sparseResidencyImage3D != 0 && !supported.contains(Features::SHADER_RESIDENSY_IMAGE_3D)) ||
+            (ef.sparseResidency2Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_2_SAMPLES)) ||
+            (ef.sparseResidency4Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_4_SAMPLES)) ||
+            (ef.sparseResidency8Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_8_SAMPLES)) ||
+            (ef.sparseResidency16Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_16_SAMPLES)) ||
+            (ef.sparseResidencyAliased != 0 && !supported.contains(Features::SPARSE_RESIDENCY_ALIASED)) ||
+            (ef.variableMultisampleRate != 0 && !supported.contains(Features::VARIABLE_MULTISAMPLE_RATE)) ||
+            (ef.inheritedQueries != 0 && !supported.contains(Features::INHERITED_QUERIES)) {
+            return VkResult::VK_ERROR_FEATURE_NOT_PRESENT;
+        }
+    }
+
     #[cfg(feature = "renderdoc")]
     let mut renderdoc = {
         use renderdoc::RenderDoc;
@@ -575,9 +739,31 @@ pub extern "C" fn gfxCreateDevice(
                 rd_device
             };
 
+            let enabled_extensions = if dev_info.enabledExtensionCount == 0 {
+                Vec::new()
+            } else {
+                let extensions = unsafe {
+                        slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
+                            .iter()
+                            .map(|raw| CStr::from_ptr(*raw)
+                                .to_str()
+                                .expect("Invalid extension name")
+                                .to_owned()
+                            )
+                            .collect::<Vec<_>>()
+                    };
+                for extension in &extensions {
+                    if !DEVICE_EXTENSION_NAMES.contains(&extension.as_ref()) {
+                        return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
+                    }
+                }
+                extensions
+            };
+
             let gpu = Gpu {
                 device: gpu.device,
                 queues,
+                enabled_extensions,
                 #[cfg(feature = "renderdoc")]
                 renderdoc,
                 #[cfg(feature = "renderdoc")]
@@ -613,8 +799,26 @@ pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocati
     }
 }
 
+// TODO: Avoid redefining these somehow
+static INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE: &str = "VK_KHR_surface";
+#[cfg(target_os="windows")]
+static INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE: &str = "VK_KHR_win32_surface";
+#[cfg(target_os="macos")]
+static INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE: &str = "VK_MVK_macos_surface";
+static DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN: &str = "VK_KHR_swapchain";
+
 lazy_static! {
     // TODO: Request from backend
+    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static str> = {
+        vec![
+            INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE,
+            #[cfg(target_os="windows")]
+            INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE,
+            #[cfg(target_os="macos")]
+            INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE,
+        ]
+    };
+
     static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
         let mut extensions = [
             VkExtensionProperties {
@@ -652,6 +856,12 @@ lazy_static! {
             });
 
         extensions.to_vec()
+    };
+
+    static ref DEVICE_EXTENSION_NAMES: Vec<&'static str> = {
+        vec![
+            DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN,
+        ]
     };
 
     static ref DEVICE_EXTENSIONS: Vec<VkExtensionProperties> = {
@@ -3535,7 +3745,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _) = surface.capabilities_and_formats(&adapter.physical_device);
+    let (caps, _, _) = surface.compatibility(&adapter.physical_device);
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
@@ -3570,7 +3780,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     pSurfaceFormats: *mut VkSurfaceFormatKHR,
 ) -> VkResult {
     let formats = surface
-        .capabilities_and_formats(&adapter.physical_device)
+        .compatibility(&adapter.physical_device)
         .1
         .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
         .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
@@ -3597,22 +3807,38 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
 
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
-    _adapter: VkPhysicalDevice,
-    _surface: VkSurfaceKHR,
+    adapter: VkPhysicalDevice,
+    surface: VkSurfaceKHR,
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let modes = vec![VkPresentModeKHR::VK_PRESENT_MODE_FIFO_KHR]; //TODO
-    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as usize) };
+    let present_modes = surface
+        .compatibility(&adapter.physical_device)
+        .2;
 
-    if output.len() > modes.len() {
-        unsafe { *pPresentModeCount = modes.len() as u32 };
-    }
-    for (out, mode) in output.iter_mut().zip(modes) {
-        *out = mode;
+    let num_present_modes = present_modes.len();
+
+    // If NULL, number of present modes is returned.
+    if pPresentModes.is_null() {
+        unsafe { *pPresentModeCount = num_present_modes as _ };
+        return VkResult::VK_SUCCESS;
     }
 
-    VkResult::VK_SUCCESS
+    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as _) };
+    let num_output = output.len();
+    let (code, count) = if num_output < num_present_modes {
+        (VkResult::VK_INCOMPLETE, num_output)
+    } else {
+        (VkResult::VK_SUCCESS, num_present_modes)
+    };
+
+    for (out, present_mode) in output.iter_mut().zip(present_modes) {
+        *out = conv::map_present_mode_from_hal(present_mode);
+    }
+
+    unsafe { *pPresentModeCount = count as _ };
+    
+    code
 }
 
 #[inline]
@@ -3631,6 +3857,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     ); // TODO
 
     let config = hal::SwapchainConfig {
+        present_mode: conv::map_present_mode(info.presentMode),
         color_format: conv::map_format(info.imageFormat).unwrap(),
         depth_stencil_format: None,
         image_count: info.minImageCount,
