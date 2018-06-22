@@ -41,6 +41,11 @@ git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/dx12"
 optional = true
 
+[target.'cfg(windows)'.dependencies.gfx-backend-dx11]
+git = "https://github.com/gfx-rs/gfx"
+#path = "../../gfx/src/backend/dx11"
+optional = true
+
 [target.'cfg(target_os = "macos")'.dependencies.gfx-backend-metal]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/metal"

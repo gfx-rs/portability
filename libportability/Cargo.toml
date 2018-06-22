@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 default = []
 debug = ["portability-gfx/env_logger", "portability-gfx/nightly"]
 dx12 = ["portability-gfx/gfx-backend-dx12"]
+dx11 = ["portability-gfx/gfx-backend-dx11"]
 metal = ["portability-gfx/gfx-backend-metal"]
 vulkan = ["portability-gfx/gfx-backend-vulkan"]
 

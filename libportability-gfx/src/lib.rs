@@ -7,6 +7,8 @@
 extern crate gfx_hal as hal;
 #[cfg(feature = "gfx-backend-dx12")]
 extern crate gfx_backend_dx12 as back;
+#[cfg(feature = "gfx-backend-dx11")]
+extern crate gfx_backend_dx11 as back;
 #[cfg(feature = "gfx-backend-metal")]
 extern crate gfx_backend_metal as back;
 #[cfg(feature = "gfx-backend-vulkan")]
