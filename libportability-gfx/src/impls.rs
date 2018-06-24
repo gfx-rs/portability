@@ -3749,7 +3749,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
-        maxImageCount: caps.image_count.end,
+        maxImageCount: caps.image_count.end - 1,
         currentExtent: match caps.current_extent {
             Some(extent) => conv::extent2d_from_hal(extent),
             None => VkExtent2D {
