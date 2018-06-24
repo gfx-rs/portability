@@ -32,6 +32,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         framebufferColorSampleCounts: limits.framebuffer_color_samples_count as _,
         framebufferDepthSampleCounts: limits.framebuffer_depth_samples_count as _,
         framebufferStencilSampleCounts: limits.framebuffer_stencil_samples_count as _,
+        maxColorAttachments: limits.max_color_attachments as _,
         nonCoherentAtomSize: limits.non_coherent_atom_size as _,
         .. unsafe { mem::zeroed() } //TODO
     }
