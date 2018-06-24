@@ -3749,7 +3749,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
-        maxImageCount: caps.image_count.end,
+        maxImageCount: caps.image_count.end - 1,
         currentExtent: match caps.current_extent {
             Some(extent) => conv::extent2d_from_hal(extent),
             None => VkExtent2D {
@@ -4159,7 +4159,7 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => FrameSync::Fence(&*fence),
     };
 
-    let frame = swapchain.raw.acquire_frame(sync).unwrap();
+    let frame = swapchain.raw.acquire_image(sync).unwrap();
     unsafe { *pImageIndex = frame; }
 
     VkResult::VK_SUCCESS
