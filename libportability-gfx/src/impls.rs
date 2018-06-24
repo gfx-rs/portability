@@ -4159,7 +4159,7 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => FrameSync::Fence(&*fence),
     };
 
-    let frame = swapchain.raw.acquire_frame(sync).unwrap();
+    let frame = swapchain.raw.acquire_image(sync).unwrap();
     unsafe { *pImageIndex = frame; }
 
     VkResult::VK_SUCCESS
