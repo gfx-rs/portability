@@ -4107,6 +4107,14 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
             VkResult::VK_SUCCESS
         }
     }
+    #[cfg(feature = "gfx-backend-dx11")]
+    {
+        unsafe {
+            assert_eq!(info.flags, 0);
+            *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
+            VkResult::VK_SUCCESS
+        }
+    }
     #[cfg(not(target_os = "windows"))]
     {
         let _ = (instance, info, pSurface);
