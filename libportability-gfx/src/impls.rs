@@ -4,15 +4,15 @@ use hal::{
     Surface, Swapchain as HalSwapchain, FrameSync,
 };
 use hal::buffer::IndexBufferView;
+use hal::command::RawCommandBuffer;
 use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
-use hal::command::RawCommandBuffer;
 use hal::queue::RawCommandQueue;
 
 use std::ffi::{CStr, CString};
-use std::{mem, ptr};
 #[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
+use std::{mem, ptr};
 
 use super::*;
 
@@ -59,9 +59,11 @@ pub extern "C" fn gfxCreateInstance(
 
         if let Some(ai) = application_info {
             // Compare major and minor parts of version only - patch is ignored
-            let (supported_major, supported_minor, _)  = VERSION;
+            let (supported_major, supported_minor, _) = VERSION;
             let requested_major_minor = ai.apiVersion >> 12;
-            let version_supported = requested_major_minor & (supported_major << 10 | supported_minor) == requested_major_minor;
+            let version_supported = requested_major_minor
+                & (supported_major << 10 | supported_minor)
+                == requested_major_minor;
             if !version_supported {
                 return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
             }
@@ -70,13 +72,16 @@ pub extern "C" fn gfxCreateInstance(
         let enabled_extensions = if create_info.enabledExtensionCount == 0 {
             Vec::new()
         } else {
-            let extensions = slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
-                .iter()
-                .map(|raw| CStr::from_ptr(*raw)
-                    .to_str()
-                    .expect("Invalid extension name")
-                    .to_owned()
-                )
+            let extensions = slice::from_raw_parts(
+                create_info.ppEnabledExtensionNames,
+                create_info.enabledExtensionCount as _,
+            ).iter()
+                .map(|raw| {
+                    CStr::from_ptr(*raw)
+                        .to_str()
+                        .expect("Invalid extension name")
+                        .to_owned()
+                })
                 .collect::<Vec<_>>();
             for extension in &extensions {
                 if !INSTANCE_EXTENSION_NAMES.contains(&extension.as_str()) {
@@ -366,43 +371,6 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         return device_addr;
     }
 
-    // Required instance
-    match name {
-        "vkEnumerateInstanceVersion" |
-        "vkEnumerateInstanceExtensionProperties" |
-        "vkEnumerateInstanceLayerProperties" |
-        "vkCreateInstance" => {
-            // Instance is not required for these special cases
-            // See https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkGetInstanceProcAddr.html
-        }
-        _ => {
-            if instance.as_ref().is_none() {
-                return None;
-            }
-        }
-    }
-
-    // Required extensions
-    match name {
-        "vkGetPhysicalDeviceSurfaceSupportKHR" |
-        "vkGetPhysicalDeviceSurfaceCapabilitiesKHR" |
-        "vkGetPhysicalDeviceSurfaceFormatsKHR" |
-        "vkGetPhysicalDeviceSurfacePresentModesKHR" |
-        "vkDestroySurfaceKHR"
-        => {
-            let surface_extension_enabled = instance
-                .as_ref()
-                .unwrap()
-                .enabled_extensions
-                .iter()
-                .any(|e| e == INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE);
-            if !surface_extension_enabled {
-                return None;
-            }
-        }
-        _ => {}
-    }
-
     proc_addr!{ name,
         vkCreateInstance, PFN_vkCreateInstance => gfxCreateInstance,
         vkDestroyInstance, PFN_vkDestroyInstance => gfxDestroyInstance,
@@ -446,30 +414,25 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         Err(_) => return None,
     };
 
-    // Required device
-    if device.as_ref().is_none() {
-        return None;
-    }
-
-    // Required extensions
-    match name {
-        "vkCreateSwapchainKHR" |
-        "vkDestroySwapchainKHR" |
-        "vkGetSwapchainImagesKHR" |
-        "vkAcquireNextImageKHR" |
-        "vkQueuePresentKHR"
-        => {
-            let swapchain_extension_enabled = device
-                .as_ref()
-                .unwrap()
-                .enabled_extensions
-                .iter()
-                .any(|e| e == DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN);
-            if !swapchain_extension_enabled {
-                return None;
+    // Requesting the function pointer to an extensions which is available but not
+    // enabled with an valid device requires returning NULL.
+    if let Some(device) = device.as_ref() {
+        match name {
+            "vkCreateSwapchainKHR"
+            | "vkDestroySwapchainKHR"
+            | "vkGetSwapchainImagesKHR"
+            | "vkAcquireNextImageKHR"
+            | "vkQueuePresentKHR" => {
+                let swapchain_extension_enabled = device
+                    .enabled_extensions
+                    .iter()
+                    .any(|e| e == DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN);
+                if !swapchain_extension_enabled {
+                    return None;
+                }
             }
+            _ => {}
         }
-        _ => {}
     }
 
     proc_addr!{ name,
