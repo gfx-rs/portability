@@ -45,7 +45,7 @@ pub type VkCommandBuffer = DispatchHandle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
 pub type VkDescriptorSetLayout = Handle<<B as hal::Backend>::DescriptorSetLayout>;
 pub type VkPipelineLayout = Handle<<B as hal::Backend>::PipelineLayout>;
-pub type VkDescriptorPool = Handle<<B as hal::Backend>::DescriptorPool>;
+pub type VkDescriptorPool = Handle<DescriptorPool<B>>;
 pub type VkDescriptorSet = Handle<<B as hal::Backend>::DescriptorSet>;
 pub type VkSampler = Handle<<B as hal::Backend>::Sampler>;
 pub type VkBufferView = Handle<<B as hal::Backend>::BufferView>;
@@ -76,6 +76,11 @@ pub struct Gpu<B: hal::Backend> {
     renderdoc: renderdoc::RenderDoc<renderdoc::V110>,
     #[cfg(feature = "renderdoc")]
     capturing: *mut (),
+}
+
+pub struct DescriptorPool<B: hal::Backend> {
+    raw: B::DescriptorPool,
+    sets: Option<Vec<VkDescriptorSet>>,
 }
 
 pub enum Pipeline<B: hal::Backend> {

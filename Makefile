@@ -12,6 +12,7 @@ DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
+DOTA_PARAMS=-vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
@@ -45,7 +46,7 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release debug-version release-version binding run cts clean cherry dota-debug dota-release
+.PHONY: all rebuild debug release version-debug version-release binding run cts clean cherry dota-debug dota-release
 
 all: $(TARGET)
 
@@ -57,17 +58,17 @@ debug:
 
 release: $(LIBRARY_FAST)
 
-debug-version:
+version-debug:
 	cargo rustc --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
-release-version:
+version-release:
 	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
-dota-debug: debug-version
-	DYLD_LIBRARY_PATH=`pwd`/target/debug:`pwd`/$(DOTA_DIR) $(DOTA_EXE)
+dota-debug: version-debug $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=`pwd`/target/debug:`pwd`/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
 
-dota-release: release-version
-	DYLD_LIBRARY_PATH=`pwd`/target/release:`pwd`/$(DOTA_DIR) $(DOTA_EXE)
+dota-release: version-release $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=`pwd`/target/release:`pwd`/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
 
 binding: $(BINDING)
 

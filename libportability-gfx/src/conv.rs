@@ -549,7 +549,7 @@ pub fn map_front_face(face: VkFrontFace) -> pso::FrontFace {
     }
 }
 
-pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSize) -> Option<hal::Primitive> {
+pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSize) -> Option<Primitive> {
     use super::VkPrimitiveTopology::*;
 
     Some(match topology {
