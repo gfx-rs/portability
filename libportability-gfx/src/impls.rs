@@ -9,6 +9,8 @@ use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
 use hal::queue::RawCommandQueue;
 
+use smallvec::SmallVec;
+
 use std::ffi::{CStr, CString};
 #[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
@@ -357,7 +359,7 @@ pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
 }
 #[inline]
 pub extern "C" fn gfxGetInstanceProcAddr(
-    instance: VkInstance,
+    _instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = unsafe { CStr::from_ptr(pName) };
@@ -1105,9 +1107,7 @@ pub extern "C" fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let temp = unsafe { mem::zeroed() };
-
-    *buffer = match mem::replace(&mut *buffer, temp) {
+    let new = match mem::replace(&mut *buffer, unsafe { mem::zeroed() }) {
         Buffer::Buffer(_) => panic!("A non-sparse buffer can only be bound once!"),
         Buffer::Unbound(unbound) => {
             Buffer::Buffer(
@@ -1118,6 +1118,11 @@ pub extern "C" fn gfxBindBufferMemory(
         }
     };
 
+    // We need to move the value out of the Handle here,
+    // and then put something else back in.
+    let temp = mem::replace(&mut *buffer, new);
+    mem::forget(temp);
+
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1127,9 +1132,7 @@ pub extern "C" fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let temp = unsafe { mem::zeroed() };
-
-    *image = match mem::replace(&mut *image, temp) {
+    let new = match mem::replace(&mut *image, unsafe { mem::zeroed() }) {
         Image::Image { .. } => panic!("An non-sparse image can only be bound once!"),
         Image::Unbound { raw, mip_levels, array_layers } => {
             Image::Image {
@@ -1139,6 +1142,11 @@ pub extern "C" fn gfxBindImageMemory(
             }
         }
     };
+
+    // We need to move the value out of the Handle here,
+    // and then put something else back in.
+    let temp = mem::replace(&mut *image, new);
+    mem::forget(temp);
 
     VkResult::VK_SUCCESS
 }
@@ -1719,7 +1727,13 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         };
 
         let shaders = {
-            let mut set: pso::GraphicsShaderSet<_> = unsafe { mem::zeroed() };
+            let mut set = pso::GraphicsShaderSet {
+                vertex: unsafe { mem::zeroed() }, // fake entry point
+                hull: None,
+                domain: None,
+                geometry: None,
+                fragment: None,
+            };
 
             let stages = unsafe {
                 slice::from_raw_parts(info.pStages, info.stageCount as _)
@@ -1738,7 +1752,10 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 };
 
                 match stage.stage {
-                    VK_SHADER_STAGE_VERTEX_BIT => { set.vertex = entry_point; }
+                    VK_SHADER_STAGE_VERTEX_BIT => {
+                        let fake_vs_entry = mem::replace(&mut set.vertex, entry_point);
+                        mem::forget(fake_vs_entry);
+                    }
                     VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => { set.hull = Some(entry_point); }
                     VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => { set.domain = Some(entry_point); }
                     VK_SHADER_STAGE_GEOMETRY_BIT => { set.geometry = Some(entry_point); }
@@ -2431,10 +2448,9 @@ pub extern "C" fn gfxFreeDescriptorSets(
     assert!(descriptorPool.sets.is_none());
 
     descriptorPool.raw.free_sets(
-        &descriptor_sets
+        descriptor_sets
             .into_iter()
             .filter_map(|set| set.unbox())
-            .collect::<Vec<_>>()
     );
 
     VkResult::VK_SUCCESS
@@ -2450,7 +2466,8 @@ pub extern "C" fn gfxUpdateDescriptorSets(
     let write_infos = unsafe {
         slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _)
     };
-    let mut writes = Vec::new(); //TODO: avoid allocation here and below
+    //TODO: investigate the safety of passing one giant iterator here
+    let mut writes = SmallVec::<[pso::DescriptorSetWrite<_, _>; 16]>::with_capacity(write_infos.len());
 
     for write in write_infos {
         let image_info = unsafe {
@@ -2464,14 +2481,12 @@ pub extern "C" fn gfxUpdateDescriptorSets(
         };
 
         let ty = conv::map_descriptor_type(write.descriptorType);
-        let descriptors = match ty {
+        let descriptors: SmallVec<[_; 4]> = match ty {
             pso::DescriptorType::Sampler => {
                 image_info
                     .into_iter()
-                    .map(|image| pso::Descriptor::Sampler(
-                        &*image.sampler,
-                    ))
-                    .collect::<Vec<_>>()
+                    .map(|image| pso::Descriptor::Sampler(&*image.sampler))
+                    .collect()
             }
             pso::DescriptorType::InputAttachment |
             pso::DescriptorType::SampledImage |
@@ -2482,7 +2497,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                         &*image.imageView,
                         conv::map_image_layout(image.imageLayout),
                     ))
-                    .collect::<Vec<_>>()
+                    .collect()
             }
             pso::DescriptorType::UniformTexelBuffer => {
                 texel_buffer_views
@@ -2490,7 +2505,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                     .map(|view| pso::Descriptor::UniformTexelBuffer(
                         &**view,
                     ))
-                    .collect::<Vec<_>>()
+                    .collect()
             }
             pso::DescriptorType::StorageTexelBuffer => {
                 texel_buffer_views
@@ -2498,7 +2513,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                     .map(|view| pso::Descriptor::StorageTexelBuffer(
                         &**view,
                     ))
-                    .collect::<Vec<_>>()
+                    .collect()
             }
             pso::DescriptorType::UniformBuffer |
             pso::DescriptorType::StorageBuffer |
@@ -2518,7 +2533,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                             Some(buffer.offset) .. end,
                         )
                     })
-                    .collect::<Vec<_>>()
+                    .collect()
             }
             pso::DescriptorType::CombinedImageSampler => {
                 image_info
@@ -2528,7 +2543,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
                         conv::map_image_layout(image.imageLayout),
                         &*image.sampler,
                     ))
-                    .collect::<Vec<_>>()
+                    .collect()
             }
         };
 
@@ -3096,15 +3111,13 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
 
     let views = buffers
         .into_iter()
-        .zip(offsets.into_iter())
+        .zip(offsets)
         .map(|(buffer, offset)| {
             let buffer = buffer.expect("Non-sparse buffers need to be bound to device memory.");
+            (buffer, *offset)
+        });
 
-            (buffer, *offset as _)
-        })
-        .collect();
-
-    commandBuffer.bind_vertex_buffers(firstBinding, pso::VertexBufferSet(views));
+    commandBuffer.bind_vertex_buffers(firstBinding, views);
 }
 #[inline]
 pub extern "C" fn gfxCmdDraw(

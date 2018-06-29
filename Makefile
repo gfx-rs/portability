@@ -12,7 +12,8 @@ DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
-DOTA_PARAMS=-vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2
+#DOTA_PARAMS=-vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2
+DOTA_PARAMS=-vulkan_disable_occlusion_queries
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
@@ -46,7 +47,7 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release version-debug version-release binding run cts clean cherry dota-debug dota-release
+.PHONY: all rebuild debug release version-debug version-release binding run cts clean cherry dota-debug dota-release dota-orig
 
 all: $(TARGET)
 
@@ -65,10 +66,15 @@ version-release:
 	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
 dota-debug: version-debug $(DOTA_EXE)
-	DYLD_LIBRARY_PATH=`pwd`/target/debug:`pwd`/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
+	echo "env DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR)" >.lldbinit
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DEBUGGER) $(DOTA_EXE) $(DOTA_PARAMS)
 
 dota-release: version-release $(DOTA_EXE)
-	DYLD_LIBRARY_PATH=`pwd`/target/release:`pwd`/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
+dota-molten:
+	DYLD_LIBRARY_PATH=$(CURDIR)/../MoltenVK/Package/Release/MoltenVK/macOS:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE)
+dota-orig:
+	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE)
 
 binding: $(BINDING)
 
@@ -103,6 +109,7 @@ cts:
 else
 ifdef debug
 cts: $(LIBRARY)
+	echo "env LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH)" >.lldbinit
 	#(cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) ./deqp-vk -n $(debug))
 	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP_DIR)/deqp-vk -n $(debug)
 else

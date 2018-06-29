@@ -1,13 +1,14 @@
 use VK_NULL_HANDLE;
 use std::{borrow, cmp, fmt, ops};
 #[cfg(feature = "nightly")]
-use std::collections::HashMap;
-#[cfg(feature = "nightly")]
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "nightly")]
+use hal::backend::FastHashMap;
+
+#[cfg(feature = "nightly")]
 lazy_static! {
-    static ref REGISTRY: Arc<Mutex<HashMap<usize, &'static str>>> = Arc::new(Mutex::new(HashMap::new()));
+    static ref REGISTRY: Arc<Mutex<FastHashMap<usize, &'static str>>> = Arc::new(Mutex::new(FastHashMap::default()));
 }
 
 #[repr(C)]
@@ -61,6 +62,17 @@ impl<T: 'static> Handle<T> {
     }
 }
 
+impl<T> Handle<T> {
+    #[cfg(feature = "nightly")]
+    #[inline]
+    fn check(&self) {
+        assert!(REGISTRY.lock().unwrap().contains_key(&(self.0 as _)));
+    }
+    #[cfg(not(feature = "nightly"))]
+    #[inline]
+    fn check(&self) {}
+}
+
 impl<T> Clone for Handle<T> {
     fn clone(&self) -> Self {
         Handle(self.0)
@@ -72,18 +84,21 @@ impl<T> Copy for Handle<T> {}
 impl<T> ops::Deref for Handle<T> {
     type Target = T;
     fn deref(&self) -> &T {
+        self.check();
         unsafe { &*self.0 }
     }
 }
 
 impl<T> ops::DerefMut for Handle<T> {
     fn deref_mut(&mut self) -> &mut T {
+        self.check();
         unsafe { &mut *self.0 }
     }
 }
 
 impl<T> borrow::Borrow<T> for Handle<T> {
     fn borrow(&self) -> &T {
+        self.check();
         unsafe { &*self.0 }
     }
 }
