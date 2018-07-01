@@ -5,3 +5,4 @@ conformance/*.qpa
 conformance/*.txt
 **/*.rs.bk
 .vscode/
+.lldbinit

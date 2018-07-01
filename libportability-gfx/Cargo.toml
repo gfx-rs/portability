@@ -18,6 +18,7 @@ nightly = []
 [dependencies]
 lazy_static = "1.0"
 log = "0.4"
+smallvec = "0.6"
 
 [dependencies.env_logger]
 version = "0.5"
