@@ -771,6 +771,7 @@ static INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE: &str = "VK_KHR_win32_surfac
 #[cfg(target_os="macos")]
 static INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE: &str = "VK_MVK_macos_surface";
 static DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN: &str = "VK_KHR_swapchain";
+static DEVICE_EXTENSION_NAME_VK_KHR_MAINTENANCE1: &str = "VK_KHR_maintenance1";
 
 lazy_static! {
     // TODO: Request from backend
@@ -802,23 +803,13 @@ lazy_static! {
             },
         ];
 
-        extensions[0]
-            .extensionName[..VK_KHR_SURFACE_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_KHR_SURFACE_EXTENSION_NAME as &[u8])
-            });
-        #[cfg(target_os="windows")]
-        extensions[1]
-            .extensionName[..VK_KHR_WIN32_SURFACE_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_KHR_WIN32_SURFACE_EXTENSION_NAME as &[u8])
-            });
-        #[cfg(target_os = "macos")]
-        extensions[1]
-            .extensionName[..VK_MVK_MACOS_SURFACE_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_MVK_MACOS_SURFACE_EXTENSION_NAME as &[u8])
-            });
+        for (&name, extension) in INSTANCE_EXTENSION_NAMES.iter().zip(&mut extensions) {
+            extension
+                .extensionName[.. name.len()]
+                .copy_from_slice(unsafe {
+                    mem::transmute(name.as_bytes())
+                });
+        }
 
         extensions.to_vec()
     };
@@ -826,6 +817,7 @@ lazy_static! {
     static ref DEVICE_EXTENSION_NAMES: Vec<&'static str> = {
         vec![
             DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN,
+            DEVICE_EXTENSION_NAME_VK_KHR_MAINTENANCE1,
         ]
     };
 
@@ -835,13 +827,19 @@ lazy_static! {
                 extensionName: [0; 256], // VK_KHR_SWAPCHAIN_EXTENSION_NAME
                 specVersion: VK_KHR_SWAPCHAIN_SPEC_VERSION,
             },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_MAINTENANCE1_EXTENSION_NAME
+                specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
+            },
         ];
 
-        extensions[0]
-            .extensionName[..VK_KHR_SWAPCHAIN_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_KHR_SWAPCHAIN_EXTENSION_NAME as &[u8])
-            });
+        for (&name, extension) in DEVICE_EXTENSION_NAMES.iter().zip(&mut extensions) {
+            extension
+                .extensionName[.. name.len()]
+                .copy_from_slice(unsafe {
+                    mem::transmute(name.as_bytes())
+                });
+        }
 
         extensions.to_vec()
     };
