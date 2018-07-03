@@ -956,7 +956,7 @@ pub extern "C" fn gfxQueueSubmit(
         let stages = slice::from_raw_parts(submission.pWaitDstStageMask, submission.waitSemaphoreCount as _);
 
         stages.into_iter()
-            .zip(semaphores.into_iter())
+            .zip(semaphores)
             .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
             .collect::<Vec<_>>()
     };
@@ -2415,23 +2415,41 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     let sets = unsafe {
         slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
     };
-    for (set, raw_set) in sets.iter_mut().zip(descriptor_sets.into_iter()) {
-        *set = match raw_set {
-            Ok(set) => Handle::new(set),
-            Err(e) => return match e {
-                pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-                pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
-                pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
-                pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
-            },
+    let mut result = VkResult::VK_SUCCESS;
+    assert_eq!(descriptor_sets.len(), info.descriptorSetCount as usize);
+
+    for (i, raw_set) in descriptor_sets.into_iter().enumerate() {
+        match raw_set {
+            Ok(set) => {
+                sets[i] = Handle::new(set);
+            }
+            Err(e) => {
+                // revert all the changes!
+                for set in sets[..i].iter_mut() {
+                    let _ = set.unbox();
+                }
+                for set in sets.iter_mut() {
+                    *set = Handle::null();
+                }
+                result = match e {
+                    pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+                    pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                    pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
+                    pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
+                    pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
+                };
+                break;
+            }
         };
+    }
+
+    if result == VkResult::VK_SUCCESS {
         if let Some(ref mut local_sets) = pool.sets {
-            local_sets.push(*set);
+            local_sets.extend_from_slice(sets);
         }
     }
 
-    VkResult::VK_SUCCESS
+    result
 }
 #[inline]
 pub extern "C" fn gfxFreeDescriptorSets(
