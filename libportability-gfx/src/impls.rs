@@ -771,6 +771,7 @@ static INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE: &str = "VK_KHR_win32_surfac
 #[cfg(target_os="macos")]
 static INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE: &str = "VK_MVK_macos_surface";
 static DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN: &str = "VK_KHR_swapchain";
+static DEVICE_EXTENSION_NAME_VK_KHR_MAINTENANCE1: &str = "VK_KHR_maintenance1";
 
 lazy_static! {
     // TODO: Request from backend
@@ -802,23 +803,13 @@ lazy_static! {
             },
         ];
 
-        extensions[0]
-            .extensionName[..VK_KHR_SURFACE_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_KHR_SURFACE_EXTENSION_NAME as &[u8])
-            });
-        #[cfg(target_os="windows")]
-        extensions[1]
-            .extensionName[..VK_KHR_WIN32_SURFACE_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_KHR_WIN32_SURFACE_EXTENSION_NAME as &[u8])
-            });
-        #[cfg(target_os = "macos")]
-        extensions[1]
-            .extensionName[..VK_MVK_MACOS_SURFACE_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_MVK_MACOS_SURFACE_EXTENSION_NAME as &[u8])
-            });
+        for (&name, extension) in INSTANCE_EXTENSION_NAMES.iter().zip(&mut extensions) {
+            extension
+                .extensionName[.. name.len()]
+                .copy_from_slice(unsafe {
+                    mem::transmute(name.as_bytes())
+                });
+        }
 
         extensions.to_vec()
     };
@@ -826,6 +817,7 @@ lazy_static! {
     static ref DEVICE_EXTENSION_NAMES: Vec<&'static str> = {
         vec![
             DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN,
+            DEVICE_EXTENSION_NAME_VK_KHR_MAINTENANCE1,
         ]
     };
 
@@ -835,13 +827,19 @@ lazy_static! {
                 extensionName: [0; 256], // VK_KHR_SWAPCHAIN_EXTENSION_NAME
                 specVersion: VK_KHR_SWAPCHAIN_SPEC_VERSION,
             },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_MAINTENANCE1_EXTENSION_NAME
+                specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
+            },
         ];
 
-        extensions[0]
-            .extensionName[..VK_KHR_SWAPCHAIN_EXTENSION_NAME.len()]
-            .copy_from_slice(unsafe {
-                mem::transmute(VK_KHR_SWAPCHAIN_EXTENSION_NAME as &[u8])
-            });
+        for (&name, extension) in DEVICE_EXTENSION_NAMES.iter().zip(&mut extensions) {
+            extension
+                .extensionName[.. name.len()]
+                .copy_from_slice(unsafe {
+                    mem::transmute(name.as_bytes())
+                });
+        }
 
         extensions.to_vec()
     };
@@ -958,7 +956,7 @@ pub extern "C" fn gfxQueueSubmit(
         let stages = slice::from_raw_parts(submission.pWaitDstStageMask, submission.waitSemaphoreCount as _);
 
         stages.into_iter()
-            .zip(semaphores.into_iter())
+            .zip(semaphores)
             .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
             .collect::<Vec<_>>()
     };
@@ -2417,23 +2415,41 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     let sets = unsafe {
         slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
     };
-    for (set, raw_set) in sets.iter_mut().zip(descriptor_sets.into_iter()) {
-        *set = match raw_set {
-            Ok(set) => Handle::new(set),
-            Err(e) => return match e {
-                pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-                pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
-                pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
-                pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
-            },
+    let mut result = VkResult::VK_SUCCESS;
+    assert_eq!(descriptor_sets.len(), info.descriptorSetCount as usize);
+
+    for (i, raw_set) in descriptor_sets.into_iter().enumerate() {
+        match raw_set {
+            Ok(set) => {
+                sets[i] = Handle::new(set);
+            }
+            Err(e) => {
+                // revert all the changes!
+                for set in sets[..i].iter_mut() {
+                    let _ = set.unbox();
+                }
+                for set in sets.iter_mut() {
+                    *set = Handle::null();
+                }
+                result = match e {
+                    pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+                    pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                    pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
+                    pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
+                    pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
+                };
+                break;
+            }
         };
+    }
+
+    if result == VkResult::VK_SUCCESS {
         if let Some(ref mut local_sets) = pool.sets {
-            local_sets.push(*set);
+            local_sets.extend_from_slice(sets);
         }
     }
 
-    VkResult::VK_SUCCESS
+    result
 }
 #[inline]
 pub extern "C" fn gfxFreeDescriptorSets(
