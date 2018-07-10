@@ -33,7 +33,13 @@ optional = true
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/hal"
 
-[target.'cfg(not(target_os = "macos"))'.dependencies.gfx-backend-vulkan]
+[target.'cfg(unix)'.dependencies.gfx-backend-vulkan]
+git = "https://github.com/gfx-rs/gfx"
+#path = "../../gfx/src/backend/vulkan"
+features = ["use-rtld-next"]
+optional = true
+
+[target.'cfg(not(any(target_os = "macos", unix)))'.dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/vulkan"
 optional = true
