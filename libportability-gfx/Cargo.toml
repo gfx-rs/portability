@@ -14,6 +14,7 @@ name = "portability_gfx"
 default = []
 dispatch = []
 nightly = []
+metal-capture = ["gfx-backend-metal/auto-capture"]
 
 [dependencies]
 lazy_static = "1.0"
