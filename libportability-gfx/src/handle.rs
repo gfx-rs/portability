@@ -54,11 +54,7 @@ impl<T: 'static> Handle<T> {
     }
 
     pub fn as_ref(&self) -> Option<&T> {
-        if self.0 == VK_NULL_HANDLE as *mut T {
-            None
-        } else {
-            Some(unsafe { &*self.0 })
-        }
+        unsafe { self.0.as_ref() }
     }
 }
 
@@ -70,7 +66,9 @@ impl<T> Handle<T> {
     }
     #[cfg(not(feature = "nightly"))]
     #[inline]
-    fn check(&self) {}
+    fn check(&self) {
+        debug_assert!(!self.0.is_null());
+    }
 }
 
 impl<T> Clone for Handle<T> {
