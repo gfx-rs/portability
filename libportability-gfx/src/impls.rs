@@ -2303,19 +2303,18 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
             }
         });
 
-    let mut bindings = Vec::with_capacity(layout_bindings.len());
-    for binding in layout_bindings {
-        bindings.push(pso::DescriptorSetLayoutBinding {
+    let bindings = layout_bindings
+        .iter()
+        .map(|binding| pso::DescriptorSetLayoutBinding {
             binding: binding.binding as _,
             ty: conv::map_descriptor_type(binding.descriptorType),
             count: binding.descriptorCount as _,
             stage_flags: conv::map_stage_flags(binding.stageFlags),
             immutable_samplers: !binding.pImmutableSamplers.is_null(),
         });
-    }
 
     let set_layout = gpu.device
-        .create_descriptor_set_layout(&bindings, sampler_iter);
+        .create_descriptor_set_layout(bindings, sampler_iter);
 
     unsafe { *pSetLayout = Handle::new(set_layout); }
     VkResult::VK_SUCCESS
@@ -2350,12 +2349,11 @@ pub extern "C" fn gfxCreateDescriptorPool(
                 ty: conv::map_descriptor_type(pool.type_),
                 count: pool.descriptorCount as _,
             }
-        })
-        .collect::<Vec<_>>();
+        });
 
     let pool = super::DescriptorPool {
         raw: gpu.device
-            .create_descriptor_pool(info.maxSets as _, &ranges),
+            .create_descriptor_pool(info.maxSets as _, ranges),
         sets: if info.flags & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT as u32 != 0 {
             None
         } else {
@@ -2415,41 +2413,40 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     let sets = unsafe {
         slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
     };
-    let mut result = VkResult::VK_SUCCESS;
     assert_eq!(descriptor_sets.len(), info.descriptorSetCount as usize);
 
-    for (i, raw_set) in descriptor_sets.into_iter().enumerate() {
-        match raw_set {
-            Ok(set) => {
-                sets[i] = Handle::new(set);
-            }
-            Err(e) => {
-                // revert all the changes!
-                for set in sets[..i].iter_mut() {
-                    let _ = set.unbox();
-                }
-                for set in sets.iter_mut() {
-                    *set = Handle::null();
-                }
-                result = match e {
-                    pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-                    pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                    pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
-                    pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
-                    pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
-                };
-                break;
-            }
-        };
-    }
+    let error = descriptor_sets
+        .iter()
+        .find(|raw_set| raw_set.is_err())
+        .map(|raw_set| match *raw_set {
+            Ok(_) => unreachable!(),
+            Err(e) => e,
+        });
 
-    if result == VkResult::VK_SUCCESS {
-        if let Some(ref mut local_sets) = pool.sets {
-            local_sets.extend_from_slice(sets);
+    match error {
+        Some(e) => {
+            pool.raw.free_sets(descriptor_sets.into_iter().filter_map(|ds| ds.ok()));
+            for set in sets.iter_mut() {
+                *set = Handle::null();
+            }
+            match e {
+                pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+                pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
+                pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
+                pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
+            }
+        }
+        _ => {
+            for (set, raw_set) in sets.iter_mut().zip(descriptor_sets) {
+                *set = Handle::new(raw_set.unwrap());
+            }
+            if let Some(ref mut local_sets) = pool.sets {
+                local_sets.extend_from_slice(sets);
+            }
+            VkResult::VK_SUCCESS
         }
     }
-
-    result
 }
 #[inline]
 pub extern "C" fn gfxFreeDescriptorSets(
@@ -2643,10 +2640,10 @@ pub extern "C" fn gfxCreateRenderPass(
     let info = unsafe { &*pCreateInfo };
 
     // Attachment descriptions
-    let attachments = unsafe {
+    let raw_attachments = unsafe {
         slice::from_raw_parts(info.pAttachments, info.attachmentCount as _)
     };
-    let attachments = attachments
+    let attachments = raw_attachments
         .into_iter()
         .map(|attachment| {
             assert_eq!(attachment.flags, 0); // TODO
@@ -2667,16 +2664,15 @@ pub extern "C" fn gfxCreateRenderPass(
                 },
                 layouts: initial_layout .. final_layout,
             }
-        })
-        .collect::<Vec<_>>();
+        });
 
     // Subpass descriptions
-    let subpasses = unsafe {
+    let subpasses_raw = unsafe {
         slice::from_raw_parts(info.pSubpasses, info.subpassCount as _)
     };
 
     // Store all attachment references, referenced by the subpasses.
-    let mut attachment_refs = Vec::with_capacity(subpasses.len());
+    let mut attachment_refs = Vec::with_capacity(subpasses_raw.len());
     struct AttachmentRefs {
         input: Vec<pass::AttachmentRef>,
         color: Vec<pass::AttachmentRef>,
@@ -2689,7 +2685,7 @@ pub extern "C" fn gfxCreateRenderPass(
         (att_ref.attachment as _, conv::map_image_layout(att_ref.layout))
     }
 
-    for subpass in subpasses {
+    for subpass in subpasses_raw {
         let input = unsafe {
             slice::from_raw_parts(subpass.pInputAttachments, subpass.inputAttachmentCount as _)
                 .into_iter()
@@ -2743,8 +2739,7 @@ pub extern "C" fn gfxCreateRenderPass(
             inputs: &attachment_ref.input,
             resolves: &attachment_ref.resolve,
             preserves: &attachment_ref.preserve,
-        })
-        .collect::<Vec<_>>();
+        });
 
     // Subpass dependencies
     let dependencies = unsafe {
@@ -2780,12 +2775,11 @@ pub extern "C" fn gfxCreateRenderPass(
                 stages: src_stage .. dst_stage,
                 accesses: src_access .. dst_access,
             }
-        })
-        .collect::<Vec<_>>();
+        });
 
     let render_pass = gpu
         .device
-        .create_render_pass(&attachments, &subpasses, &dependencies);
+        .create_render_pass(attachments, subpasses, dependencies);
 
     unsafe {
         *pRenderPass = Handle::new(render_pass);
