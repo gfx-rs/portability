@@ -1701,27 +1701,38 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     let mut cur_shader_stage = 0;
 
     let descs = infos.into_iter().map(|info| {
-        let (rasterizer, rasterizer_discard) = {
-            let state = unsafe { &*info.pRasterizationState };
+        let rasterizer_discard = unsafe { &*info.pRasterizationState }.rasterizerDiscardEnable == VK_TRUE;
 
-            let rasterizer = pso::Rasterizer {
+        let empty_dyn_states = [];
+        let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
+            Some(state) if !rasterizer_discard => unsafe {
+                slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
+            },
+            _ => &empty_dyn_states,
+        };
+
+        let rasterizer = {
+            let state = unsafe { &*info.pRasterizationState };
+            pso::Rasterizer {
                 polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
                 cull_face: conv::map_cull_face(state.cullMode),
                 front_face: conv::map_front_face(state.frontFace),
                 depth_clamping: state.depthClampEnable == VK_TRUE,
                 depth_bias: if state.depthBiasEnable == VK_TRUE {
-                    Some(pso::DepthBias {
-                        const_factor: state.depthBiasConstantFactor,
-                        clamp: state.depthBiasClamp,
-                        slope_factor: state.depthBiasSlopeFactor,
+                    Some(if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_DEPTH_BIAS) {
+                        pso::State::Dynamic
+                    } else {
+                        pso::State::Static(pso::DepthBias {
+                            const_factor: state.depthBiasConstantFactor,
+                            clamp: state.depthBiasClamp,
+                            slope_factor: state.depthBiasSlopeFactor,
+                        })
                     })
                 } else {
                     None
                 },
                 conservative: false,
-            };
-
-            (rasterizer, state.rasterizerDiscardEnable == VK_TRUE)
+            }
         };
 
         let shaders = {
@@ -1903,14 +1914,6 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             })
         } else {
             None
-        };
-
-        let empty_dyn_states = [];
-        let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
-            Some(state) if !rasterizer_discard => unsafe {
-                slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
-            },
-            _ => &empty_dyn_states,
         };
 
         // TODO: `pDepthStencilState` could contain garbage, but implementations
@@ -2479,10 +2482,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
     let write_infos = unsafe {
         slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _)
     };
-    //TODO: investigate the safety of passing one giant iterator here
-    let mut writes = SmallVec::<[pso::DescriptorSetWrite<_, _>; 16]>::with_capacity(write_infos.len());
-
-    for write in write_infos {
+    let writes = write_infos.iter().map(|write| {
         let image_info = unsafe {
             slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
         };
@@ -2560,13 +2560,13 @@ pub extern "C" fn gfxUpdateDescriptorSets(
             }
         };
 
-        writes.push(pso::DescriptorSetWrite {
+        pso::DescriptorSetWrite {
             set: &*write.dstSet,
             binding: write.dstBinding as _,
             array_offset: write.dstArrayElement as _,
             descriptors,
-        });
-    }
+        }
+    });
 
     let copies = unsafe {
             slice::from_raw_parts(pDescriptorCopies, descriptorCopyCount as _)
