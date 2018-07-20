@@ -12,6 +12,7 @@ use hal::queue::RawCommandQueue;
 use smallvec::SmallVec;
 
 use std::ffi::{CStr, CString};
+use std::os::raw::c_int;
 #[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
 use std::{mem, ptr};
@@ -2713,6 +2714,7 @@ pub extern "C" fn gfxCreateRenderPass(
                 .pDepthStencilAttachment
                 .as_ref()
                 .map(map_attachment_ref)
+                .filter(|ds| ds.0 as c_int != VK_ATTACHMENT_UNUSED)
         };
 
         let preserve = unsafe {
@@ -3840,7 +3842,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     }
 
     unsafe { *pPresentModeCount = count as _ };
-    
+
     code
 }
 
