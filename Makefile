@@ -24,6 +24,9 @@ CFLAGS=-std=c++11 -ggdb -O0 -I$(VULKAN_DIR)
 DEPS=
 LDFLAGS=
 
+SYMLINK_DEBUG=
+SYMLINK_RELEASE=
+
 ifeq ($(OS),Windows_NT)
 	LDFLAGS=
 	BACKEND=dx12
@@ -34,6 +37,8 @@ else
 		LDFLAGS=-lpthread -ldl -lm -lX11 -lxcb
 		BACKEND=vulkan
 		LIB_EXTENSION=so
+		SYMLINK_DEBUG=target/debug/libvulkan.so.1
+		SYMLINK_RELEASE=target/release/libvulkan.so.1
 	endif
 	ifeq ($(UNAME_S),Darwin)
 		LDFLAGS=-lpthread -ldl -lm
@@ -51,18 +56,18 @@ LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
 all: $(TARGET)
 
-rebuild:
+rebuild: $(SYMLINK_DEBUG)
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
 
-debug:
+debug: $(SYMLINK_DEBUG)
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND),debug
 
-release: $(LIBRARY_FAST)
+release: $(LIBRARY_FAST) $(SYMLINK_RELEASE)
 
-version-debug:
+version-debug: $(SYMLINK_DEBUG)
 	cargo rustc --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
-version-release:
+version-release: $(SYMLINK_RELEASE)
 	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
 dota-debug: version-debug $(DOTA_EXE)
@@ -93,7 +98,7 @@ $(LIBRARY_FAST):  libportability*/src/*.rs libportability*/Cargo.toml Cargo.lock
 $(NATIVE_DIR)/%.o: native/%.cpp $(DEPS) Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-$(TARGET): $(LIBRARY) $(OBJECTS) Makefile
+$(TARGET): $(LIBRARY) $(OBJECTS) Makefile $(SYMLINK_DEBUG)
 	$(CC) -o $(TARGET) $(OBJECTS) $(LIBRARY) $(LDFLAGS)
 
 run: $(TARGET)
@@ -103,17 +108,17 @@ $(TEST_LIST): $(TEST_LIST_SOURCE)
 	cat $(TEST_LIST_SOURCE) | grep -v -e ".event" -e "query" >$(TEST_LIST)
 
 ifdef pick
-cts:
+cts: $(SYMLINK_DEBUG)
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger
 	($(DEQP) -n $(pick))
 else
 ifdef debug
-cts: $(LIBRARY)
+cts: $(LIBRARY) $(SYMLINK_DEBUG)
 	echo "env LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH)" >.lldbinit
 	#(cd $(DEQP_DIR) && LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) ./deqp-vk -n $(debug))
 	LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) $(DEBUGGER) $(DEQP_DIR)/deqp-vk -n $(debug)
 else
-cts: $(LIBRARY) $(TEST_LIST)
+cts: $(LIBRARY) $(TEST_LIST) $(SYMLINK_DEBUG)
 	($(DEQP) --deqp-caselist-file=$(TEST_LIST))
 	python $(CTS_DIR)/scripts/log/log_to_xml.py TestResults.qpa conformance/last.xml
 	mv TestResults.qpa conformance/last.qpa
@@ -127,3 +132,9 @@ clean:
 
 cherry: $(TARGET)
 	cd $(CHERRY_DIR) && rm -f Cherry.db && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
+
+$(SYMLINK_DEBUG): $(LIBRARY)
+	ln -sf "libportability.so" "$(SYMLINK_DEBUG)"
+
+$(SYMLINK_RELEASE): $(LIBRARY_FAST)
+	ln -sf "libportability.so" "$(SYMLINK_RELEASE)"
