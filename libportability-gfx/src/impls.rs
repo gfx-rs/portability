@@ -2358,7 +2358,8 @@ pub extern "C" fn gfxCreateDescriptorPool(
     let pool = super::DescriptorPool {
         raw: gpu.device
             .create_descriptor_pool(info.maxSets as _, ranges),
-        sets: if info.flags & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT as u32 != 0 {
+        temp_sets: Vec::new(),
+        set_handles: if info.flags & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT as u32 != 0 {
             None
         } else {
             Some(Vec::new())
@@ -2376,7 +2377,7 @@ pub extern "C" fn gfxDestroyDescriptorPool(
 ) {
     if let Some(pool) = descriptorPool.unbox() {
         gpu.device.destroy_descriptor_pool(pool.raw);
-        if let Some(sets) = pool.sets {
+        if let Some(sets) = pool.set_handles {
             for set in sets {
                 let _ = set.unbox();
             }
@@ -2390,7 +2391,7 @@ pub extern "C" fn gfxResetDescriptorPool(
     _flags: VkDescriptorPoolResetFlags,
 ) -> VkResult {
     descriptorPool.raw.reset();
-    if let Some(ref mut sets) = descriptorPool.sets {
+    if let Some(ref mut sets) = descriptorPool.set_handles {
         for set in sets.drain(..) {
             let _ = set.unbox();
         }
@@ -2404,8 +2405,11 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     pDescriptorSets: *mut VkDescriptorSet,
 ) -> VkResult {
     let info = unsafe { &mut *(pAllocateInfo as *mut VkDescriptorSetAllocateInfo) };
-    let pool = &mut info.descriptorPool;
+    let super::DescriptorPool { ref mut raw, ref mut temp_sets, ref mut set_handles } = *info.descriptorPool;
 
+    let out_sets = unsafe {
+        slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
+    };
     let set_layouts = unsafe {
         slice::from_raw_parts(info.pSetLayouts, info.descriptorSetCount as _)
     };
@@ -2413,24 +2417,21 @@ pub extern "C" fn gfxAllocateDescriptorSets(
         .iter()
         .map(|layout| &**layout);
 
-    let descriptor_sets = pool.raw.allocate_sets(layouts);
-    let sets = unsafe {
-        slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _)
-    };
-    assert_eq!(descriptor_sets.len(), info.descriptorSetCount as usize);
-
-    let error = descriptor_sets
-        .iter()
-        .find(|raw_set| raw_set.is_err())
-        .map(|raw_set| match *raw_set {
-            Ok(_) => unreachable!(),
-            Err(e) => e,
-        });
-
-    match error {
-        Some(e) => {
-            pool.raw.free_sets(descriptor_sets.into_iter().filter_map(|ds| ds.ok()));
-            for set in sets.iter_mut() {
+    assert!(temp_sets.is_empty());
+    match raw.allocate_sets(layouts, temp_sets) {
+        Ok(()) => {
+            assert_eq!(temp_sets.len(), info.descriptorSetCount as usize);
+            for (set, raw_set) in out_sets.iter_mut().zip(temp_sets.drain(..)) {
+                *set = Handle::new(raw_set);
+            }
+            if let Some(ref mut local_sets) = set_handles {
+                local_sets.extend_from_slice(out_sets);
+            }
+            VkResult::VK_SUCCESS
+        }
+        Err(e) => {
+            assert!(temp_sets.is_empty());
+            for set in out_sets.iter_mut() {
                 *set = Handle::null();
             }
             match e {
@@ -2440,15 +2441,6 @@ pub extern "C" fn gfxAllocateDescriptorSets(
                 pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
                 pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
             }
-        }
-        _ => {
-            for (set, raw_set) in sets.iter_mut().zip(descriptor_sets) {
-                *set = Handle::new(raw_set.unwrap());
-            }
-            if let Some(ref mut local_sets) = pool.sets {
-                local_sets.extend_from_slice(sets);
-            }
-            VkResult::VK_SUCCESS
         }
     }
 }
@@ -2462,7 +2454,7 @@ pub extern "C" fn gfxFreeDescriptorSets(
     let descriptor_sets = unsafe {
         slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
     };
-    assert!(descriptorPool.sets.is_none());
+    assert!(descriptorPool.set_handles.is_none());
 
     descriptorPool.raw.free_sets(
         descriptor_sets
@@ -3842,7 +3834,6 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     }
 
     unsafe { *pPresentModeCount = count as _ };
-
     code
 }
 

@@ -81,7 +81,8 @@ pub struct Gpu<B: hal::Backend> {
 
 pub struct DescriptorPool<B: hal::Backend> {
     raw: B::DescriptorPool,
-    sets: Option<Vec<VkDescriptorSet>>,
+    temp_sets: Vec<B::DescriptorSet>,
+    set_handles: Option<Vec<VkDescriptorSet>>,
 }
 
 pub enum Pipeline<B: hal::Backend> {
