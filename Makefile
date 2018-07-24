@@ -12,8 +12,9 @@ DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
-#DOTA_PARAMS=-vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2
-DOTA_PARAMS=-vulkan_disable_occlusion_queries
+#possible command lines are : -vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2 +vulkan_batch_submits 1 +vulkan_batch_size 500
+DOTA_PARAMS_GFX=-vulkan_disable_occlusion_queries
+DOTA_PARAMS_MOLTEN=-vulkan_disable_occlusion_queries
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
@@ -67,14 +68,16 @@ version-release:
 
 dota-debug: version-debug $(DOTA_EXE)
 	echo "env DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR)" >.lldbinit
-	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DEBUGGER) $(DOTA_EXE) $(DOTA_PARAMS)
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DEBUGGER) $(DOTA_EXE) $(DOTA_PARAMS_GFX)
 
 dota-release: version-release $(DOTA_EXE)
-	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_GFX)
 dota-molten:
-	DYLD_LIBRARY_PATH=$(CURDIR)/../MoltenVK/Package/Release/MoltenVK/macOS:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=$(CURDIR)/../MoltenVK/Package/Release/MoltenVK/macOS:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_MOLTEN)
 dota-orig:
-	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
+	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_MOLTEN)
+dota-orig-gl:
+	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) -gl
 
 binding: $(BINDING)
 
