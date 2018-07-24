@@ -2358,7 +2358,7 @@ pub extern "C" fn gfxCreateDescriptorPool(
     let pool = super::DescriptorPool {
         raw: gpu.device
             .create_descriptor_pool(info.maxSets as _, ranges),
-        temp_sets: Vec::new(),
+        temp_sets: Vec::with_capacity(info.maxSets as _),
         set_handles: if info.flags & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT as u32 != 0 {
             None
         } else {
