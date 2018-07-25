@@ -10,11 +10,15 @@ TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
+
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
 #possible command lines are : -vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2 +vulkan_batch_submits 1 +vulkan_batch_size 500
 DOTA_PARAMS_GFX=-vulkan_disable_occlusion_queries
 DOTA_PARAMS_MOLTEN=-vulkan_disable_occlusion_queries
+DOTA_DEMO_PHORONIX= "$(CURDIR)/../dota2/demos/dota2-pts-1971360796.dem"
+DOTA_BENCHMARK=+timedemoquit +timedemo $(DOTA_DEMO_PHORONIX) +timedemo_start 40000 +timedemo_end 50000 +fps_max 0 -novconsole -autoconfig_level 1 -low
+DOTA_BENCH_RESULTS=../dota2/dota/Source2Bench.csv
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
@@ -66,18 +70,29 @@ version-debug:
 version-release:
 	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 
+
 dota-debug: version-debug $(DOTA_EXE)
 	echo "env DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR)" >.lldbinit
 	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DEBUGGER) $(DOTA_EXE) $(DOTA_PARAMS_GFX)
 
 dota-release: version-release $(DOTA_EXE)
 	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_GFX)
-dota-molten:
+dota-molten: $(DOTA_EXE)
 	DYLD_LIBRARY_PATH=$(CURDIR)/../MoltenVK/Package/Release/MoltenVK/macOS:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_MOLTEN)
-dota-orig:
+dota-orig: $(DOTA_EXE)
 	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_MOLTEN)
-dota-orig-gl:
+dota-orig-gl: $(DOTA_EXE)
 	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) -gl
+
+dota-bench-gfx: version-release $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_BENCHMARK) $(DOTA_PARAMS_GFX)
+
+dota-bench-orig: $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_BENCHMARK) $(DOTA_PARAMS_MOLTEN)
+
+dota-bench-gl: $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_BENCHMARK) -gl
+
 
 binding: $(BINDING)
 
