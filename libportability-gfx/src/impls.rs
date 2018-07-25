@@ -9,8 +9,6 @@ use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
 use hal::queue::RawCommandQueue;
 
-use smallvec::SmallVec;
-
 use std::ffi::{CStr, CString};
 use std::os::raw::c_int;
 #[cfg(feature = "renderdoc")]
@@ -2417,7 +2415,6 @@ pub extern "C" fn gfxAllocateDescriptorSets(
         .iter()
         .map(|layout| &**layout);
 
-    assert!(temp_sets.is_empty());
     match raw.allocate_sets(layouts, temp_sets) {
         Ok(()) => {
             assert_eq!(temp_sets.len(), info.descriptorSetCount as usize);
@@ -2464,6 +2461,72 @@ pub extern "C" fn gfxFreeDescriptorSets(
 
     VkResult::VK_SUCCESS
 }
+
+struct DescriptorIter<'a> {
+    ty: pso::DescriptorType,
+    image_infos: slice::Iter<'a, VkDescriptorImageInfo>,
+    buffer_infos: slice::Iter<'a, VkDescriptorBufferInfo>,
+    texel_buffer_views: slice::Iter<'a, VkBufferView>,
+}
+impl<'a> Iterator for DescriptorIter<'a> {
+    type Item = pso::Descriptor<'a, B>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.ty {
+            pso::DescriptorType::Sampler => {
+                self.image_infos.next().map(|image| {
+                    pso::Descriptor::Sampler(&*image.sampler)
+                })
+            }
+            pso::DescriptorType::InputAttachment |
+            pso::DescriptorType::SampledImage |
+            pso::DescriptorType::StorageImage => {
+                self.image_infos.next().map(|image| {
+                    pso::Descriptor::Image(
+                        &*image.imageView,
+                        conv::map_image_layout(image.imageLayout),
+                    )
+                })
+            }
+            pso::DescriptorType::UniformTexelBuffer => {
+                self.texel_buffer_views.next().map(|view| {
+                    pso::Descriptor::UniformTexelBuffer(&**view)
+                })
+            }
+            pso::DescriptorType::StorageTexelBuffer => {
+                self.texel_buffer_views.next().map(|view| {
+                    pso::Descriptor::StorageTexelBuffer(&**view)
+                })
+            }
+            pso::DescriptorType::UniformBuffer |
+            pso::DescriptorType::StorageBuffer |
+            pso::DescriptorType::UniformBufferDynamic |
+            pso::DescriptorType::StorageBufferDynamic => {
+                self.buffer_infos.next().map(|buffer| {
+                    let end = if buffer.range as i32 == VK_WHOLE_SIZE {
+                        None
+                    } else {
+                        Some(buffer.offset + buffer.range)
+                    };
+                    pso::Descriptor::Buffer(
+                        // Non-sparse buffer need to be bound to device memory.
+                        buffer.buffer.expect("Buffer needs to be bound"),
+                        Some(buffer.offset) .. end,
+                    )
+                })
+            }
+            pso::DescriptorType::CombinedImageSampler => {
+                self.image_infos.next().map(|image| {
+                    pso::Descriptor::CombinedImageSampler(
+                        &*image.imageView,
+                        conv::map_image_layout(image.imageLayout),
+                        &*image.sampler,
+                    )
+                })
+            }
+        }
+    }
+}
+
 #[inline]
 pub extern "C" fn gfxUpdateDescriptorSets(
     gpu: VkDevice,
@@ -2476,83 +2539,18 @@ pub extern "C" fn gfxUpdateDescriptorSets(
         slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _)
     };
     let writes = write_infos.iter().map(|write| {
-        let image_info = unsafe {
-            slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
+        let descriptors = DescriptorIter {
+            ty: conv::map_descriptor_type(write.descriptorType),
+            image_infos: unsafe {
+                slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
+            }.iter(),
+            buffer_infos: unsafe {
+                slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
+            }.iter(),
+            texel_buffer_views: unsafe {
+                slice::from_raw_parts(write.pTexelBufferView, write.descriptorCount as _)
+            }.iter()
         };
-        let buffer_info = unsafe {
-            slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
-        };
-        let texel_buffer_views = unsafe {
-            slice::from_raw_parts(write.pTexelBufferView, write.descriptorCount as _)
-        };
-
-        let ty = conv::map_descriptor_type(write.descriptorType);
-        let descriptors: SmallVec<[_; 4]> = match ty {
-            pso::DescriptorType::Sampler => {
-                image_info
-                    .into_iter()
-                    .map(|image| pso::Descriptor::Sampler(&*image.sampler))
-                    .collect()
-            }
-            pso::DescriptorType::InputAttachment |
-            pso::DescriptorType::SampledImage |
-            pso::DescriptorType::StorageImage => {
-                image_info
-                    .into_iter()
-                    .map(|image| pso::Descriptor::Image(
-                        &*image.imageView,
-                        conv::map_image_layout(image.imageLayout),
-                    ))
-                    .collect()
-            }
-            pso::DescriptorType::UniformTexelBuffer => {
-                texel_buffer_views
-                    .into_iter()
-                    .map(|view| pso::Descriptor::UniformTexelBuffer(
-                        &**view,
-                    ))
-                    .collect()
-            }
-            pso::DescriptorType::StorageTexelBuffer => {
-                texel_buffer_views
-                    .into_iter()
-                    .map(|view| pso::Descriptor::StorageTexelBuffer(
-                        &**view,
-                    ))
-                    .collect()
-            }
-            pso::DescriptorType::UniformBuffer |
-            pso::DescriptorType::StorageBuffer |
-            pso::DescriptorType::UniformBufferDynamic |
-            pso::DescriptorType::StorageBufferDynamic => {
-                buffer_info
-                    .into_iter()
-                    .map(|buffer| {
-                        let end = if buffer.range as i32 == VK_WHOLE_SIZE {
-                            None
-                        } else {
-                            Some(buffer.offset + buffer.range)
-                        };
-                        pso::Descriptor::Buffer(
-                            // Non-sparse buffer need to be bound to device memory.
-                            buffer.buffer.expect("Buffer needs to be bound"),
-                            Some(buffer.offset) .. end,
-                        )
-                    })
-                    .collect()
-            }
-            pso::DescriptorType::CombinedImageSampler => {
-                image_info
-                    .into_iter()
-                    .map(|image| pso::Descriptor::CombinedImageSampler(
-                        &*image.imageView,
-                        conv::map_image_layout(image.imageLayout),
-                        &*image.sampler,
-                    ))
-                    .collect()
-            }
-        };
-
         pso::DescriptorSetWrite {
             set: &*write.dstSet,
             binding: write.dstBinding as _,
