@@ -2339,6 +2339,7 @@ pub extern "C" fn gfxCreateDescriptorPool(
     pDescriptorPool: *mut VkDescriptorPool,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
+    let max_sets = info.maxSets as usize;
 
     let pool_sizes = unsafe {
         slice::from_raw_parts(info.pPoolSizes, info.poolSizeCount as _)
@@ -2355,12 +2356,12 @@ pub extern "C" fn gfxCreateDescriptorPool(
 
     let pool = super::DescriptorPool {
         raw: gpu.device
-            .create_descriptor_pool(info.maxSets as _, ranges),
-        temp_sets: Vec::with_capacity(info.maxSets as _),
+            .create_descriptor_pool(max_sets, ranges),
+        temp_sets: Vec::with_capacity(max_sets),
         set_handles: if info.flags & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT as u32 != 0 {
             None
         } else {
-            Some(Vec::new())
+            Some(Vec::with_capacity(max_sets))
         },
     };
 
