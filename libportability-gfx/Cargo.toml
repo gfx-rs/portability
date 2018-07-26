@@ -19,7 +19,6 @@ metal-capture = ["gfx-backend-metal/auto-capture"]
 [dependencies]
 lazy_static = "1.0"
 log = { version = "0.4", features = ["release_max_level_error"] }
-smallvec = "0.6"
 
 [dependencies.env_logger]
 version = "0.5"
