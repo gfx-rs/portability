@@ -680,6 +680,22 @@ pub extern "C" fn gfxCreateDevice(
 
     match gpu {
         Ok(mut gpu) => {
+            #[cfg(feature = "gfx-backend-metal")]
+            {
+                use back::OnlineRecording;
+                use std::env;
+
+                if let Ok(value) = env::var("GFX_METAL_RECORDING") {
+                    gpu.device.online_recording = match value.to_lowercase().as_str() {
+                        "immediate" => OnlineRecording::Immediate,
+                        "deferred" => OnlineRecording::Deferred,
+                        //"remote" => OnlineRecording::Remote(dispatch::QueuePriority::Default),
+                        other => panic!("unknown recording option: {}", other),
+                    };
+                    println!("GFX: environment override {:?}", gpu.device.online_recording);
+                }
+            }
+
             let queues = queue_infos
                 .iter()
                 .map(|info| {

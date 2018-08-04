@@ -17,12 +17,13 @@ DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
 DOTA_PARAMS_GFX=-vulkan_disable_occlusion_queries
 DOTA_PARAMS_MOLTEN=-vulkan_disable_occlusion_queries
 DOTA_DEMO_PHORONIX= "$(CURDIR)/../dota2/demos/dota2-pts-1971360796.dem"
-DOTA_BENCHMARK=+timedemoquit +timedemo $(DOTA_DEMO_PHORONIX) +timedemo_start 40000 +timedemo_end 50000 +fps_max 0 -novconsole -high -autoconfig_level 1
+DOTA_BENCHMARK=+timedemoquit +timedemo $(DOTA_DEMO_PHORONIX) +timedemo_start 40000 +timedemo_end 50000 +fps_max 0 -novconsole -high -autoconfig_level 3
 DOTA_BENCH_RESULTS=../dota2/dota/Source2Bench.csv
 
 RUST_BACKTRACE:=1
 BACKEND:=gl
 DEBUGGER=rust-gdb --args
+GFX_METAL_RECORDING:=immediate
 
 CC=g++
 CFLAGS=-std=c++11 -ggdb -O0 -I$(VULKAN_DIR)
