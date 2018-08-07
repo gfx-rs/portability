@@ -1636,22 +1636,25 @@ pub extern "C" fn gfxDestroyShaderModule(
 }
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
-    _gpu: VkDevice,
+    gpu: VkDevice,
     _pCreateInfo: *const VkPipelineCacheCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    //TODO
-    unsafe { *pPipelineCache = Handle::new(()) };
+    //TODO: load
+    let cache = gpu.device.create_pipeline_cache();
+    unsafe { *pPipelineCache = Handle::new(cache) };
     VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipelineCache(
-    _gpu: VkDevice,
+    gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    let _ = pipelineCache.unbox();
+    if let Some(cache) = pipelineCache.unbox() {
+        gpu.device.destroy_pipeline_cache(cache);
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetPipelineCacheData(
@@ -1660,23 +1663,28 @@ pub extern "C" fn gfxGetPipelineCacheData(
     pDataSize: *mut usize,
     _pData: *mut ::std::os::raw::c_void,
 ) -> VkResult {
+    //TODO: save
     unsafe { *pDataSize = 0; }
     VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxMergePipelineCaches(
-    _device: VkDevice,
-    _dstCache: VkPipelineCache,
-    _srcCacheCount: u32,
-    _pSrcCaches: *const VkPipelineCache,
+    gpu: VkDevice,
+    dstCache: VkPipelineCache,
+    srcCacheCount: u32,
+    pSrcCaches: *const VkPipelineCache,
 ) -> VkResult {
+    let caches = unsafe {
+        slice::from_raw_parts(pSrcCaches, srcCacheCount as usize)
+    };
+    gpu.device.merge_pipeline_caches(&*dstCache, caches.into_iter().map(|h| &**h));
     VkResult::VK_SUCCESS
 }
 
 #[inline]
 pub extern "C" fn gfxCreateGraphicsPipelines(
     gpu: VkDevice,
-    _pipelineCache: VkPipelineCache,
+    pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkGraphicsPipelineCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -1687,33 +1695,24 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     };
 
     const NUM_SHADER_STAGES: usize = 5;
-    let mut shader_stages = Vec::with_capacity(infos.len() * NUM_SHADER_STAGES);
+    let mut specializations = Vec::with_capacity(infos.len() * NUM_SHADER_STAGES);
 
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
-    // TODO: try to refactor it once we have a more generic API
     for info in infos {
         let stages = unsafe {
             slice::from_raw_parts(info.pStages, info.stageCount as _)
         };
-
-        for stage in stages {
-            let name = unsafe { CStr::from_ptr(stage.pName).to_owned() };
-            let specialization = unsafe { stage
+        specializations.extend(stages.iter().map(|stage| unsafe {
+            stage
                 .pSpecializationInfo
                 .as_ref()
                 .map(conv::map_specialization_info)
                 .unwrap_or_default()
-            };
-
-            shader_stages.push((
-                name.into_string().unwrap(),
-                specialization,
-            ));
-        }
+        }));
     }
 
-    let mut cur_shader_stage = 0;
+    let mut cur_specialization = 0;
 
     let descs = infos.into_iter().map(|info| {
         let rasterizer_discard = unsafe { &*info.pRasterizationState }.rasterizerDiscardEnable == VK_TRUE;
@@ -1766,14 +1765,13 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             for stage in stages {
                 use super::VkShaderStageFlagBits::*;
 
-                let (ref name, ref specialization) = shader_stages[cur_shader_stage];
-                cur_shader_stage += 1;
-
+                let name = unsafe { CStr::from_ptr(stage.pName) };
                 let entry_point = pso::EntryPoint {
-                    entry: &name,
+                    entry: name.to_str().unwrap(),
                     module: &*stage.module,
-                    specialization: &specialization,
+                    specialization: &specializations[cur_specialization],
                 };
+                cur_specialization += 1;
 
                 match stage.stage {
                     VK_SHADER_STAGE_VERTEX_BIT => {
@@ -2080,26 +2078,27 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         }
     });
 
-    let pipelines = gpu.device.create_graphics_pipelines(descs);
-
-    let pipelines = unsafe {
+    let pipelines = gpu.device.create_graphics_pipelines(descs, pipelineCache.as_ref());
+    let out_pipelines = unsafe {
         slice::from_raw_parts_mut(pPipelines, infos.len())
-            .into_iter()
-            .zip(pipelines)
     };
 
-    for (pipeline, raw) in pipelines {
-        if let Ok(raw) = raw {
-            *pipeline = Handle::new(Pipeline::Graphics(raw));
+    if pipelines.iter().any(|p| p.is_err()) {
+        for op in out_pipelines {
+            *op = Handle::null();
         }
+        VkResult::VK_ERROR_INCOMPATIBLE_DRIVER
+    } else {
+        for (op, raw) in out_pipelines.iter_mut().zip(pipelines) {
+            *op = Handle::new(Pipeline::Graphics(raw.unwrap()));
+        }
+        VkResult::VK_SUCCESS
     }
-
-    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxCreateComputePipelines(
     gpu: VkDevice,
-    _pipelineCache: VkPipelineCache,
+    pipelineCache: VkPipelineCache,
     createInfoCount: u32,
     pCreateInfos: *const VkComputePipelineCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -2111,31 +2110,24 @@ pub extern "C" fn gfxCreateComputePipelines(
 
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
-    // TODO: try to refactor it once we have a more generic API
-    let shader_stages = infos
+    let specializations = infos
         .iter()
-        .map(|info| {
-            let name = unsafe { CStr::from_ptr(info.stage.pName).to_owned() };
-            let specialization = unsafe { info.stage
+        .map(|info| unsafe {
+            info.stage
                 .pSpecializationInfo
                 .as_ref()
                 .map(conv::map_specialization_info)
                 .unwrap_or_default()
-            };
-
-            (
-                name.into_string().unwrap(),
-                specialization,
-            )
         })
         .collect::<Vec<_>>();
 
     let descs = infos
-        .into_iter()
-        .zip(&shader_stages)
-        .map(|(info, &(ref entry, ref specialization))| {
+        .iter()
+        .zip(&specializations)
+        .map(|(info, specialization)| {
+            let name = unsafe { CStr::from_ptr(info.stage.pName) };
             let shader = pso::EntryPoint {
-                entry,
+                entry: name.to_str().unwrap(),
                 module: &*info.stage.module,
                 specialization,
             };
@@ -2175,24 +2167,24 @@ pub extern "C" fn gfxCreateComputePipelines(
                 flags,
                 parent,
             }
-        })
-        .collect::<Vec<_>>();
+        });
 
-    let pipelines = gpu.device.create_compute_pipelines(&descs);
-
-    let pipelines = unsafe {
-        slice::from_raw_parts_mut(pPipelines, descs.len())
-            .into_iter()
-            .zip(pipelines.into_iter())
+    let pipelines = gpu.device.create_compute_pipelines(descs, pipelineCache.as_ref());
+    let out_pipelines = unsafe {
+        slice::from_raw_parts_mut(pPipelines, infos.len())
     };
 
-    for (pipeline, raw) in pipelines {
-        if let Ok(raw) = raw {
-            *pipeline = Handle::new(Pipeline::Compute(raw));
+    if pipelines.iter().any(|p| p.is_err()) {
+        for op in out_pipelines {
+            *op = Handle::null();
         }
+        VkResult::VK_ERROR_INCOMPATIBLE_DRIVER
+    } else {
+        for (op, raw) in out_pipelines.iter_mut().zip(pipelines) {
+            *op = Handle::new(Pipeline::Compute(raw.unwrap()));
+        }
+        VkResult::VK_SUCCESS
     }
-
-    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyPipeline(

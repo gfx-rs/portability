@@ -58,7 +58,7 @@ pub type VkFence = Handle<<B as hal::Backend>::Fence>;
 pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
 pub type VkFramebuffer = Handle<<B as hal::Backend>::Framebuffer>;
 pub type VkPipeline = Handle<Pipeline<B>>;
-pub type VkPipelineCache = Handle<()>;
+pub type VkPipelineCache = Handle<<B as hal::Backend>::PipelineCache>;
 
 pub type QueueFamilyIndex = u32;
 
