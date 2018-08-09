@@ -692,7 +692,7 @@ pub extern "C" fn gfxCreateDevice(
                         //"remote" => OnlineRecording::Remote(dispatch::QueuePriority::Default),
                         other => panic!("unknown recording option: {}", other),
                     };
-                    println!("GFX: environment override {:?}", gpu.device.online_recording);
+                    println!("GFX: recording override {:?}", gpu.device.online_recording);
                 }
             }
 
@@ -949,6 +949,23 @@ pub extern "C" fn gfxGetDeviceQueue(
     let queue = gpu.queues
         .get(&queueFamilyIndex)
         .unwrap()[queueIndex as usize];
+
+        #[cfg(feature = "gfx-backend-metal")]
+        {
+            use std::env;
+
+            if let Ok(value) = env::var("GFX_METAL_STITCHING") {
+                let mut q = queue;
+                q.stitch_deferred = match value.to_lowercase().as_str() {
+                    "yes" => true,
+                    "no" => false,
+                    other => panic!("unknown stitching option: {}", other),
+                };
+                println!("GFX: stitching override {:?}", q.stitch_deferred);
+            }
+        }
+
+
     unsafe {
         *pQueue = queue;
     }

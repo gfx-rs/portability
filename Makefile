@@ -73,6 +73,9 @@ version-release:
 
 
 dota-debug: version-debug $(DOTA_EXE)
+	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS_GFX)
+
+dota-debugger: version-debug $(DOTA_EXE)
 	echo "env DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR)" >.lldbinit
 	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DEBUGGER) $(DOTA_EXE) $(DOTA_PARAMS_GFX)
 
@@ -94,6 +97,13 @@ dota-bench-orig: $(DOTA_EXE)
 dota-bench-gl: $(DOTA_EXE)
 	DYLD_LIBRARY_PATH=$(CURDIR)/target/release:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_BENCHMARK) -gl
 
+ifeq ($(UNAME_S),Darwin)
+target/debug/libMoltenVK.dylib: version-debug
+	cd target/debug && ln -sf libportability.dylib libMoltenVK.dylib
+target/release/libMoltenVK.dylib: version-release
+	cd target/release && ln -sf libportability.dylib libMoltenVK.dylib
+molten-links: target/debug/libMoltenVK.dylib target/release/libMoltenVK.dylib
+endif
 
 binding: $(BINDING)
 
