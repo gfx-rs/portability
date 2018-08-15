@@ -756,7 +756,10 @@ pub extern "C" fn gfxCreateDevice(
 
             VkResult::VK_SUCCESS
         }
-        Err(err) => conv::map_err_device_creation(err),
+        Err(err) => {
+            error!("{}", err);
+            conv::map_err_device_creation(err)
+        },
     }
 }
 
@@ -2101,6 +2104,11 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     };
 
     if pipelines.iter().any(|p| p.is_err()) {
+        for pipeline in pipelines {
+            if let Err(e) = pipeline {
+                error!("{}", e);
+            }
+        }
         for op in out_pipelines {
             *op = Handle::null();
         }
@@ -2192,6 +2200,11 @@ pub extern "C" fn gfxCreateComputePipelines(
     };
 
     if pipelines.iter().any(|p| p.is_err()) {
+        for pipeline in pipelines {
+            if let Err(e) = pipeline {
+                error!("{}", e);
+            }
+        }
         for op in out_pipelines {
             *op = Handle::null();
         }
@@ -2457,6 +2470,7 @@ pub extern "C" fn gfxAllocateDescriptorSets(
             for set in out_sets.iter_mut() {
                 *set = Handle::null();
             }
+            error!("{}", e);
             match e {
                 pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
                 pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
