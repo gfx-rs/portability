@@ -3,6 +3,8 @@ target/
 conformance/*.xml
 conformance/*.qpa
 conformance/*.txt
+package.zip
 **/*.rs.bk
 .vscode/
 .lldbinit
+.DS_Store
