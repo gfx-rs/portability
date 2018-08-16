@@ -154,6 +154,9 @@ clean:
 	rm -f $(NATIVE_OBJECTS) $(NATIVE_TARGET) $(BINDING)
 	cargo clean
 
+package.zip: version-debug version-release
+	zip package.zip target/*/libportability.$(LIB_EXTENSION) .git/refs/heads/master
+
 target/debug/libvulkan.$(LIB_EXTENSION):
 	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
 
