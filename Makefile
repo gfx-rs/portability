@@ -3,8 +3,8 @@ CTS_DIR=../VK-GL-CTS
 CHERRY_DIR=../cherry
 BINDING=target/vulkan.rs
 NATIVE_DIR=target/native
-TARGET=$(NATIVE_DIR)/test
-OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
+NATIVE_TARGET=$(NATIVE_DIR)/test
+NATIVE_OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
 LIB_EXTENSION=
 TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
@@ -53,9 +53,9 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release version-debug version-release binding run cts clean cherry dota-debug dota-release dota-orig
+.PHONY: all rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl
 
-all: $(TARGET)
+all: $(NATIVE_TARGET)
 
 rebuild:
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
@@ -122,11 +122,11 @@ $(LIBRARY_FAST):  libportability*/src/*.rs libportability*/Cargo.toml Cargo.lock
 $(NATIVE_DIR)/%.o: native/%.cpp $(DEPS) Makefile
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-$(TARGET): $(LIBRARY) $(OBJECTS) Makefile
-	$(CC) -o $(TARGET) $(OBJECTS) $(LIBRARY) $(LDFLAGS)
+$(NATIVE_TARGET): $(LIBRARY) $(NATIVE_OBJECTS) Makefile
+	$(CC) -o $(NATIVE_TARGET) $(NATIVE_OBJECTS) $(LIBRARY) $(LDFLAGS)
 
-run: $(TARGET)
-	$(TARGET)
+run-native: $(NATIVE_TARGET)
+	$(NATIVE_TARGET)
 
 $(TEST_LIST): $(TEST_LIST_SOURCE)
 	cat $(TEST_LIST_SOURCE) | grep -v -e ".event" -e "query" >$(TEST_LIST)
@@ -151,8 +151,11 @@ endif #debug
 endif #pick
 
 clean:
-	rm -f $(OBJECTS) $(TARGET) $(BINDING)
+	rm -f $(NATIVE_OBJECTS) $(NATIVE_TARGET) $(BINDING)
 	cargo clean
 
-cherry: $(TARGET)
+target/debug/libvulkan.$(LIB_EXTENSION):
+	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
+
+cherry: $(LIBRARY) target/debug/libvulkan.$(LIB_EXTENSION)
 	cd $(CHERRY_DIR) && rm -f Cherry.db && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
