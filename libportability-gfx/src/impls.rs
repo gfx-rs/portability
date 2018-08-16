@@ -3892,16 +3892,16 @@ pub extern "C" fn gfxCreateSwapchainKHR(
 
     let config = hal::SwapchainConfig {
         present_mode: conv::map_present_mode(info.presentMode),
-        color_format: conv::map_format(info.imageFormat).unwrap(),
-        depth_stencil_format: None,
+        format: conv::map_format(info.imageFormat).unwrap(),
+        extent: conv::map_extent2d(info.imageExtent),
         image_count: info.minImageCount,
+        image_layers: 1,
         image_usage: conv::map_image_usage(info.imageUsage),
     };
     let (swapchain, backbuffers) = gpu.device.create_swapchain(
         &mut info.surface.clone(),
         config,
         info.oldSwapchain.unbox().map(|s| s.raw),
-        &conv::map_extent2d(info.imageExtent),
     );
 
     let images = match backbuffers {
