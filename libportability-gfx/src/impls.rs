@@ -3801,7 +3801,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
         supportedCompositeAlpha: VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
             as _,
-        supportedUsageFlags: 0,
+        supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
     };
 
     unsafe { *pSurfaceCapabilities = output };

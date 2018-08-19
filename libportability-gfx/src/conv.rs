@@ -16,6 +16,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxFramebufferHeight: limits.max_texture_size as _, //TODO
         maxTexelBufferElements: limits.max_texture_size as _, //TODO
         maxTessellationPatchSize: limits.max_patch_size as _,
+        maxPushConstantsSize: 0x80, //TODO
         maxViewports: limits.max_viewports as _,
         maxVertexInputAttributes: limits.max_vertex_input_attributes as _,
         maxVertexInputBindings: limits.max_vertex_input_bindings as _,
@@ -238,34 +239,11 @@ pub fn map_image_layout(layout: VkImageLayout) -> image::Layout {
 }
 
 pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
-    let mut flags = image::Usage::empty();
+    image::Usage::from_bits_truncate(usage as u32)
+}
 
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_SRC_BIT as u32 != 0 {
-        flags |= image::Usage::TRANSFER_SRC;
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSFER_DST_BIT as u32 != 0 {
-        flags |= image::Usage::TRANSFER_DST;
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_SAMPLED_BIT as u32 != 0 {
-        flags |= image::Usage::SAMPLED;
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_STORAGE_BIT as u32 != 0 {
-        flags |= image::Usage::STORAGE;
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as u32 != 0 {
-        flags |= image::Usage::COLOR_ATTACHMENT;
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT as u32 != 0 {
-        flags |= image::Usage::DEPTH_STENCIL_ATTACHMENT;
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT as u32 != 0 {
-        warn!("VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT is not supported yet");
-    }
-    if usage & VkImageUsageFlagBits::VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT as u32 != 0 {
-        warn!("VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT is not supported yet");
-    }
-
-    flags
+pub fn map_image_usage_from_hal(usage: image::Usage) -> VkImageUsageFlags {
+    usage.bits()
 }
 
 pub fn map_image_access(access: VkAccessFlags) -> image::Access {
@@ -449,12 +427,6 @@ pub fn map_stage_flags(stages: VkShaderStageFlags) -> pso::ShaderStageFlags {
     }
     if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
         flags |= pso::ShaderStageFlags::COMPUTE;
-    }
-    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
-        flags |= pso::ShaderStageFlags::GRAPHICS;
-    }
-    if stages & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL as u32 != 0 {
-        flags |= pso::ShaderStageFlags::ALL;
     }
 
     flags
