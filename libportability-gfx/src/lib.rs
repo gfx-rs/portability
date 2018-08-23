@@ -59,6 +59,7 @@ pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
 pub type VkFramebuffer = Handle<<B as hal::Backend>::Framebuffer>;
 pub type VkPipeline = Handle<Pipeline<B>>;
 pub type VkPipelineCache = Handle<<B as hal::Backend>::PipelineCache>;
+pub type VkQueryPool = Handle<<B as hal::Backend>::QueryPool>;
 
 pub type QueueFamilyIndex = u32;
 
@@ -651,12 +652,6 @@ pub struct VkEvent_T {
     _unused: [u8; 0],
 }
 pub type VkEvent = *mut VkEvent_T;
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkQueryPool_T {
-    _unused: [u8; 0],
-}
-pub type VkQueryPool = *mut VkQueryPool_T;
 
 pub const VkPipelineCacheHeaderVersion_VK_PIPELINE_CACHE_HEADER_VERSION_BEGIN_RANGE:
           VkPipelineCacheHeaderVersion =

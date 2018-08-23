@@ -704,15 +704,33 @@ pub fn map_index_type(ty: VkIndexType) -> IndexType {
 }
 
 #[inline]
-pub fn map_query_control(flags: VkQueryControlFlags) -> query::QueryControl {
+pub fn map_query_type(ty: VkQueryType, statistic: VkQueryPipelineStatisticFlags) -> query::Type {
+    match ty {
+        VkQueryType::VK_QUERY_TYPE_OCCLUSION => query::Type::Occlusion,
+        VkQueryType::VK_QUERY_TYPE_PIPELINE_STATISTICS => query::Type::PipelineStatistics(
+            map_pipeline_statistics(statistic)
+        ),
+        VkQueryType::VK_QUERY_TYPE_TIMESTAMP => query::Type::Timestamp,
+        _ => panic!("Unexpected query type: {:?}", ty),
+    }
+}
+
+#[inline]
+pub fn map_query_control(flags: VkQueryControlFlags) -> query::ControlFlags {
     // Vulkan and HAL flags are equal
-    unsafe { mem::transmute(flags) }
+    query::ControlFlags::from_bits_truncate(flags as u32)
+}
+
+#[inline]
+pub fn map_query_result(flags: VkQueryResultFlags) -> query::ResultFlags {
+    // Vulkan and HAL flags are equal
+    query::ResultFlags::from_bits_truncate(flags as u32)
 }
 
 #[inline]
 pub fn map_pipeline_statistics(flags: VkQueryPipelineStatisticFlags) -> query::PipelineStatistic {
     // Vulkan and HAL flags are equal
-    unsafe { mem::transmute(flags) }
+    query::PipelineStatistic::from_bits_truncate(flags as u32)
 }
 
 pub fn map_specialization_info(specialization: &VkSpecializationInfo) -> Vec<pso::Specialization> {
