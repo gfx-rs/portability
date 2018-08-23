@@ -1389,44 +1389,61 @@ pub extern "C" fn gfxResetEvent(_gpu: VkDevice, _event: VkEvent) -> VkResult {
 }
 #[inline]
 pub extern "C" fn gfxCreateQueryPool(
-    _gpu: VkDevice,
-    _pCreateInfo: *const VkQueryPoolCreateInfo,
+    gpu: VkDevice,
+    pCreateInfo: *const VkQueryPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pQueryPool: *mut VkQueryPool,
 ) -> VkResult {
-    //TODO
-    unsafe { *pQueryPool = ptr::null_mut() };
-    VkResult::VK_ERROR_DEVICE_LOST
+    let info = unsafe { &*pCreateInfo };
+    let pool = gpu.device.create_query_pool(
+        conv::map_query_type(info.queryType, info.pipelineStatistics),
+        info.queryCount,
+    );
+
+    match pool {
+        Ok(pool) => {
+            unsafe { *pQueryPool = Handle::new(pool) };
+            VkResult::VK_SUCCESS
+        }
+        Err(_) => {
+            unsafe { *pQueryPool = Handle::null() };
+            VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY
+        }
+    }
 }
 #[inline]
 pub extern "C" fn gfxDestroyQueryPool(
-    _gpu: VkDevice,
+    gpu: VkDevice,
     queryPool: VkQueryPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    if queryPool != ptr::null_mut() {
-        unimplemented!()
+    if let Some(pool) = queryPool.unbox() {
+        gpu.device.destroy_query_pool(pool);
     }
 }
 #[inline]
 pub extern "C" fn gfxGetQueryPoolResults(
-    _gpu: VkDevice,
-    _queryPool: VkQueryPool,
-    _firstQuery: u32,
-    _queryCount: u32,
+    gpu: VkDevice,
+    queryPool: VkQueryPool,
+    firstQuery: u32,
+    queryCount: u32,
     dataSize: usize,
     pData: *mut ::std::os::raw::c_void,
-    _stride: VkDeviceSize,
-    _flags: VkQueryResultFlags,
+    stride: VkDeviceSize,
+    flags: VkQueryResultFlags,
 ) -> VkResult {
-    error!("Query pools are not implemented");
-    let slice = unsafe {
-        slice::from_raw_parts_mut(pData as *mut u8, dataSize)
-    };
-    for d in slice {
-        *d = 0; //TODO
+    let result = gpu.device.get_query_pool_results(
+        &*queryPool,
+        firstQuery .. firstQuery + queryCount,
+        unsafe { slice::from_raw_parts_mut(pData as *mut u8, dataSize) },
+        stride,
+        conv::map_query_result(flags),
+    );
+    match result {
+        Ok(true) => VkResult::VK_SUCCESS,
+        Ok(false) => VkResult::VK_NOT_READY,
+        Err(_) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
     }
-    VkResult::VK_ERROR_DEVICE_LOST
 }
 #[inline]
 pub extern "C" fn gfxCreateBuffer(
@@ -3619,51 +3636,70 @@ pub extern "C" fn gfxCmdPipelineBarrier(
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginQuery(
-    _commandBuffer: VkCommandBuffer,
-    _queryPool: VkQueryPool,
-    _query: u32,
-    _flags: VkQueryControlFlags,
+    mut commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    query: u32,
+    flags: VkQueryControlFlags,
 ) {
-    error!("Query pools are not implemented");
+    let query = hal::query::Query {
+        pool: &*queryPool,
+        id: query,
+    };
+    commandBuffer.begin_query(query, conv::map_query_control(flags));
 }
 #[inline]
 pub extern "C" fn gfxCmdEndQuery(
-    _commandBuffer: VkCommandBuffer,
-    _queryPool: VkQueryPool,
-    _query: u32,
+    mut commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    query: u32,
 ) {
-    error!("Query pools are not implemented");
+    let query = hal::query::Query {
+        pool: &*queryPool,
+        id: query,
+    };
+    commandBuffer.end_query(query);
 }
 #[inline]
 pub extern "C" fn gfxCmdResetQueryPool(
-    _commandBuffer: VkCommandBuffer,
-    _queryPool: VkQueryPool,
-    _firstQuery: u32,
-    _queryCount: u32,
+    mut commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    firstQuery: u32,
+    queryCount: u32,
 ) {
-    error!("Query pools are not implemented");
+    commandBuffer.reset_query_pool(&*queryPool, firstQuery .. firstQuery + queryCount);
 }
 #[inline]
 pub extern "C" fn gfxCmdWriteTimestamp(
-    _commandBuffer: VkCommandBuffer,
-    _pipelineStage: VkPipelineStageFlagBits,
-    _queryPool: VkQueryPool,
-    _query: u32,
+    mut commandBuffer: VkCommandBuffer,
+    pipelineStage: VkPipelineStageFlagBits,
+    queryPool: VkQueryPool,
+    query: u32,
 ) {
-    unimplemented!()
+    let query = hal::query::Query {
+        pool: &*queryPool,
+        id: query,
+    };
+    commandBuffer.write_timestamp(conv::map_pipeline_stage_flags(pipelineStage as u32), query);
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyQueryPoolResults(
-    _commandBuffer: VkCommandBuffer,
-    _queryPool: VkQueryPool,
-    _firstQuery: u32,
-    _queryCount: u32,
-    _dstBuffer: VkBuffer,
-    _dstOffset: VkDeviceSize,
-    _stride: VkDeviceSize,
-    _flags: VkQueryResultFlags,
+    mut commandBuffer: VkCommandBuffer,
+    queryPool: VkQueryPool,
+    firstQuery: u32,
+    queryCount: u32,
+    dstBuffer: VkBuffer,
+    dstOffset: VkDeviceSize,
+    stride: VkDeviceSize,
+    flags: VkQueryResultFlags,
 ) {
-    unimplemented!()
+    commandBuffer.copy_query_pool_results(
+        &*queryPool,
+        firstQuery .. firstQuery + queryCount,
+        dstBuffer.expect("Invalid destination buffer!"),
+        dstOffset,
+        stride,
+        conv::map_query_result(flags),
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdPushConstants(
