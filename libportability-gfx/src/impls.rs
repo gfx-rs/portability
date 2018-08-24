@@ -293,7 +293,7 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
             *pImageFormatProperties = conv::image_format_properties_from_hal(props);
             VkResult::VK_SUCCESS
         },
-        None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED
+        None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED,
     }
 }
 #[inline]
@@ -1535,7 +1535,9 @@ pub extern "C" fn gfxCreateImage(
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
     assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
-    assert_eq!(info.initialLayout, VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED); // TODO
+    if info.initialLayout != VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED {
+        warn!("unexpected initial layout: {:?}", info.initialLayout);
+    }
 
     let image = gpu.device
         .create_image(
@@ -1884,7 +1886,9 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 .as_ref()
                 .map(|_| unsafe { &*info.pTessellationState });
 
-            assert_eq!(input_state.primitiveRestartEnable, VK_FALSE); // TODO
+            if input_state.primitiveRestartEnable != VK_FALSE {
+                warn!("Primitive restart may not work as expected!");
+            }
 
             let primitive = match conv::map_primitive_topology(
                 input_state.topology,

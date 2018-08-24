@@ -14,7 +14,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxImageDimensionCube: limits.max_texture_size as _,
         maxFramebufferWidth: limits.max_texture_size as _, //TODO
         maxFramebufferHeight: limits.max_texture_size as _, //TODO
-        maxTexelBufferElements: limits.max_texture_size as _, //TODO
+        maxTexelBufferElements: limits.max_texel_elements as _,
         maxTessellationPatchSize: limits.max_patch_size as _,
         maxPushConstantsSize: 0x80, //TODO
         maxViewports: limits.max_viewports as _,
