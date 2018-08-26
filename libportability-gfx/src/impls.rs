@@ -3938,11 +3938,26 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         image_layers: 1,
         image_usage: conv::map_image_usage(info.imageUsage),
     };
-    let (swapchain, backbuffers) = gpu.device.create_swapchain(
+    let (mut swapchain, backbuffers) = gpu.device.create_swapchain(
         &mut info.surface.clone(),
         config,
-        info.oldSwapchain.unbox().map(|s| s.raw),
+        info.oldSwapchain.as_mut().and_then(|s| s.raw.take()), //Note: no unboxing!
     );
+
+    #[cfg(feature = "gfx-backend-metal")]
+    {
+        use back::AcquireMode;
+        use std::env;
+
+        if let Ok(value) = env::var("GFX_METAL_ACQUIRING") {
+            swapchain.acquire_mode = match value.to_lowercase().as_str() {
+                "wait" => AcquireMode::Wait,
+                "oldest" => AcquireMode::Oldest,
+                other => panic!("unknown acquiring option: {}", other),
+            };
+            println!("GFX: acquiring override {:?}", swapchain.acquire_mode);
+        }
+    }
 
     let images = match backbuffers {
         hal::Backbuffer::Images(images) => images
@@ -3959,7 +3974,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     };
 
     let swapchain = Swapchain {
-        raw: swapchain,
+        raw: Some(swapchain),
         images,
     };
 
@@ -4223,7 +4238,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
 pub extern "C" fn gfxAcquireNextImageKHR(
     _device: VkDevice,
     mut swapchain: VkSwapchainKHR,
-    _timeout: u64, // TODO
+    timeout: u64,
     semaphore: VkSemaphore,
     fence: VkFence,
     pImageIndex: *mut u32,
@@ -4233,10 +4248,20 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => FrameSync::Fence(&*fence),
     };
 
-    let frame = swapchain.raw.acquire_image(sync).unwrap();
-    unsafe { *pImageIndex = frame; }
+    let raw = match swapchain.raw {
+        Some(ref mut raw) => raw,
+        None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
+    };
 
-    VkResult::VK_SUCCESS
+    match raw.acquire_image(timeout, sync) {
+        Ok(frame) => {
+            unsafe { *pImageIndex = frame; }
+            VkResult::VK_SUCCESS
+        }
+        Err(hal::AcquireError::NotReady) => VkResult::VK_NOT_READY,
+        Err(hal::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
+        Err(hal::AcquireError::SurfaceLost) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
+    }
 }
 #[inline]
 pub extern "C" fn gfxQueuePresentKHR(
@@ -4254,7 +4279,7 @@ pub extern "C" fn gfxQueuePresentKHR(
     let swapchains = swapchain_slice
         .into_iter()
         .zip(index_slice)
-        .map(|(swapchain, index)| (&swapchain.raw, *index));
+        .map(|(swapchain, index)| (swapchain.raw.as_ref().unwrap(), *index));
 
     let wait_semaphores = unsafe {
         slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)

@@ -56,6 +56,10 @@ impl<T: 'static> Handle<T> {
     pub fn as_ref(&self) -> Option<&T> {
         unsafe { self.0.as_ref() }
     }
+
+    pub fn as_mut(&self) -> Option<&mut T> {
+        unsafe { self.0.as_mut() }
+    }
 }
 
 impl<T> Handle<T> {

@@ -190,7 +190,8 @@ pub type VkSurfaceKHR = Handle<<B as hal::Backend>::Surface>;
 pub type VkSwapchainKHR = Handle<Swapchain>;
 
 pub struct Swapchain {
-    raw: <B as hal::Backend>::Swapchain,
+    // this can become None if it was used as the "old_swapchain"
+    raw: Option<<B as hal::Backend>::Swapchain>,
     images: Vec<VkImage>,
 }
 

@@ -14,7 +14,7 @@ DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deq
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
 #possible command lines are : -vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2 +vulkan_batch_submits 1 +vulkan_batch_size 500
-DOTA_PARAMS:=
+DOTA_PARAMS:=-vulkan_disable_occlusion_queries
 DOTA_DEMO_PHORONIX= "$(CURDIR)/../dota2/demos/dota2-pts-1971360796.dem"
 DOTA_BENCHMARK=+timedemoquit +timedemo $(DOTA_DEMO_PHORONIX) +timedemo_start 40000 +timedemo_end 50000 +fps_max 0 -novconsole -high -autoconfig_level 3
 DOTA_BENCH_RESULTS=../dota2/dota/Source2Bench.csv
