@@ -10,6 +10,8 @@ TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
+CURRENT_VERSION_ARG=
+COMPATIBILITY_VERSION_ARG=
 
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
@@ -45,6 +47,8 @@ else
 		BACKEND=metal
 		DEBUGGER=rust-lldb --
 		LIB_EXTENSION=dylib
+		CURRENT_VERSION_ARG=-current_version 1.0.0
+		COMPATIBILITY_VERSION_ARG=-compatibility_version 1.0.0
 	endif
 endif
 
@@ -65,10 +69,10 @@ debug:
 release: $(LIBRARY_FAST)
 
 version-debug:
-	cargo rustc --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
+	cargo rustc --manifest-path libportability/Cargo.toml --features $(BACKEND),portability-gfx/env_logger -- -Clink-arg="$(CURRENT_VERSION_ARG)" -Clink-arg="$(COMPATIBILITY_VERSION_ARG)"
 
 version-release:
-	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) -- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
+	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) -- -Clink-arg="$(CURRENT_VERSION_ARG)" -Clink-arg="$(COMPATIBILITY_VERSION_ARG)"
 
 
 dota-debug: version-debug $(DOTA_EXE)
