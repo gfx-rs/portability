@@ -25,6 +25,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxVertexOutputComponents: limits.max_vertex_output_components as _,
         maxComputeWorkGroupCount: limits.max_compute_group_count,
         maxComputeWorkGroupSize: limits.max_compute_group_size,
+        bufferImageGranularity: 1, //TODO
         optimalBufferCopyOffsetAlignment: limits.min_buffer_copy_offset_alignment,
         optimalBufferCopyRowPitchAlignment: limits.min_buffer_copy_pitch_alignment,
         minTexelBufferOffsetAlignment: limits.min_texel_buffer_offset_alignment,

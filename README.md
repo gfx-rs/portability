@@ -2,34 +2,29 @@
 [![Build Status](https://travis-ci.org/gfx-rs/portability.svg?branch=master)](https://travis-ci.org/gfx-rs/portability)
 [![Gitter](https://badges.gitter.im/gfx-rs/portability.svg)](https://gitter.im/gfx-rs/portability)
 
-This is a prototype library implementing [Vulkan Portability Initiative](https://www.khronos.org/blog/khronos-announces-the-vulkan-portability-initiative) using gfx-rs [low-level core](http://gfx-rs.github.io/2017/07/24/low-level.html). See gfx-rs [meta issue](https://github.com/gfx-rs/gfx/issues/1354) for backend limitations and further details.
+This is a prototype library implementing [Vulkan Portability Initiative](https://www.khronos.org/blog/khronos-announces-the-vulkan-portability-initiative) using [gfx-hal](http://gfx-rs.github.io/2017/07/24/low-level.html). See gfx-rs [meta issue](https://github.com/gfx-rs/gfx/issues/1354) for backend limitations and further details.
 
-## Check out
+## Showcase
+
+### [Dota2](https://github.com/ValveSoftware/Dota-2):
+![Dota2](etc/dota2-river.jpg)
+
+### [RPCS3](https://github.com/RPCS3/rpcs3):
+![RPCS3-cube](etc/rpcs3-cube.jpg)
+![RPCS3-scogger](etc/rpcs3-scogger.jpg)
+
+### [Dolphin](https://github.com/dolphin-emu):
+![Dolphin-sb](etc/dolphin-smash-bros.png)
+![Dolphin-pm](etc/dolphin-paper-mario.png)
+
+## Instructions
+
+Despite the fact it's written in Rust, the produced binary is a standard dynamic library that can be linked to from any program (written in the language of your choice). Typically, you'd need to create a symbolic link with a name that a target application expects, e.g. `libvulkan.dylib -> libportability.dylib`.
+
+Check out and build:
 ```
 git clone --recursive https://github.com/gfx-rs/portability && cd portability
-```
-
-## Build
-
-### Makefile (Unix)
-```
-make
-```
-
-### CMake (Window)
-Build the Rust library (portability implementation):
-
-```
 cargo build --manifest-path libportability/Cargo.toml --features <vulkan|dx12|metal>
-```
-
-Build the native example:
-
-```
-mkdir build
-cd build
-cmake ..
-cmake --build . --target native_test
 ```
 
 ## Running Samples
