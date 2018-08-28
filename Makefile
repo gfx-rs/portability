@@ -11,6 +11,8 @@ TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 CLINK_ARGS=
+COMMIT_SHA_SHORT=$(shell git rev-parse --short HEAD)
+OS_NAME=
 
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
@@ -34,12 +36,14 @@ ifeq ($(OS),Windows_NT)
 	LDFLAGS=
 	BACKEND=dx12
 	LIB_EXTENSION=dll
+	OS_NAME=windows
 else
 	UNAME_S:=$(shell uname -s)
 	ifeq ($(UNAME_S),Linux)
 		LDFLAGS=-lpthread -ldl -lm -lX11 -lxcb
 		BACKEND=vulkan
 		LIB_EXTENSION=so
+		OS_NAME=linux
 	endif
 	ifeq ($(UNAME_S),Darwin)
 		LDFLAGS=-lpthread -ldl -lm
@@ -47,6 +51,7 @@ else
 		DEBUGGER=rust-lldb --
 		LIB_EXTENSION=dylib
 		CLINK_ARGS=-- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
+		OS_NAME=macos
 	endif
 endif
 
@@ -156,7 +161,7 @@ clean:
 	cargo clean
 
 package.zip: version-debug version-release
-	zip package.zip target/*/libportability.$(LIB_EXTENSION) .git/refs/heads/master
+	cd target && zip ../gfx-portability-$(OS_NAME)-$(COMMIT_SHA_SHORT).zip */libportability.$(LIB_EXTENSION) ../.git/refs/heads/master
 
 target/debug/libvulkan.$(LIB_EXTENSION):
 	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
