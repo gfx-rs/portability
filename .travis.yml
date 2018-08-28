@@ -53,7 +53,7 @@ script:
   - export PATH=$PATH:$HOME/deps/bin
   - make
   - if [[ $TRAVIS_RUST_VERSION == "nightly" ]]; then make debug release; fi
-  - if [[ $TRAVIS_RUST_VERSION != "nightly" && $TRAVIS_BRANCH == "master" && $TRAVIS_OS_NAME == "osx" ]]; then make package.zip && mv package.zip portability-$TRAVIS_OS_NAME.zip; fi
+  - if [[ $TRAVIS_RUST_VERSION == "stable" && $TRAVIS_BRANCH == $TRAVIS_TAG && $TRAVIS_OS_NAME == "osx" ]]; then make package.zip && mv package.zip portability-$TRAVIS_OS_NAME.zip; fi
 
 deploy:
   provider: releases
@@ -63,6 +63,5 @@ deploy:
   skip_cleanup: true
   on:
     tags: true
-    branch: master
-    condition: $TRAVIS_RUST_VERSION = "stable" && $TRAVIS_OS_NAME == "osx"
+    condition: $TRAVIS_RUST_VERSION == "stable" && $TRAVIS_BRANCH == $TRAVIS_TAG && $TRAVIS_OS_NAME == "osx"
     skip_cleanup: true
