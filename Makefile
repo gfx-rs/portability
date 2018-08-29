@@ -11,7 +11,7 @@ TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 CLINK_ARGS=
-COMMIT_SHA_SHORT=$(shell git rev-parse --short HEAD)
+GIT_TAG=$(shell git describe --abbrev=0 --tags)
 OS_NAME=
 
 DOTA_DIR=../dota2/bin/osx64
@@ -59,7 +59,7 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl
+.PHONY: all rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl package
 
 all: $(NATIVE_TARGET)
 
@@ -160,8 +160,8 @@ clean:
 	rm -f $(NATIVE_OBJECTS) $(NATIVE_TARGET) $(BINDING)
 	cargo clean
 
-package.zip: version-debug version-release
-	cd target && zip ../gfx-portability-$(OS_NAME)-$(COMMIT_SHA_SHORT).zip */libportability.$(LIB_EXTENSION) ../.git/refs/heads/master
+package: version-debug version-release
+	cd target && zip ../gfx-portability-$(OS_NAME)-$(GIT_TAG).zip */libportability.$(LIB_EXTENSION) ../.git/refs/heads/master
 
 target/debug/libvulkan.$(LIB_EXTENSION):
 	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
