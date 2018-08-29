@@ -12,6 +12,7 @@ DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 CLINK_ARGS=
 GIT_TAG=$(shell git describe --abbrev=0 --tags)
+GIT_TAG_FULL=$(shell git describe --tags)
 OS_NAME=
 
 DOTA_DIR=../dota2/bin/osx64
@@ -161,7 +162,8 @@ clean:
 	cargo clean
 
 package: version-debug version-release
-	cd target && cp ../.git/refs/heads/master commit-sha && zip ../gfx-portability-$(OS_NAME)-$(GIT_TAG).zip */libportability.$(LIB_EXTENSION) commit-sha
+	echo "$(GIT_TAG_FULL)" > commit-sha
+	cd target && zip ../gfx-portability-$(OS_NAME)-$(GIT_TAG).zip */libportability.$(LIB_EXTENSION) ../commit-sha
 
 target/debug/libvulkan.$(LIB_EXTENSION):
 	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
