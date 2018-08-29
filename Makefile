@@ -161,7 +161,7 @@ clean:
 	cargo clean
 
 package: version-debug version-release
-	cd target && zip ../gfx-portability-$(OS_NAME)-$(GIT_TAG).zip */libportability.$(LIB_EXTENSION) ../.git/refs/heads/master
+	cd target && cp ../.git/refs/heads/master commit-sha && zip ../gfx-portability-$(OS_NAME)-$(GIT_TAG).zip */libportability.$(LIB_EXTENSION) commit-sha
 
 target/debug/libvulkan.$(LIB_EXTENSION):
 	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
