@@ -53,7 +53,7 @@ script:
   - export PATH=$PATH:$HOME/deps/bin
   - make
   - if [[ $TRAVIS_RUST_VERSION == "nightly" ]]; then make debug release; fi
-  - if [[ $TRAVIS_RUST_VERSION == "stable" && $TRAVIS_BRANCH == $TRAVIS_TAG ]]; then make package.zip; fi
+  - if [[ $TRAVIS_RUST_VERSION == "stable" && $TRAVIS_BRANCH == $TRAVIS_TAG ]]; then make package; fi
 
 deploy:
   provider: releases
