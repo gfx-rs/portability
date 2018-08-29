@@ -3,7 +3,8 @@ target/
 conformance/*.xml
 conformance/*.qpa
 conformance/*.txt
-package.zip
+gfx-portability-*.zip
+commit-sha
 **/*.rs.bk
 .vscode/
 .lldbinit
