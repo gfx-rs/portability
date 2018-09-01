@@ -16,6 +16,8 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 ### [Dolphin](https://github.com/dolphin-emu):
 ![Dolphin-sb](etc/dolphin-smash-bros.png)
 ![Dolphin-pm](etc/dolphin-paper-mario.png)
+![Dolphin-mk](etc/dolphin-mario-kart.jpg)
+![Dolphin-md](etc/dolphin-metroid.jpg)
 
 ## Instructions
 
