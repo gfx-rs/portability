@@ -297,7 +297,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "gfx-backend-dx11"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#3cd05e496ebfa461bc1225115d010e99d56a22d7"
+source = "git+https://github.com/gfx-rs/gfx#5f9f52377de7b88ad4208732acfafcf4eebf1965"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -314,7 +314,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx12"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#3cd05e496ebfa461bc1225115d010e99d56a22d7"
+source = "git+https://github.com/gfx-rs/gfx#5f9f52377de7b88ad4208732acfafcf4eebf1965"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "derivative 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -330,7 +330,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-metal"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#3cd05e496ebfa461bc1225115d010e99d56a22d7"
+source = "git+https://github.com/gfx-rs/gfx#5f9f52377de7b88ad4208732acfafcf4eebf1965"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "block 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -351,7 +351,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-vulkan"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#3cd05e496ebfa461bc1225115d010e99d56a22d7"
+source = "git+https://github.com/gfx-rs/gfx#5f9f52377de7b88ad4208732acfafcf4eebf1965"
 dependencies = [
  "ash 0.24.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.2.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -368,7 +368,7 @@ dependencies = [
 [[package]]
 name = "gfx-hal"
 version = "0.1.0"
-source = "git+https://github.com/gfx-rs/gfx#3cd05e496ebfa461bc1225115d010e99d56a22d7"
+source = "git+https://github.com/gfx-rs/gfx#5f9f52377de7b88ad4208732acfafcf4eebf1965"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
