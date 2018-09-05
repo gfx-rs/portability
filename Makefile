@@ -162,8 +162,10 @@ clean:
 	cargo clean
 
 package: version-debug version-release
+	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
+	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND) --release
 	echo "$(GIT_TAG_FULL)" > commit-sha
-	cd target && zip ../gfx-portability-$(OS_NAME)-$(GIT_TAG).zip */libportability.$(LIB_EXTENSION) ../commit-sha
+	zip gfx-portability-$(OS_NAME)-$(GIT_TAG).zip target/*/libportability*.$(LIB_EXTENSION) libportability-icd/portability-$(OS_NAME)-*.json commit-sha
 
 target/debug/libvulkan.$(LIB_EXTENSION):
 	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
