@@ -1733,8 +1733,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         slice::from_raw_parts(pCreateInfos, createInfoCount as _)
     };
 
-    const NUM_SHADER_STAGES: usize = 5;
-    let mut specializations = Vec::with_capacity(infos.len() * NUM_SHADER_STAGES);
+    let mut spec_constants = Vec::new();
+    let mut spec_data = Vec::new();
 
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
@@ -1742,13 +1742,24 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         let stages = unsafe {
             slice::from_raw_parts(info.pStages, info.stageCount as _)
         };
-        specializations.extend(stages.iter().map(|stage| unsafe {
-            stage
-                .pSpecializationInfo
-                .as_ref()
-                .map(conv::map_specialization_info)
-                .unwrap_or_default()
-        }));
+        for stage in stages {
+            if let Some(spec_info) = unsafe { stage.pSpecializationInfo.as_ref() } {
+                let entries = unsafe { slice::from_raw_parts(
+                    spec_info.pMapEntries,
+                    spec_info.mapEntryCount as _,
+                )};
+                for entry in entries {
+                    let base = spec_data.len() as u16 + entry.offset as u16;
+                    spec_constants.push(pso::SpecializationConstant {
+                        id: entry.constantID,
+                        range: base .. base + (entry.size as u16),
+                    });
+                }
+                spec_data.extend_from_slice(unsafe {
+                    slice::from_raw_parts(spec_info.pData as *const u8, spec_info.dataSize as _)
+                });
+            }
+        }
     }
 
     let mut cur_specialization = 0;
@@ -1805,12 +1816,21 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 use super::VkShaderStageFlagBits::*;
 
                 let name = unsafe { CStr::from_ptr(stage.pName) };
+                let spec_count = unsafe {
+                    stage.pSpecializationInfo
+                        .as_ref()
+                        .map(|spec_info| spec_info.mapEntryCount as usize)
+                        .unwrap_or(0)
+                };
                 let entry_point = pso::EntryPoint {
                     entry: name.to_str().unwrap(),
                     module: &*stage.module,
-                    specialization: &specializations[cur_specialization],
+                    specialization: pso::Specialization {
+                        constants: &spec_constants[cur_specialization .. cur_specialization + spec_count],
+                        data: &spec_data,
+                    },
                 };
-                cur_specialization += 1;
+                cur_specialization += spec_count;
 
                 match stage.stage {
                     VK_SHADER_STAGE_VERTEX_BIT => {
@@ -2156,29 +2176,52 @@ pub extern "C" fn gfxCreateComputePipelines(
 
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
-    let specializations = infos
-        .iter()
-        .map(|info| unsafe {
-            info.stage
-                .pSpecializationInfo
-                .as_ref()
-                .map(conv::map_specialization_info)
-                .unwrap_or_default()
-        })
-        .collect::<Vec<_>>();
+    let mut spec_constants = Vec::new();
+    let mut spec_data = Vec::new();
 
+    // Collect all information which we will borrow later. Need to work around
+    // the borrow checker here.
+    for info in infos {
+        if let Some(spec_info) = unsafe { info.stage.pSpecializationInfo.as_ref() } {
+            let entries = unsafe { slice::from_raw_parts(
+                spec_info.pMapEntries,
+                spec_info.mapEntryCount as _,
+            )};
+            for entry in entries {
+                let base = spec_data.len() as u16 + entry.offset as u16;
+                spec_constants.push(pso::SpecializationConstant {
+                    id: entry.constantID,
+                    range: base .. base + (entry.size as u16),
+                });
+            }
+            spec_data.extend_from_slice(unsafe {
+                slice::from_raw_parts(spec_info.pData as *const u8, spec_info.dataSize as _)
+            });
+        }
+    }
+
+    let mut cur_specialization = 0;
     let descs = infos
         .iter()
-        .zip(&specializations)
-        .map(|(info, specialization)| {
+        .map(|info| {
             let name = unsafe { CStr::from_ptr(info.stage.pName) };
+            let spec_count = unsafe {
+                info.stage.pSpecializationInfo
+                    .as_ref()
+                    .map(|spec_info| spec_info.mapEntryCount as usize)
+                    .unwrap_or(0)
+            };
             let shader = pso::EntryPoint {
                 entry: name.to_str().unwrap(),
                 module: &*info.stage.module,
-                specialization,
+                specialization: pso::Specialization {
+                    constants: &spec_constants[cur_specialization .. cur_specialization + spec_count],
+                    data: &spec_data,
+                },
             };
-            let layout = &*info.layout;
+            cur_specialization += spec_count;
 
+            let layout = &*info.layout;
             let flags = {
                 let mut flags = pso::PipelineCreationFlags::empty();
 
@@ -3057,7 +3100,7 @@ pub extern "C" fn gfxCmdSetBlendConstants(
     mut commandBuffer: VkCommandBuffer,
     blendConstants: *const f32,
 ) {
-    let value = unsafe { *(blendConstants as *const hal::pso::ColorValue) };
+    let value = unsafe { *(blendConstants as *const pso::ColorValue) };
     commandBuffer.set_blend_constants(value);
 }
 #[inline]
