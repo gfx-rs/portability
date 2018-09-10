@@ -9,6 +9,9 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 ### [Dota2](https://github.com/ValveSoftware/Dota-2):
 ![Dota2](etc/dota2-river.jpg)
 
+### [VkQuake](https://github.com/Novum/vkQuake)
+![VkQuake](etc/quake-main.jpg)
+
 ### [RPCS3](https://github.com/RPCS3/rpcs3):
 ![RPCS3-cube](etc/rpcs3-cube.jpg)
 ![RPCS3-scogger](etc/rpcs3-scogger.jpg)
