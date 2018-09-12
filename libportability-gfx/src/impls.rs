@@ -286,7 +286,7 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
         },
         conv::map_tiling(tiling),
         conv::map_image_usage(usage),
-        unsafe { mem::transmute(create_flags) },
+        conv::map_image_create_flags(create_flags),
     );
     match properties {
         Some(props) => unsafe {
@@ -1552,7 +1552,7 @@ pub extern "C" fn gfxCreateImage(
                 .expect(&format!("Unsupported image format: {:?}", info.format)),
             conv::map_tiling(info.tiling),
             conv::map_image_usage(info.usage),
-            unsafe { mem::transmute(info.flags) },
+            conv::map_image_create_flags(info.flags),
         )
         .expect("Error on creating image");
 

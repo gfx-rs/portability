@@ -195,6 +195,10 @@ pub fn map_aspect(aspects: VkImageAspectFlags) -> format::Aspects {
     flags
 }
 
+pub fn map_image_create_flags(flags: VkImageCreateFlags) -> image::ViewCapabilities {
+    image::ViewCapabilities::from_bits_truncate(flags as u32)
+}
+
 pub fn map_image_kind(
     ty: VkImageType,
     extent: VkExtent3D,
