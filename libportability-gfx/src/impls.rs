@@ -20,6 +20,20 @@ use super::*;
 const VERSION: (u32, u32, u32) = (1, 0, 66);
 const DRIVER_VERSION: u32 = 1;
 
+fn map_oom(oom: hal::device::OutOfMemory) -> VkResult {
+    match oom {
+        hal::device::OutOfMemory::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        hal::device::OutOfMemory::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+    }
+}
+
+fn map_alloc_error(alloc_error: hal::device::AllocationError) -> VkResult {
+    match alloc_error {
+        hal::device::AllocationError::OutOfMemory(oom) => map_oom(oom),
+        hal::device::AllocationError::TooManyObjects => VkResult::VK_ERROR_TOO_MANY_OBJECTS,
+    }
+}
+
 #[macro_export]
 macro_rules! proc_addr {
     ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr,)*) => (
@@ -1099,8 +1113,10 @@ pub extern "C" fn gfxFlushMappedMemoryRanges(
             (&*r.memory, range)
         });
 
-    gpu.device.flush_mapped_memory_ranges(ranges);
-    VkResult::VK_SUCCESS
+    match gpu.device.flush_mapped_memory_ranges(ranges) {
+        Ok(()) => VkResult::VK_SUCCESS,
+        Err(oom) => map_oom(oom),
+    }
 }
 #[inline]
 pub extern "C" fn gfxInvalidateMappedMemoryRanges(
@@ -1122,8 +1138,10 @@ pub extern "C" fn gfxInvalidateMappedMemoryRanges(
             (&*r.memory, range)
         });
 
-    gpu.device.invalidate_mapped_memory_ranges(ranges);
-    VkResult::VK_SUCCESS
+    match gpu.device.invalidate_mapped_memory_ranges(ranges) {
+        Ok(()) => VkResult::VK_SUCCESS,
+        Err(oom) => map_oom(oom),
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetDeviceMemoryCommitment(
@@ -1259,9 +1277,10 @@ pub extern "C" fn gfxCreateFence(
     let flags = unsafe { (*pCreateInfo).flags };
     let signalled = flags & VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT as u32 != 0;
 
-    let fence = gpu
-        .device
-        .create_fence(signalled);
+    let fence = match gpu.device.create_fence(signalled) {
+        Ok(f) => f,
+        Err(oom) => return map_oom(oom),
+    };
 
     unsafe {
         *pFence = Handle::new(fence);
@@ -1292,15 +1311,17 @@ pub extern "C" fn gfxResetFences(
         .into_iter()
         .map(|fence| &**fence);
 
-    gpu.device.reset_fences(fences);
-    VkResult::VK_SUCCESS
+    match gpu.device.reset_fences(fences) {
+        Ok(()) => VkResult::VK_SUCCESS,
+        Err(oom) => map_oom(oom),
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
-    if gpu.device.get_fence_status(&*fence) {
-        VkResult::VK_SUCCESS
-    } else {
-        VkResult::VK_NOT_READY
+    match gpu.device.get_fence_status(&*fence) {
+        Ok(true) => VkResult::VK_SUCCESS,
+        Ok(false) => VkResult::VK_NOT_READY,
+        Err(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
     }
 }
 #[inline]
@@ -1323,10 +1344,11 @@ pub extern "C" fn gfxWaitForFences(
         _ => WaitFor::All,
     };
 
-    if gpu.device.wait_for_fences(fences, wait_for, timeout as _) {
-        VkResult::VK_SUCCESS
-    } else {
-        VkResult::VK_TIMEOUT
+    match gpu.device.wait_for_fences(fences, wait_for, timeout as _) {
+        Ok(true) => VkResult::VK_SUCCESS,
+        Ok(false) => VkResult::VK_TIMEOUT,
+        Err(hal::device::OomOrDeviceLost::OutOfMemory(oom)) => map_oom(oom),
+        Err(hal::device::OomOrDeviceLost::DeviceLost(hal::device::DeviceLost)) => VkResult::VK_ERROR_DEVICE_LOST,
     }
 }
 #[inline]
@@ -1336,8 +1358,10 @@ pub extern "C" fn gfxCreateSemaphore(
     _pAllocator: *const VkAllocationCallbacks,
     pSemaphore: *mut VkSemaphore,
 ) -> VkResult {
-    let semaphore = gpu.device
-        .create_semaphore();
+    let semaphore = match gpu.device.create_semaphore() {
+        Ok(s) => s,
+        Err(oom) => return map_oom(oom),
+    };
 
     unsafe {
         *pSemaphore = Handle::new(semaphore);
@@ -1681,7 +1705,10 @@ pub extern "C" fn gfxCreatePipelineCache(
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
     //TODO: load
-    let cache = gpu.device.create_pipeline_cache();
+    let cache = match gpu.device.create_pipeline_cache() {
+        Ok(cache) => cache,
+        Err(oom) => return map_oom(oom),
+    };
     unsafe { *pPipelineCache = Handle::new(cache) };
     VkResult::VK_SUCCESS
 }
@@ -1716,8 +1743,10 @@ pub extern "C" fn gfxMergePipelineCaches(
     let caches = unsafe {
         slice::from_raw_parts(pSrcCaches, srcCacheCount as usize)
     };
-    gpu.device.merge_pipeline_caches(&*dstCache, caches.into_iter().map(|h| &**h));
-    VkResult::VK_SUCCESS
+    match gpu.device.merge_pipeline_caches(&*dstCache, caches.iter().map(|h| &**h)) {
+        Ok(()) => VkResult::VK_SUCCESS,
+        Err(oom) => map_oom(oom),
+    }
 }
 
 #[inline]
@@ -2321,8 +2350,10 @@ pub extern "C" fn gfxCreatePipelineLayout(
             (stages, start .. start+size)
         });
 
-    let pipeline_layout = gpu.device
-        .create_pipeline_layout(layouts, ranges);
+    let pipeline_layout = match gpu.device.create_pipeline_layout(layouts, ranges) {
+        Ok(pipeline) => pipeline,
+        Err(oom) => return map_oom(oom),
+    };
 
     unsafe { *pPipelineLayout = Handle::new(pipeline_layout); }
     VkResult::VK_SUCCESS
@@ -2368,7 +2399,10 @@ pub extern "C" fn gfxCreateSampler(
             hal::image::Anisotropic::Off
         },
     };
-    let sampler = gpu.device.create_sampler(gfx_info);
+    let sampler = match gpu.device.create_sampler(gfx_info) {
+        Ok(s) => s,
+        Err(alloc) => return map_alloc_error(alloc),
+    };
     unsafe { *pSampler = Handle::new(sampler); }
     VkResult::VK_SUCCESS
 }
@@ -2417,8 +2451,10 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
             immutable_samplers: !binding.pImmutableSamplers.is_null(),
         });
 
-    let set_layout = gpu.device
-        .create_descriptor_set_layout(bindings, sampler_iter);
+    let set_layout = match gpu.device.create_descriptor_set_layout(bindings, sampler_iter) {
+        Ok(sl) => sl,
+        Err(oom) => return map_oom(oom),
+    };
 
     unsafe { *pSetLayout = Handle::new(set_layout); }
     VkResult::VK_SUCCESS
@@ -2457,8 +2493,10 @@ pub extern "C" fn gfxCreateDescriptorPool(
         });
 
     let pool = super::DescriptorPool {
-        raw: gpu.device
-            .create_descriptor_pool(max_sets, ranges),
+        raw: match gpu.device.create_descriptor_pool(max_sets, ranges) {
+            Ok(pool) => pool,
+            Err(oom) => return map_oom(oom),
+        },
         temp_sets: Vec::with_capacity(max_sets),
         set_handles: if info.flags & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT as u32 != 0 {
             None
@@ -2873,9 +2911,10 @@ pub extern "C" fn gfxCreateRenderPass(
             }
         });
 
-    let render_pass = gpu
-        .device
-        .create_render_pass(attachments, subpasses, dependencies);
+    let render_pass = match gpu.device.create_render_pass(attachments, subpasses, dependencies) {
+        Ok(pass) => pass,
+        Err(oom) => return map_oom(oom),
+    };
 
     unsafe {
         *pRenderPass = Handle::new(render_pass);
@@ -2927,7 +2966,10 @@ pub extern "C" fn gfxCreateCommandPool(
     }
 
     let pool = CommandPool {
-        pool: gpu.device.create_command_pool(family, flags),
+        pool: match gpu.device.create_command_pool(family, flags) {
+            Ok(pool) => pool,
+            Err(oom) => return map_oom(oom),
+        },
         buffers: Vec::new(),
     };
     unsafe { *pCommandPool = Handle::new(pool) };
@@ -3981,11 +4023,17 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         image_layers: 1,
         image_usage: conv::map_image_usage(info.imageUsage),
     };
-    let (mut swapchain, backbuffers) = gpu.device.create_swapchain(
+    let (mut swapchain, backbuffers) = match gpu.device.create_swapchain(
         &mut info.surface.clone(),
         config,
         info.oldSwapchain.as_mut().and_then(|s| s.raw.take()), //Note: no unboxing!
-    );
+    ) {
+        Ok(pair) => pair,
+        Err(hal::window::CreationError::OutOfMemory(oom)) => return map_oom(oom),
+        Err(hal::window::CreationError::DeviceLost(hal::device::DeviceLost)) => return VkResult::VK_ERROR_DEVICE_LOST,
+        Err(hal::window::CreationError::SurfaceLost(hal::device::SurfaceLost)) => return VkResult::VK_ERROR_SURFACE_LOST_KHR,
+        Err(hal::window::CreationError::WindowInUse(hal::device::WindowInUse)) => return VkResult::VK_ERROR_NATIVE_WINDOW_IN_USE_KHR,
+    };
 
     #[cfg(feature = "gfx-backend-metal")]
     {
@@ -4303,7 +4351,7 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         }
         Err(hal::AcquireError::NotReady) => VkResult::VK_NOT_READY,
         Err(hal::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
-        Err(hal::AcquireError::SurfaceLost) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
+        Err(hal::AcquireError::SurfaceLost(_)) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
     }
 }
 #[inline]
