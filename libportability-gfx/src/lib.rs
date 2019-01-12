@@ -52,7 +52,7 @@ pub type VkBufferView = Handle<<B as hal::Backend>::BufferView>;
 pub type VkShaderModule = Handle<<B as hal::Backend>::ShaderModule>;
 pub type VkImage = Handle<Image<B>>;
 pub type VkImageView = Handle<<B as hal::Backend>::ImageView>;
-pub type VkBuffer = Handle<Buffer<B>>;
+pub type VkBuffer = Handle<<B as hal::Backend>::Buffer>;
 pub type VkSemaphore = Handle<<B as hal::Backend>::Semaphore>;
 pub type VkFence = Handle<<B as hal::Backend>::Fence>;
 pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
@@ -90,33 +90,13 @@ pub enum Pipeline<B: hal::Backend> {
     Compute(B::ComputePipeline),
 }
 
-pub enum Image<B: hal::Backend> {
-    Image { raw: B::Image, mip_levels: u32, array_layers: u32 },
-    Unbound { raw: B::UnboundImage, mip_levels: u32, array_layers: u32 },
+pub struct Image<B: hal::Backend> {
+    raw: B::Image,
+    mip_levels: u32,
+    array_layers: u32,
 }
 
 impl<B: hal::Backend> Image<B> {
-    fn expect(&self, msg: &str) -> &B::Image {
-        match *self {
-            Image::Image { ref raw, .. } => raw,
-            Image::Unbound { .. } => expect_failed(msg),
-        }
-    }
-
-    fn mip_levels(&self) -> u32 {
-        match *self {
-            Image::Image { mip_levels, .. } => mip_levels,
-            Image::Unbound { mip_levels, .. } => mip_levels,
-        }
-    }
-
-    fn array_layers(&self) -> u32 {
-        match *self {
-            Image::Image { array_layers, .. } => array_layers,
-            Image::Unbound { array_layers, .. } => array_layers,
-        }
-    }
-
     fn map_subresource(&self, subresource: VkImageSubresource) -> hal::image::Subresource {
         hal::image::Subresource {
             aspects: conv::map_aspect(subresource.aspectMask),
@@ -127,7 +107,7 @@ impl<B: hal::Backend> Image<B> {
 
     fn map_subresource_layers(&self, subresource: VkImageSubresourceLayers) -> hal::image::SubresourceLayers {
         let layer_end = if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
-            self.array_layers()
+            self.array_layers
         } else {
             subresource.baseArrayLayer + subresource.layerCount
         };
@@ -142,12 +122,12 @@ impl<B: hal::Backend> Image<B> {
         subresource: VkImageSubresourceRange,
     ) -> hal::image::SubresourceRange {
         let level_end = if subresource.levelCount == VK_REMAINING_MIP_LEVELS as _ {
-            self.mip_levels()
+            self.mip_levels
         } else {
             subresource.baseMipLevel + subresource.levelCount
         };
         let layer_end = if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
-            self.array_layers()
+            self.array_layers
         } else {
             subresource.baseArrayLayer + subresource.layerCount
         };
@@ -157,26 +137,6 @@ impl<B: hal::Backend> Image<B> {
             layers: subresource.baseArrayLayer as _ .. layer_end as _,
         }
     }
-}
-
-pub enum Buffer<B: hal::Backend> {
-    Buffer(B::Buffer),
-    Unbound(B::UnboundBuffer),
-}
-
-impl<B: hal::Backend> Buffer<B> {
-    fn expect(&self, msg: &str) -> &B::Buffer {
-        match *self {
-            Buffer::Buffer(ref buf) => buf,
-            Buffer::Unbound(_) => expect_failed(msg),
-        }
-    }
-}
-
-#[inline(never)]
-#[cold]
-fn expect_failed(msg: &str) -> ! {
-    panic!("{}", msg)
 }
 
 pub struct CommandPool<B: hal::Backend> {

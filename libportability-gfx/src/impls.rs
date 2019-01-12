@@ -257,8 +257,8 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures(
             shaderResourceMinLod: features.contains(Features::SHADER_RESOURCE_MIN_LOD) as _,
             sparseBinding: features.contains(Features::SPARSE_BINDING) as _,
             sparseResidencyBuffer: features.contains(Features::SPARSE_RESIDENCY_BUFFER) as _,
-            sparseResidencyImage2D: features.contains(Features::SHADER_RESIDENCY_IMAGE_2D) as _,
-            sparseResidencyImage3D: features.contains(Features::SHADER_RESIDENSY_IMAGE_3D) as _,
+            sparseResidencyImage2D: features.contains(Features::SPARSE_RESIDENCY_IMAGE_2D) as _,
+            sparseResidencyImage3D: features.contains(Features::SPARSE_RESIDENCY_IMAGE_3D) as _,
             sparseResidency2Samples: features.contains(Features::SPARSE_RESIDENCY_2_SAMPLES) as _,
             sparseResidency4Samples: features.contains(Features::SPARSE_RESIDENCY_4_SAMPLES) as _,
             sparseResidency8Samples: features.contains(Features::SPARSE_RESIDENCY_8_SAMPLES) as _,
@@ -623,66 +623,68 @@ pub extern "C" fn gfxCreateDevice(
         })
         .collect::<Vec<_>>();
 
-    if let Some(ef) = unsafe { dev_info.pEnabledFeatures.as_ref() } {
-        let supported = adapter.physical_device.features();
-        if (ef.robustBufferAccess != 0 && !supported.contains(Features::ROBUST_BUFFER_ACCESS)) ||
-            (ef.fullDrawIndexUint32 != 0 && !supported.contains(Features::FULL_DRAW_INDEX_U32)) ||
-            (ef.imageCubeArray != 0 && !supported.contains(Features::IMAGE_CUBE_ARRAY)) ||
-            (ef.independentBlend != 0 && !supported.contains(Features::INDEPENDENT_BLENDING)) ||
-            (ef.geometryShader != 0 && !supported.contains(Features::GEOMETRY_SHADER)) ||
-            (ef.tessellationShader != 0 && !supported.contains(Features::TESSELLATION_SHADER)) ||
-            (ef.sampleRateShading != 0 && !supported.contains(Features::SAMPLE_RATE_SHADING)) ||
-            (ef.dualSrcBlend != 0 && !supported.contains(Features::DUAL_SRC_BLENDING)) ||
-            (ef.logicOp != 0 && !supported.contains(Features::LOGIC_OP)) ||
-            (ef.multiDrawIndirect != 0 && !supported.contains(Features::MULTI_DRAW_INDIRECT)) ||
-            (ef.drawIndirectFirstInstance != 0 && !supported.contains(Features::DRAW_INDIRECT_FIRST_INSTANCE)) ||
-            (ef.depthClamp != 0 && !supported.contains(Features::DEPTH_CLAMP)) ||
-            (ef.depthBiasClamp != 0 && !supported.contains(Features::DEPTH_BIAS_CLAMP)) ||
-            (ef.fillModeNonSolid != 0 && !supported.contains(Features::NON_FILL_POLYGON_MODE)) ||
-            (ef.depthBounds != 0 && !supported.contains(Features::DEPTH_BOUNDS)) ||
-            (ef.wideLines != 0 && !supported.contains(Features::LINE_WIDTH)) ||
-            (ef.largePoints != 0 && !supported.contains(Features::POINT_SIZE)) ||
-            (ef.alphaToOne != 0 && !supported.contains(Features::ALPHA_TO_ONE)) ||
-            (ef.multiViewport != 0 && !supported.contains(Features::MULTI_VIEWPORTS)) ||
-            (ef.samplerAnisotropy != 0 && !supported.contains(Features::SAMPLER_ANISOTROPY)) ||
-            (ef.textureCompressionETC2 != 0 && !supported.contains(Features::FORMAT_ETC2)) ||
-            (ef.textureCompressionASTC_LDR != 0 && !supported.contains(Features::FORMAT_ASTC_LDR)) ||
-            (ef.textureCompressionBC != 0 && !supported.contains(Features::FORMAT_BC)) ||
-            (ef.occlusionQueryPrecise != 0 && !supported.contains(Features::PRECISE_OCCLUSION_QUERY)) ||
-            (ef.pipelineStatisticsQuery != 0 && !supported.contains(Features::PIPELINE_STATISTICS_QUERY)) ||
-            (ef.vertexPipelineStoresAndAtomics != 0 && !supported.contains(Features::VERTEX_STORES_AND_ATOMICS)) ||
-            (ef.fragmentStoresAndAtomics != 0 && !supported.contains(Features::FRAGMENT_STORES_AND_ATOMICS)) ||
-            (ef.shaderTessellationAndGeometryPointSize != 0 && !supported.contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE)) ||
-            (ef.shaderImageGatherExtended != 0 && !supported.contains(Features::SHADER_IMAGE_GATHER_EXTENDED)) ||
-            (ef.shaderStorageImageExtendedFormats != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS)) ||
-            (ef.shaderStorageImageMultisample != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE)) ||
-            (ef.shaderStorageImageReadWithoutFormat != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT)) ||
-            (ef.shaderStorageImageWriteWithoutFormat != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT)) ||
-            (ef.shaderUniformBufferArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING)) ||
-            (ef.shaderSampledImageArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING)) ||
-            (ef.shaderStorageBufferArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING)) ||
-            (ef.shaderStorageImageArrayDynamicIndexing != 0 && !supported.contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING)) ||
-            (ef.shaderClipDistance != 0 && !supported.contains(Features::SHADER_CLIP_DISTANCE)) ||
-            (ef.shaderCullDistance != 0 && !supported.contains(Features::SHADER_CULL_DISTANCE)) ||
-            (ef.shaderFloat64 != 0 && !supported.contains(Features::SHADER_FLOAT64)) ||
-            (ef.shaderInt64 != 0 && !supported.contains(Features::SHADER_INT64)) ||
-            (ef.shaderInt16 != 0 && !supported.contains(Features::SHADER_INT16)) ||
-            (ef.shaderResourceResidency != 0 && !supported.contains(Features::SHADER_RESOURCE_RESIDENCY)) ||
-            (ef.shaderResourceMinLod != 0 && !supported.contains(Features::SHADER_RESOURCE_MIN_LOD)) ||
-            (ef.sparseBinding != 0 && !supported.contains(Features::SPARSE_BINDING)) ||
-            (ef.sparseResidencyBuffer != 0 && !supported.contains(Features::SPARSE_RESIDENCY_BUFFER)) ||
-            (ef.sparseResidencyImage2D != 0 && !supported.contains(Features::SHADER_RESIDENCY_IMAGE_2D)) ||
-            (ef.sparseResidencyImage3D != 0 && !supported.contains(Features::SHADER_RESIDENSY_IMAGE_3D)) ||
-            (ef.sparseResidency2Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_2_SAMPLES)) ||
-            (ef.sparseResidency4Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_4_SAMPLES)) ||
-            (ef.sparseResidency8Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_8_SAMPLES)) ||
-            (ef.sparseResidency16Samples != 0 && !supported.contains(Features::SPARSE_RESIDENCY_16_SAMPLES)) ||
-            (ef.sparseResidencyAliased != 0 && !supported.contains(Features::SPARSE_RESIDENCY_ALIASED)) ||
-            (ef.variableMultisampleRate != 0 && !supported.contains(Features::VARIABLE_MULTISAMPLE_RATE)) ||
-            (ef.inheritedQueries != 0 && !supported.contains(Features::INHERITED_QUERIES)) {
-            return VkResult::VK_ERROR_FEATURE_NOT_PRESENT;
+    let enabled = if let Some(ef) = unsafe { dev_info.pEnabledFeatures.as_ref() } {
+        fn feat(on: u32, flag: Features) -> Features {
+            if on != 0 { flag } else { Features::empty() }
         }
-    }
+        feat(ef.robustBufferAccess, Features::ROBUST_BUFFER_ACCESS) |
+        feat(ef.fullDrawIndexUint32, Features::FULL_DRAW_INDEX_U32) |
+        feat(ef.imageCubeArray, Features::IMAGE_CUBE_ARRAY) |
+        feat(ef.independentBlend, Features::INDEPENDENT_BLENDING) |
+        feat(ef.geometryShader, Features::GEOMETRY_SHADER) |
+        feat(ef.tessellationShader, Features::TESSELLATION_SHADER) |
+        feat(ef.sampleRateShading, Features::SAMPLE_RATE_SHADING) |
+        feat(ef.dualSrcBlend, Features::DUAL_SRC_BLENDING) |
+        feat(ef.logicOp, Features::LOGIC_OP) |
+        feat(ef.multiDrawIndirect, Features::MULTI_DRAW_INDIRECT) |
+        feat(ef.drawIndirectFirstInstance, Features::DRAW_INDIRECT_FIRST_INSTANCE) |
+        feat(ef.depthClamp, Features::DEPTH_CLAMP) |
+        feat(ef.depthBiasClamp, Features::DEPTH_BIAS_CLAMP) |
+        feat(ef.fillModeNonSolid, Features::NON_FILL_POLYGON_MODE) |
+        feat(ef.depthBounds, Features::DEPTH_BOUNDS) |
+        feat(ef.wideLines, Features::LINE_WIDTH) |
+        feat(ef.largePoints, Features::POINT_SIZE) |
+        feat(ef.alphaToOne, Features::ALPHA_TO_ONE) |
+        feat(ef.multiViewport, Features::MULTI_VIEWPORTS) |
+        feat(ef.samplerAnisotropy, Features::SAMPLER_ANISOTROPY) |
+        feat(ef.textureCompressionETC2, Features::FORMAT_ETC2) |
+        feat(ef.textureCompressionASTC_LDR, Features::FORMAT_ASTC_LDR) |
+        feat(ef.textureCompressionBC, Features::FORMAT_BC) |
+        feat(ef.occlusionQueryPrecise, Features::PRECISE_OCCLUSION_QUERY) |
+        feat(ef.pipelineStatisticsQuery, Features::PIPELINE_STATISTICS_QUERY) |
+        feat(ef.vertexPipelineStoresAndAtomics, Features::VERTEX_STORES_AND_ATOMICS) |
+        feat(ef.fragmentStoresAndAtomics, Features::FRAGMENT_STORES_AND_ATOMICS) |
+        feat(ef.shaderTessellationAndGeometryPointSize, Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE) |
+        feat(ef.shaderImageGatherExtended, Features::SHADER_IMAGE_GATHER_EXTENDED) |
+        feat(ef.shaderStorageImageExtendedFormats, Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS) |
+        feat(ef.shaderStorageImageMultisample, Features::SHADER_STORAGE_IMAGE_MULTISAMPLE) |
+        feat(ef.shaderStorageImageReadWithoutFormat, Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT) |
+        feat(ef.shaderStorageImageWriteWithoutFormat, Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT) |
+        feat(ef.shaderUniformBufferArrayDynamicIndexing, Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING) |
+        feat(ef.shaderSampledImageArrayDynamicIndexing, Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING) |
+        feat(ef.shaderStorageBufferArrayDynamicIndexing, Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING) |
+        feat(ef.shaderStorageImageArrayDynamicIndexing, Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING) |
+        feat(ef.shaderClipDistance, Features::SHADER_CLIP_DISTANCE) |
+        feat(ef.shaderCullDistance, Features::SHADER_CULL_DISTANCE) |
+        feat(ef.shaderFloat64, Features::SHADER_FLOAT64) |
+        feat(ef.shaderInt64, Features::SHADER_INT64) |
+        feat(ef.shaderInt16, Features::SHADER_INT16) |
+        feat(ef.shaderResourceResidency, Features::SHADER_RESOURCE_RESIDENCY) |
+        feat(ef.shaderResourceMinLod, Features::SHADER_RESOURCE_MIN_LOD) |
+        feat(ef.sparseBinding, Features::SPARSE_BINDING) |
+        feat(ef.sparseResidencyBuffer, Features::SPARSE_RESIDENCY_BUFFER) |
+        feat(ef.sparseResidencyImage2D, Features::SPARSE_RESIDENCY_IMAGE_2D) |
+        feat(ef.sparseResidencyImage3D, Features::SPARSE_RESIDENCY_IMAGE_3D) |
+        feat(ef.sparseResidency2Samples, Features::SPARSE_RESIDENCY_2_SAMPLES) |
+        feat(ef.sparseResidency4Samples, Features::SPARSE_RESIDENCY_4_SAMPLES) |
+        feat(ef.sparseResidency8Samples, Features::SPARSE_RESIDENCY_8_SAMPLES) |
+        feat(ef.sparseResidency16Samples, Features::SPARSE_RESIDENCY_16_SAMPLES) |
+        feat(ef.sparseResidencyAliased, Features::SPARSE_RESIDENCY_ALIASED) |
+        feat(ef.variableMultisampleRate, Features::VARIABLE_MULTISAMPLE_RATE) |
+        feat(ef.inheritedQueries, Features::INHERITED_QUERIES)
+    } else {
+        Features::empty()
+    };
 
     #[cfg(feature = "renderdoc")]
     let mut renderdoc = {
@@ -690,7 +692,9 @@ pub extern "C" fn gfxCreateDevice(
         RenderDoc::new().expect("Failed to init renderdoc")
     };
 
-    let gpu = adapter.physical_device.open(&request_infos);
+    let gpu = unsafe {
+        adapter.physical_device.open(&request_infos, enabled)
+    };
 
     match gpu {
         Ok(mut gpu) => {
@@ -1007,22 +1011,20 @@ pub extern "C" fn gfxQueueSubmit(
         stages.into_iter()
             .zip(semaphores)
             .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
-            .collect::<Vec<_>>()
     };
     let signal_semaphores = unsafe {
         slice::from_raw_parts(submission.pSignalSemaphores, submission.signalSemaphoreCount as _)
             .into_iter()
             .map(|semaphore| &**semaphore)
-            .collect::<Vec<_>>()
     };
 
-    let submission = hal::queue::RawSubmission {
-        cmd_buffers: cmd_slice.iter().cloned(),
-        wait_semaphores: &wait_semaphores,
-        signal_semaphores: &signal_semaphores,
+    let submission = hal::queue::Submission {
+        command_buffers: cmd_slice.iter(),
+        wait_semaphores: wait_semaphores,
+        signal_semaphores: signal_semaphores,
     };
 
-    unsafe { queue.submit_raw(submission, fence.as_ref()); }
+    unsafe { queue.submit(submission, fence.as_ref()); }
 
     VkResult::VK_SUCCESS
 }
@@ -1043,15 +1045,15 @@ pub extern "C" fn gfxAllocateMemory(
     _pAllocator: *const VkAllocationCallbacks,
     pMemory: *mut VkDeviceMemory,
 ) -> VkResult {
-    let info = unsafe { &*pAllocateInfo };
-    let memory = gpu.device
-        .allocate_memory(
-            hal::MemoryTypeId(info.memoryTypeIndex as _),
-            info.allocationSize,
-        )
-        .unwrap(); // TODO:
-
     unsafe {
+        let info = &*pAllocateInfo;
+        let memory = gpu.device
+            .allocate_memory(
+                hal::MemoryTypeId(info.memoryTypeIndex as _),
+                info.allocationSize,
+            )
+            .unwrap(); // TODO:
+
         *pMemory = Handle::new(memory);
     }
     VkResult::VK_SUCCESS
@@ -1063,7 +1065,9 @@ pub extern "C" fn gfxFreeMemory(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(mem) = memory.unbox() {
-        gpu.device.free_memory(mem);
+        unsafe {
+            gpu.device.free_memory(mem);
+        }
     }
 }
 #[inline]
@@ -1091,7 +1095,9 @@ pub extern "C" fn gfxMapMemory(
 }
 #[inline]
 pub extern "C" fn gfxUnmapMemory(gpu: VkDevice, memory: VkDeviceMemory) {
-    gpu.device.unmap_memory(&memory);
+    unsafe {
+        gpu.device.unmap_memory(&memory);
+    }
 }
 #[inline]
 pub extern "C" fn gfxFlushMappedMemoryRanges(
@@ -1113,7 +1119,9 @@ pub extern "C" fn gfxFlushMappedMemoryRanges(
             (&*r.memory, range)
         });
 
-    match gpu.device.flush_mapped_memory_ranges(ranges) {
+    match unsafe {
+        gpu.device.flush_mapped_memory_ranges(ranges)
+    } {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
@@ -1138,7 +1146,9 @@ pub extern "C" fn gfxInvalidateMappedMemoryRanges(
             (&*r.memory, range)
         });
 
-    match gpu.device.invalidate_mapped_memory_ranges(ranges) {
+    match unsafe {
+        gpu.device.invalidate_mapped_memory_ranges(ranges)
+    } {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
@@ -1158,22 +1168,11 @@ pub extern "C" fn gfxBindBufferMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let new = match mem::replace(&mut *buffer, unsafe { mem::zeroed() }) {
-        Buffer::Buffer(_) => panic!("A non-sparse buffer can only be bound once!"),
-        Buffer::Unbound(unbound) => {
-            Buffer::Buffer(
-                gpu.device
-                    .bind_buffer_memory(&memory, memoryOffset, unbound)
-                    .unwrap() // TODO
-            )
-        }
-    };
-
-    // We need to move the value out of the Handle here,
-    // and then put something else back in.
-    let temp = mem::replace(&mut *buffer, new);
-    mem::forget(temp);
-
+    unsafe {
+        gpu.device
+            .bind_buffer_memory(&memory, memoryOffset, &mut *buffer)
+            .unwrap(); //TODO
+    }
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1183,22 +1182,11 @@ pub extern "C" fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    let new = match mem::replace(&mut *image, unsafe { mem::zeroed() }) {
-        Image::Image { .. } => panic!("An non-sparse image can only be bound once!"),
-        Image::Unbound { raw, mip_levels, array_layers } => {
-            Image::Image {
-                raw: gpu.device.bind_image_memory(&memory, memoryOffset, raw).unwrap(), // TODO
-                mip_levels,
-                array_layers,
-            }
-        }
-    };
-
-    // We need to move the value out of the Handle here,
-    // and then put something else back in.
-    let temp = mem::replace(&mut *image, new);
-    mem::forget(temp);
-
+    unsafe {
+        gpu.device
+            .bind_image_memory(&memory, memoryOffset, &mut image.raw)
+            .unwrap(); //TODO
+    }
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1207,9 +1195,8 @@ pub extern "C" fn gfxGetBufferMemoryRequirements(
     buffer: VkBuffer,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = match *buffer {
-        Buffer::Buffer(_) => unimplemented!(),
-        Buffer::Unbound(ref buffer) => gpu.device.get_buffer_requirements(buffer),
+    let req = unsafe {
+        gpu.device.get_buffer_requirements(&*buffer)
     };
 
     *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
@@ -1224,9 +1211,8 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = match *image {
-        Image::Image { .. } => unimplemented!(),
-        Image::Unbound { ref raw, .. } => gpu.device.get_image_requirements(raw),
+    let req = unsafe {
+        gpu.device.get_image_requirements(&image.raw)
     };
 
     *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
@@ -1295,7 +1281,9 @@ pub extern "C" fn gfxDestroyFence(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(fence) = fence.unbox() {
-        gpu.device.destroy_fence(fence);
+        unsafe {
+            gpu.device.destroy_fence(fence);
+        }
     }
 }
 #[inline]
@@ -1311,14 +1299,18 @@ pub extern "C" fn gfxResetFences(
         .into_iter()
         .map(|fence| &**fence);
 
-    match gpu.device.reset_fences(fences) {
+    match unsafe {
+        gpu.device.reset_fences(fences)
+    } {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
 }
 #[inline]
 pub extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
-    match gpu.device.get_fence_status(&*fence) {
+    match unsafe {
+        gpu.device.get_fence_status(&*fence)
+    } {
         Ok(true) => VkResult::VK_SUCCESS,
         Ok(false) => VkResult::VK_NOT_READY,
         Err(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
@@ -1344,7 +1336,9 @@ pub extern "C" fn gfxWaitForFences(
         _ => WaitFor::All,
     };
 
-    match gpu.device.wait_for_fences(fences, wait_for, timeout as _) {
+    match unsafe {
+        gpu.device.wait_for_fences(fences, wait_for, timeout as _)
+    } {
         Ok(true) => VkResult::VK_SUCCESS,
         Ok(false) => VkResult::VK_TIMEOUT,
         Err(hal::device::OomOrDeviceLost::OutOfMemory(oom)) => map_oom(oom),
@@ -1375,7 +1369,9 @@ pub extern "C" fn gfxDestroySemaphore(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(sem) = semaphore.unbox() {
-        gpu.device.destroy_semaphore(sem);
+        unsafe {
+            gpu.device.destroy_semaphore(sem);
+        }
     }
 }
 #[inline]
@@ -1418,11 +1414,13 @@ pub extern "C" fn gfxCreateQueryPool(
     _pAllocator: *const VkAllocationCallbacks,
     pQueryPool: *mut VkQueryPool,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
-    let pool = gpu.device.create_query_pool(
-        conv::map_query_type(info.queryType, info.pipelineStatistics),
-        info.queryCount,
-    );
+    let pool = unsafe {
+        let info = &*pCreateInfo;
+        gpu.device.create_query_pool(
+            conv::map_query_type(info.queryType, info.pipelineStatistics),
+            info.queryCount,
+        )
+    };
 
     match pool {
         Ok(pool) => {
@@ -1442,7 +1440,9 @@ pub extern "C" fn gfxDestroyQueryPool(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(pool) = queryPool.unbox() {
-        gpu.device.destroy_query_pool(pool);
+        unsafe {
+            gpu.device.destroy_query_pool(pool);
+        }
     }
 }
 #[inline]
@@ -1456,13 +1456,15 @@ pub extern "C" fn gfxGetQueryPoolResults(
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) -> VkResult {
-    let result = gpu.device.get_query_pool_results(
-        &*queryPool,
-        firstQuery .. firstQuery + queryCount,
-        unsafe { slice::from_raw_parts_mut(pData as *mut u8, dataSize) },
-        stride,
-        conv::map_query_result(flags),
-    );
+    let result = unsafe {
+        gpu.device.get_query_pool_results(
+            &*queryPool,
+            firstQuery .. firstQuery + queryCount,
+            slice::from_raw_parts_mut(pData as *mut u8, dataSize),
+            stride,
+            conv::map_query_result(flags),
+        )
+    };
     match result {
         Ok(true) => VkResult::VK_SUCCESS,
         Ok(false) => VkResult::VK_NOT_READY,
@@ -1480,13 +1482,12 @@ pub extern "C" fn gfxCreateBuffer(
     assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
     assert_eq!(info.flags, 0); // TODO
 
-    let buffer = gpu.device
-        .create_buffer(info.size, conv::map_buffer_usage(info.usage))
-        .expect("Error on creating buffer");
-
     unsafe {
-        *pBuffer = Handle::new(Buffer::Unbound(buffer));
-    }
+        let buffer = gpu.device
+            .create_buffer(info.size, conv::map_buffer_usage(info.usage))
+            .expect("Error on creating buffer");
+        *pBuffer = Handle::new(buffer);
+    };
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1495,12 +1496,10 @@ pub extern "C" fn gfxDestroyBuffer(
     buffer: VkBuffer,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    match buffer.unbox() {
-        Some(Buffer::Buffer(buffer)) => gpu.device.destroy_buffer(buffer),
-        Some(Buffer::Unbound(_)) => {
-            warn!("Trying to destroy a non-bound buffer, ignoring");
+    if let Some(buffer) = buffer.unbox() {
+        unsafe {
+            gpu.device.destroy_buffer(buffer);
         }
-        None => {}
     }
 }
 #[inline]
@@ -1517,15 +1516,13 @@ pub extern "C" fn gfxCreateBufferView(
         Some(info.offset + info.range)
     };
 
-    let view_result = gpu.device
-        .create_buffer_view(
-            match *info.buffer {
-                Buffer::Buffer(ref buffer) => buffer,
-                Buffer::Unbound(_) => unimplemented!(),
-            },
+    let view_result = unsafe {
+        gpu.device.create_buffer_view(
+            &info.buffer,
             conv::map_format(info.format),
             (Some(info.offset), end),
-        );
+        )
+    };
 
     match view_result {
         Ok(view) => {
@@ -1547,7 +1544,9 @@ pub extern "C" fn gfxDestroyBufferView(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(v) = view.unbox() {
-        gpu.device.destroy_buffer_view(v);
+        unsafe {
+            gpu.device.destroy_buffer_view(v);
+        }
     }
 }
 #[inline]
@@ -1563,30 +1562,32 @@ pub extern "C" fn gfxCreateImage(
         warn!("unexpected initial layout: {:?}", info.initialLayout);
     }
 
-    let image = gpu.device
-        .create_image(
-            conv::map_image_kind(
-                info.imageType,
-                info.extent,
-                info.arrayLayers as _,
-                info.samples,
-            ),
-            info.mipLevels as _,
-            conv::map_format(info.format)
-                .expect(&format!("Unsupported image format: {:?}", info.format)),
-            conv::map_tiling(info.tiling),
-            conv::map_image_usage(info.usage),
-            conv::map_image_create_flags(info.flags),
-        )
-        .expect("Error on creating image");
-
+    let kind = conv::map_image_kind(
+        info.imageType,
+        info.extent,
+        info.arrayLayers as _,
+        info.samples,
+    );
     unsafe {
-        *pImage = Handle::new(Image::Unbound {
+        let image = gpu.device
+            .create_image(
+                kind,
+                info.mipLevels as _,
+                conv::map_format(info.format)
+                    .expect(&format!("Unsupported image format: {:?}", info.format)),
+                conv::map_tiling(info.tiling),
+                conv::map_image_usage(info.usage),
+                conv::map_image_create_flags(info.flags),
+            )
+            .expect("Error on creating image");
+
+        *pImage = Handle::new(Image {
             raw: image,
             mip_levels: info.mipLevels,
             array_layers: info.arrayLayers,
         });
     }
+
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1595,12 +1596,10 @@ pub extern "C" fn gfxDestroyImage(
     image: VkImage,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    match image.unbox() {
-        Some(Image::Image { raw, .. }) => gpu.device.destroy_image(raw),
-        Some(Image::Unbound { .. }) => {
-            warn!("Trying to destroy a non-bound image, ignoring");
+    if let Some(image) = image.unbox() {
+        unsafe {
+            gpu.device.destroy_image(image.raw);
         }
-        None => {}
     }
 }
 #[inline]
@@ -1610,10 +1609,13 @@ pub extern "C" fn gfxGetImageSubresourceLayout(
     pSubresource: *const VkImageSubresource,
     pLayout: *mut VkSubresourceLayout,
 ) {
-    let footprint = gpu.device.get_image_subresource_footprint(
-        image.expect("Bound image expected!"),
-        image.map_subresource(unsafe { *pSubresource} ),
-    );
+    let footprint = unsafe {
+        gpu.device.get_image_subresource_footprint(
+            &image.raw,
+            image.map_subresource(*pSubresource),
+        )
+    };
+
     let sub_layout = VkSubresourceLayout {
         offset: footprint.slice.start,
         size: footprint.slice.end - footprint.slice.start,
@@ -1621,6 +1623,7 @@ pub extern "C" fn gfxGetImageSubresourceLayout(
         depthPitch: footprint.depth_pitch,
         arrayPitch: footprint.array_pitch,
     };
+
     unsafe {
         *pLayout = sub_layout;
     }
@@ -1636,16 +1639,15 @@ pub extern "C" fn gfxCreateImageView(
     assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
     assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
 
-    // Non-sparse images must be bound prior.
-    let image = info.image.expect("Can't create view for unbound image");
-
-    let view = gpu.device.create_image_view(
-        image,
-        conv::map_view_kind(info.viewType),
-        conv::map_format(info.format).unwrap(),
-        conv::map_swizzle(info.components),
-        info.image.map_subresource_range(info.subresourceRange),
-    );
+    let view = unsafe {
+        gpu.device.create_image_view(
+            &info.image.raw,
+            conv::map_view_kind(info.viewType),
+            conv::map_format(info.format).unwrap(),
+            conv::map_swizzle(info.components),
+            info.image.map_subresource_range(info.subresourceRange),
+        )
+    };
 
     match view {
         Ok(view) => {
@@ -1662,7 +1664,9 @@ pub extern "C" fn gfxDestroyImageView(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(view) = imageView.unbox() {
-        gpu.device.destroy_image_view(view);
+        unsafe {
+            gpu.device.destroy_image_view(view);
+        }
     }
 }
 #[inline]
@@ -1672,17 +1676,12 @@ pub extern "C" fn gfxCreateShaderModule(
     _pAllocator: *const VkAllocationCallbacks,
     pShaderModule: *mut VkShaderModule,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
-    let code = unsafe {
-        slice::from_raw_parts(info.pCode as *const u8, info.codeSize as usize)
-    };
-
-    let shader_module = gpu
-        .device
-        .create_shader_module(code)
-        .expect("Error creating shader module"); // TODO
-
     unsafe {
+        let info = &*pCreateInfo;
+        let code = slice::from_raw_parts(info.pCode as *const u8, info.codeSize as usize);
+        let shader_module = gpu.device
+            .create_shader_module(code)
+            .expect("Error creating shader module"); // TODO
         *pShaderModule = Handle::new(shader_module);
     }
     VkResult::VK_SUCCESS
@@ -1694,7 +1693,9 @@ pub extern "C" fn gfxDestroyShaderModule(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(module) = shaderModule.unbox() {
-        gpu.device.destroy_shader_module(module);
+        unsafe {
+            gpu.device.destroy_shader_module(module);
+        }
     }
 }
 #[inline]
@@ -1719,7 +1720,9 @@ pub extern "C" fn gfxDestroyPipelineCache(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(cache) = pipelineCache.unbox() {
-        gpu.device.destroy_pipeline_cache(cache);
+        unsafe {
+            gpu.device.destroy_pipeline_cache(cache);
+        }
     }
 }
 #[inline]
@@ -1740,10 +1743,10 @@ pub extern "C" fn gfxMergePipelineCaches(
     srcCacheCount: u32,
     pSrcCaches: *const VkPipelineCache,
 ) -> VkResult {
-    let caches = unsafe {
-        slice::from_raw_parts(pSrcCaches, srcCacheCount as usize)
-    };
-    match gpu.device.merge_pipeline_caches(&*dstCache, caches.iter().map(|h| &**h)) {
+    match unsafe {
+        let caches = slice::from_raw_parts(pSrcCaches, srcCacheCount as usize);
+        gpu.device.merge_pipeline_caches(&*dstCache, caches.iter().map(|h| &**h))
+    } {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
@@ -2168,7 +2171,9 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         }
     });
 
-    let pipelines = gpu.device.create_graphics_pipelines(descs, pipelineCache.as_ref());
+    let pipelines = unsafe {
+        gpu.device.create_graphics_pipelines(descs, pipelineCache.as_ref())
+    };
     let out_pipelines = unsafe {
         slice::from_raw_parts_mut(pPipelines, infos.len())
     };
@@ -2287,7 +2292,9 @@ pub extern "C" fn gfxCreateComputePipelines(
             }
         });
 
-    let pipelines = gpu.device.create_compute_pipelines(descs, pipelineCache.as_ref());
+    let pipelines = unsafe {
+        gpu.device.create_compute_pipelines(descs, pipelineCache.as_ref())
+    };
     let out_pipelines = unsafe {
         slice::from_raw_parts_mut(pPipelines, infos.len())
     };
@@ -2316,8 +2323,12 @@ pub extern "C" fn gfxDestroyPipeline(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     match pipeline.unbox() {
-        Some(Pipeline::Graphics(pipeline)) => gpu.device.destroy_graphics_pipeline(pipeline),
-        Some(Pipeline::Compute(pipeline)) => gpu.device.destroy_compute_pipeline(pipeline),
+        Some(Pipeline::Graphics(pipeline)) => unsafe {
+            gpu.device.destroy_graphics_pipeline(pipeline)
+        }
+        Some(Pipeline::Compute(pipeline)) => unsafe {
+            gpu.device.destroy_compute_pipeline(pipeline)
+        }
         None => {}
     }
 }
@@ -2350,7 +2361,9 @@ pub extern "C" fn gfxCreatePipelineLayout(
             (stages, start .. start+size)
         });
 
-    let pipeline_layout = match gpu.device.create_pipeline_layout(layouts, ranges) {
+    let pipeline_layout = match unsafe {
+        gpu.device.create_pipeline_layout(layouts, ranges)
+    } {
         Ok(pipeline) => pipeline,
         Err(oom) => return map_oom(oom),
     };
@@ -2365,7 +2378,9 @@ pub extern "C" fn gfxDestroyPipelineLayout(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(layout) = pipelineLayout.unbox() {
-        gpu.device.destroy_pipeline_layout(layout);
+        unsafe {
+            gpu.device.destroy_pipeline_layout(layout);
+        }
     }
 }
 #[inline]
@@ -2399,7 +2414,9 @@ pub extern "C" fn gfxCreateSampler(
             hal::image::Anisotropic::Off
         },
     };
-    let sampler = match gpu.device.create_sampler(gfx_info) {
+    let sampler = match unsafe {
+        gpu.device.create_sampler(gfx_info)
+    } {
         Ok(s) => s,
         Err(alloc) => return map_alloc_error(alloc),
     };
@@ -2413,7 +2430,9 @@ pub extern "C" fn gfxDestroySampler(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(sam) = sampler.unbox() {
-        gpu.device.destroy_sampler(sam);
+        unsafe {
+            gpu.device.destroy_sampler(sam);
+        }
     }
 }
 #[inline]
@@ -2451,7 +2470,9 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
             immutable_samplers: !binding.pImmutableSamplers.is_null(),
         });
 
-    let set_layout = match gpu.device.create_descriptor_set_layout(bindings, sampler_iter) {
+    let set_layout = match unsafe {
+        gpu.device.create_descriptor_set_layout(bindings, sampler_iter)
+    } {
         Ok(sl) => sl,
         Err(oom) => return map_oom(oom),
     };
@@ -2466,7 +2487,9 @@ pub extern "C" fn gfxDestroyDescriptorSetLayout(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(layout) = descriptorSetLayout.unbox() {
-        gpu.device.destroy_descriptor_set_layout(layout);
+        unsafe {
+            gpu.device.destroy_descriptor_set_layout(layout);
+        }
     }
 }
 #[inline]
@@ -2493,7 +2516,9 @@ pub extern "C" fn gfxCreateDescriptorPool(
         });
 
     let pool = super::DescriptorPool {
-        raw: match gpu.device.create_descriptor_pool(max_sets, ranges) {
+        raw: match unsafe {
+            gpu.device.create_descriptor_pool(max_sets, ranges)
+        } {
             Ok(pool) => pool,
             Err(oom) => return map_oom(oom),
         },
@@ -2515,7 +2540,9 @@ pub extern "C" fn gfxDestroyDescriptorPool(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(pool) = descriptorPool.unbox() {
-        gpu.device.destroy_descriptor_pool(pool.raw);
+        unsafe {
+            gpu.device.destroy_descriptor_pool(pool.raw);
+        }
         if let Some(sets) = pool.set_handles {
             for set in sets {
                 let _ = set.unbox();
@@ -2529,7 +2556,9 @@ pub extern "C" fn gfxResetDescriptorPool(
     mut descriptorPool: VkDescriptorPool,
     _flags: VkDescriptorPoolResetFlags,
 ) -> VkResult {
-    descriptorPool.raw.reset();
+    unsafe {
+        descriptorPool.raw.reset();
+    }
     if let Some(ref mut sets) = descriptorPool.set_handles {
         for set in sets.drain(..) {
             let _ = set.unbox();
@@ -2556,7 +2585,9 @@ pub extern "C" fn gfxAllocateDescriptorSets(
         .iter()
         .map(|layout| &**layout);
 
-    match raw.allocate_sets(layouts, temp_sets) {
+    match unsafe {
+        raw.allocate_sets(layouts, temp_sets)
+    } {
         Ok(()) => {
             assert_eq!(temp_sets.len(), info.descriptorSetCount as usize);
             for (set, raw_set) in out_sets.iter_mut().zip(temp_sets.drain(..)) {
@@ -2595,11 +2626,13 @@ pub extern "C" fn gfxFreeDescriptorSets(
     };
     assert!(descriptorPool.set_handles.is_none());
 
-    descriptorPool.raw.free_sets(
-        descriptor_sets
-            .into_iter()
-            .filter_map(|set| set.unbox())
-    );
+    let sets = descriptor_sets
+        .into_iter()
+        .filter_map(|set| set.unbox());
+
+    unsafe {
+        descriptorPool.raw.free_sets(sets);
+    }
 
     VkResult::VK_SUCCESS
 }
@@ -2651,7 +2684,7 @@ impl<'a> Iterator for DescriptorIter<'a> {
                     };
                     pso::Descriptor::Buffer(
                         // Non-sparse buffer need to be bound to device memory.
-                        buffer.buffer.expect("Buffer needs to be bound"),
+                        &*buffer.buffer,
                         Some(buffer.offset) .. end,
                     )
                 })
@@ -2717,8 +2750,10 @@ pub extern "C" fn gfxUpdateDescriptorSets(
             }
         });
 
-    gpu.device.write_descriptor_sets(writes);
-    gpu.device.copy_descriptor_sets(copies);
+    unsafe {
+        gpu.device.write_descriptor_sets(writes);
+        gpu.device.copy_descriptor_sets(copies);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreateFramebuffer(
@@ -2742,12 +2777,10 @@ pub extern "C" fn gfxCreateFramebuffer(
         depth: info.layers,
     };
 
-    let framebuffer = gpu
-        .device
-        .create_framebuffer(&*info.renderPass, attachments, extent)
-        .unwrap();
-
     unsafe {
+        let framebuffer = gpu.device
+            .create_framebuffer(&*info.renderPass, attachments, extent)
+            .unwrap();
         *pFramebuffer = Handle::new(framebuffer);
     }
 
@@ -2760,7 +2793,9 @@ pub extern "C" fn gfxDestroyFramebuffer(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(fbo) = framebuffer.unbox() {
-        gpu.device.destroy_framebuffer(fbo);
+        unsafe {
+            gpu.device.destroy_framebuffer(fbo);
+        }
     }
 }
 #[inline]
@@ -2911,7 +2946,9 @@ pub extern "C" fn gfxCreateRenderPass(
             }
         });
 
-    let render_pass = match gpu.device.create_render_pass(attachments, subpasses, dependencies) {
+    let render_pass = match unsafe {
+        gpu.device.create_render_pass(attachments, subpasses, dependencies)
+    } {
         Ok(pass) => pass,
         Err(oom) => return map_oom(oom),
     };
@@ -2929,7 +2966,9 @@ pub extern "C" fn gfxDestroyRenderPass(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(rp) = renderPass.unbox() {
-        gpu.device.destroy_render_pass(rp);
+        unsafe {
+            gpu.device.destroy_render_pass(rp);
+        }
     }
 }
 #[inline]
@@ -2966,7 +3005,9 @@ pub extern "C" fn gfxCreateCommandPool(
     }
 
     let pool = CommandPool {
-        pool: match gpu.device.create_command_pool(family, flags) {
+        pool: match unsafe {
+            gpu.device.create_command_pool(family, flags)
+        } {
             Ok(pool) => pool,
             Err(oom) => return map_oom(oom),
         },
@@ -2986,7 +3027,9 @@ pub extern "C" fn gfxDestroyCommandPool(
         for cmd_buf in cp.buffers {
             let _ = cmd_buf.unbox();
         }
-        gpu.device.destroy_command_pool(cp.pool);
+        unsafe {
+            gpu.device.destroy_command_pool(cp.pool);
+        }
     }
 }
 
@@ -2996,7 +3039,9 @@ pub extern "C" fn gfxResetCommandPool(
     mut commandPool: VkCommandPool,
     _flags: VkCommandPoolResetFlags,
 ) -> VkResult {
-    commandPool.pool.reset();
+    unsafe {
+        commandPool.pool.reset();
+    }
     VkResult::VK_SUCCESS
 }
 
@@ -3014,7 +3059,7 @@ pub extern "C" fn gfxAllocateCommandBuffers(
     };
 
     let count = info.commandBufferCount as usize;
-    let cmd_bufs = info.commandPool.pool.allocate(count, level);
+    let cmd_bufs = info.commandPool.pool.allocate_vec(count, level);
 
     let output = unsafe { slice::from_raw_parts_mut(pCommandBuffers, count) };
     for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
@@ -3037,8 +3082,10 @@ pub extern "C" fn gfxFreeCommandBuffers(
     };
     commandPool.buffers.retain(|buf| !slice.contains(buf));
 
-    let buffers = slice.iter().filter_map(|buffer| buffer.unbox()).collect();
-    unsafe { commandPool.pool.free(buffers) };
+    let buffers = slice.iter().filter_map(|buffer| buffer.unbox());
+    unsafe {
+        commandPool.pool.free(buffers);
+    }
 }
 
 #[inline]
@@ -3060,14 +3107,16 @@ pub extern "C" fn gfxBeginCommandBuffer(
         },
         None => com::CommandBufferInheritanceInfo::default(),
     };
-    commandBuffer.begin(conv::map_cmd_buffer_usage(info.flags), inheritance);
-
+    unsafe {
+        commandBuffer.begin(conv::map_cmd_buffer_usage(info.flags), inheritance);
+    }
     VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxEndCommandBuffer(mut commandBuffer: VkCommandBuffer) -> VkResult {
-    commandBuffer.finish();
-
+    unsafe {
+        commandBuffer.finish();
+    }
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -3076,7 +3125,9 @@ pub extern "C" fn gfxResetCommandBuffer(
     flags: VkCommandBufferResetFlags,
 ) -> VkResult {
     let release_resources = flags & VkCommandBufferResetFlagBits::VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT as u32 != 0;
-    commandBuffer.reset(release_resources);
+    unsafe {
+        commandBuffer.reset(release_resources);
+    }
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -3086,8 +3137,12 @@ pub extern "C" fn gfxCmdBindPipeline(
     pipeline: VkPipeline,
 ) {
     match *pipeline {
-        Pipeline::Graphics(ref pipeline) => commandBuffer.bind_graphics_pipeline(pipeline),
-        Pipeline::Compute(ref pipeline) => commandBuffer.bind_compute_pipeline(pipeline),
+        Pipeline::Graphics(ref pipeline) => unsafe {
+            commandBuffer.bind_graphics_pipeline(pipeline)
+        }
+        Pipeline::Compute(ref pipeline) => unsafe {
+            commandBuffer.bind_compute_pipeline(pipeline)
+        }
     }
 }
 #[inline]
@@ -3097,13 +3152,12 @@ pub extern "C" fn gfxCmdSetViewport(
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    let viewports = unsafe {
-        slice::from_raw_parts(pViewports, viewportCount as _)
+    unsafe {
+        let viewports = slice::from_raw_parts(pViewports, viewportCount as _)
             .into_iter()
-            .map(conv::map_viewport)
-    };
-
-    commandBuffer.set_viewports(firstViewport, viewports);
+            .map(conv::map_viewport);
+        commandBuffer.set_viewports(firstViewport, viewports);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetScissor(
@@ -3112,17 +3166,18 @@ pub extern "C" fn gfxCmdSetScissor(
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    let scissors = unsafe {
-        slice::from_raw_parts(pScissors, scissorCount as _)
+    unsafe {
+        let scissors = slice::from_raw_parts(pScissors, scissorCount as _)
             .into_iter()
-            .map(conv::map_rect)
-    };
-
-    commandBuffer.set_scissors(firstScissor, scissors);
+            .map(conv::map_rect);
+        commandBuffer.set_scissors(firstScissor, scissors);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetLineWidth(mut commandBuffer: VkCommandBuffer, lineWidth: f32) {
-    commandBuffer.set_line_width(lineWidth);
+    unsafe {
+        commandBuffer.set_line_width(lineWidth);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBias(
@@ -3131,19 +3186,23 @@ pub extern "C" fn gfxCmdSetDepthBias(
     depthBiasClamp: f32,
     depthBiasSlopeFactor: f32,
 ) {
-    commandBuffer.set_depth_bias(pso::DepthBias {
-        const_factor: depthBiasConstantFactor,
-        clamp: depthBiasClamp,
-        slope_factor: depthBiasSlopeFactor,
-    });
+    unsafe {
+        commandBuffer.set_depth_bias(pso::DepthBias {
+            const_factor: depthBiasConstantFactor,
+            clamp: depthBiasClamp,
+            slope_factor: depthBiasSlopeFactor,
+        });
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetBlendConstants(
     mut commandBuffer: VkCommandBuffer,
     blendConstants: *const f32,
 ) {
-    let value = unsafe { *(blendConstants as *const pso::ColorValue) };
-    commandBuffer.set_blend_constants(value);
+    unsafe {
+        let value = *(blendConstants as *const pso::ColorValue);
+        commandBuffer.set_blend_constants(value);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetDepthBounds(
@@ -3151,7 +3210,9 @@ pub extern "C" fn gfxCmdSetDepthBounds(
     minDepthBounds: f32,
     maxDepthBounds: f32,
 ) {
-    commandBuffer.set_depth_bounds(minDepthBounds .. maxDepthBounds);
+    unsafe {
+        commandBuffer.set_depth_bounds(minDepthBounds .. maxDepthBounds);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilCompareMask(
@@ -3159,10 +3220,12 @@ pub extern "C" fn gfxCmdSetStencilCompareMask(
     faceMask: VkStencilFaceFlags,
     compareMask: u32,
 ) {
-    commandBuffer.set_stencil_read_mask(
-        conv::map_stencil_face(faceMask),
-        compareMask,
-    );
+    unsafe {
+        commandBuffer.set_stencil_read_mask(
+            conv::map_stencil_face(faceMask),
+            compareMask,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilWriteMask(
@@ -3170,10 +3233,12 @@ pub extern "C" fn gfxCmdSetStencilWriteMask(
     faceMask: VkStencilFaceFlags,
     writeMask: u32,
 ) {
-    commandBuffer.set_stencil_write_mask(
-        conv::map_stencil_face(faceMask),
-        writeMask,
-    );
+    unsafe {
+        commandBuffer.set_stencil_write_mask(
+            conv::map_stencil_face(faceMask),
+            writeMask,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetStencilReference(
@@ -3181,10 +3246,12 @@ pub extern "C" fn gfxCmdSetStencilReference(
     faceMask: VkStencilFaceFlags,
     reference: u32,
 ) {
-    commandBuffer.set_stencil_reference(
-        conv::map_stencil_face(faceMask),
-        reference,
-    );
+    unsafe {
+        commandBuffer.set_stencil_reference(
+            conv::map_stencil_face(faceMask),
+            reference,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdBindDescriptorSets(
@@ -3207,7 +3274,7 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     };
 
     match pipelineBindPoint {
-        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => {
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => unsafe {
             commandBuffer.bind_graphics_descriptor_sets(
                 &*layout,
                 firstSet as _,
@@ -3215,7 +3282,7 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
                 offsets,
             );
         }
-        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => {
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => unsafe {
             commandBuffer.bind_compute_descriptor_sets(
                 &*layout,
                 firstSet as _,
@@ -3233,13 +3300,15 @@ pub extern "C" fn gfxCmdBindIndexBuffer(
     offset: VkDeviceSize,
     indexType: VkIndexType,
 ) {
-    commandBuffer.bind_index_buffer(
-        IndexBufferView {
-            buffer: buffer.expect("Bound index buffer expected."),
-            offset,
-            index_type: conv::map_index_type(indexType),
-        }
-    );
+    unsafe {
+        commandBuffer.bind_index_buffer(
+            IndexBufferView {
+                buffer: &*buffer,
+                offset,
+                index_type: conv::map_index_type(indexType),
+            }
+        );
+    }
 }
 
 #[inline]
@@ -3261,11 +3330,12 @@ pub extern "C" fn gfxCmdBindVertexBuffers(
         .into_iter()
         .zip(offsets)
         .map(|(buffer, offset)| {
-            let buffer = buffer.expect("Non-sparse buffers need to be bound to device memory.");
-            (buffer, *offset)
+            (*buffer, *offset)
         });
 
-    commandBuffer.bind_vertex_buffers(firstBinding, views);
+    unsafe {
+        commandBuffer.bind_vertex_buffers(firstBinding, views);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdDraw(
@@ -3275,10 +3345,12 @@ pub extern "C" fn gfxCmdDraw(
     firstVertex: u32,
     firstInstance: u32,
 ) {
-    commandBuffer.draw(
-        firstVertex .. firstVertex + vertexCount,
-        firstInstance .. firstInstance + instanceCount,
-    )
+    unsafe {
+        commandBuffer.draw(
+            firstVertex .. firstVertex + vertexCount,
+            firstInstance .. firstInstance + instanceCount,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexed(
@@ -3289,11 +3361,13 @@ pub extern "C" fn gfxCmdDrawIndexed(
     vertexOffset: i32,
     firstInstance: u32,
 ) {
-    commandBuffer.draw_indexed(
-        firstIndex .. firstIndex + indexCount,
-        vertexOffset,
-        firstInstance .. firstInstance + instanceCount,
-    )
+    unsafe {
+        commandBuffer.draw_indexed(
+            firstIndex .. firstIndex + indexCount,
+            vertexOffset,
+            firstInstance .. firstInstance + instanceCount,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndirect(
@@ -3303,12 +3377,14 @@ pub extern "C" fn gfxCmdDrawIndirect(
     drawCount: u32,
     stride: u32,
 ) {
-    commandBuffer.draw_indirect(
-        buffer.expect("Bound buffer expected!"),
-        offset,
-        drawCount,
-        stride,
-    )
+    unsafe {
+        commandBuffer.draw_indirect(
+            &*buffer,
+            offset,
+            drawCount,
+            stride,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdDrawIndexedIndirect(
@@ -3318,12 +3394,14 @@ pub extern "C" fn gfxCmdDrawIndexedIndirect(
     drawCount: u32,
     stride: u32,
 ) {
-    commandBuffer.draw_indexed_indirect(
-        buffer.expect("Bound buffer expected!"),
-        offset,
-        drawCount,
-        stride,
-    )
+    unsafe {
+        commandBuffer.draw_indexed_indirect(
+            &*buffer,
+            offset,
+            drawCount,
+            stride,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatch(
@@ -3332,7 +3410,9 @@ pub extern "C" fn gfxCmdDispatch(
     groupCountY: u32,
     groupCountZ: u32,
 ) {
-    commandBuffer.dispatch([groupCountX, groupCountY, groupCountZ])
+    unsafe {
+        commandBuffer.dispatch([groupCountX, groupCountY, groupCountZ]);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdDispatchIndirect(
@@ -3340,10 +3420,12 @@ pub extern "C" fn gfxCmdDispatchIndirect(
     buffer: VkBuffer,
     offset: VkDeviceSize,
 ) {
-    commandBuffer.dispatch_indirect(
-        buffer.expect("Bound buffer expected!"),
-        offset,
-    )
+    unsafe {
+        commandBuffer.dispatch_indirect(
+            &*buffer,
+            offset,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBuffer(
@@ -3363,11 +3445,13 @@ pub extern "C" fn gfxCmdCopyBuffer(
             size: r.size,
         });
 
-    commandBuffer.copy_buffer(
-        srcBuffer.expect("Bound src buffer expected!"),
-        dstBuffer.expect("Bound dst buffer expected!"),
-        regions,
-    );
+    unsafe {
+        commandBuffer.copy_buffer(
+            &*srcBuffer,
+            &*dstBuffer,
+            regions,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyImage(
@@ -3391,13 +3475,15 @@ pub extern "C" fn gfxCmdCopyImage(
             extent: conv::map_extent(r.extent),
         });
 
-    commandBuffer.copy_image(
-        srcImage.expect("Bound src image expected!"),
-        conv::map_image_layout(srcImageLayout),
-        dstImage.expect("Bound dst image expected!"),
-        conv::map_image_layout(dstImageLayout),
-        regions,
-    );
+    unsafe {
+        commandBuffer.copy_image(
+            &srcImage.raw,
+            conv::map_image_layout(srcImageLayout),
+            &dstImage.raw,
+            conv::map_image_layout(dstImageLayout),
+            regions,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdBlitImage(
@@ -3421,14 +3507,16 @@ pub extern "C" fn gfxCmdBlitImage(
             dst_bounds: conv::map_offset(r.dstOffsets[0]) .. conv::map_offset(r.dstOffsets[1]),
         });
 
-    commandBuffer.blit_image(
-        srcImage.expect("Bound src image expected!"),
-        conv::map_image_layout(srcImageLayout),
-        dstImage.expect("Bound dst image expected!"),
-        conv::map_image_layout(dstImageLayout),
-        conv::map_filter(filter),
-        regions,
-    );
+    unsafe {
+        commandBuffer.blit_image(
+            &srcImage.raw,
+            conv::map_image_layout(srcImageLayout),
+            &dstImage.raw,
+            conv::map_image_layout(dstImageLayout),
+            conv::map_filter(filter),
+            regions,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyBufferToImage(
@@ -3452,12 +3540,14 @@ pub extern "C" fn gfxCmdCopyBufferToImage(
             image_extent: conv::map_extent(r.imageExtent),
         });
 
-    commandBuffer.copy_buffer_to_image(
-        srcBuffer.expect("Bound buffer expected!"),
-        dstImage.expect("Bound image expected!"),
-        conv::map_image_layout(dstImageLayout),
-        regions,
-    );
+    unsafe {
+        commandBuffer.copy_buffer_to_image(
+            &*srcBuffer,
+            &dstImage.raw,
+            conv::map_image_layout(dstImageLayout),
+            regions,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyImageToBuffer(
@@ -3481,12 +3571,14 @@ pub extern "C" fn gfxCmdCopyImageToBuffer(
             image_extent: conv::map_extent(r.imageExtent),
         });
 
-    commandBuffer.copy_image_to_buffer(
-        srcImage.expect("Bound image expected!"),
-        conv::map_image_layout(srcImageLayout),
-        dstBuffer.expect("Bound buffer expected!"),
-        regions,
-    );
+    unsafe {
+        commandBuffer.copy_image_to_buffer(
+            &srcImage.raw,
+            conv::map_image_layout(srcImageLayout),
+            &*dstBuffer,
+            regions,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdUpdateBuffer(
@@ -3496,13 +3588,13 @@ pub extern "C" fn gfxCmdUpdateBuffer(
     dataSize: VkDeviceSize,
     pData: *const ::std::os::raw::c_void,
 ) {
-    commandBuffer.update_buffer(
-        dstBuffer.expect("Bound buffer expected!"),
-        dstOffset,
-        unsafe {
-            slice::from_raw_parts(pData as _, dataSize as _)
-        },
-    );
+    unsafe {
+        commandBuffer.update_buffer(
+            &*dstBuffer,
+            dstOffset,
+            slice::from_raw_parts(pData as _, dataSize as _),
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdFillBuffer(
@@ -3517,11 +3609,13 @@ pub extern "C" fn gfxCmdFillBuffer(
     } else {
         (Some(dstOffset), Some(dstOffset + size))
     };
-    commandBuffer.fill_buffer(
-        dstBuffer.expect("Bound buffer expected!"),
-        range,
-        data,
-    );
+    unsafe {
+        commandBuffer.fill_buffer(
+            &*dstBuffer,
+            range,
+            data,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdClearColorImage(
@@ -3533,17 +3627,20 @@ pub extern "C" fn gfxCmdClearColorImage(
     pRanges: *const VkImageSubresourceRange,
 ) {
     let subresource_ranges = unsafe {
-        slice::from_raw_parts(pRanges, rangeCount as _)
-    };
-    commandBuffer.clear_image(
-        image.expect("Bound image expected!"),
-        conv::map_image_layout(imageLayout),
-        unsafe { mem::transmute(*pColor) },
-        unsafe { mem::zeroed() },
-        subresource_ranges
-            .iter()
-            .map(|&range| image.map_subresource_range(range)),
-    );
+            slice::from_raw_parts(pRanges, rangeCount as _)
+        }
+        .iter()
+        .map(|&range| image.map_subresource_range(range));
+
+    unsafe {
+        commandBuffer.clear_image(
+            &image.raw,
+            conv::map_image_layout(imageLayout),
+            mem::transmute(*pColor),
+            mem::zeroed(),
+            subresource_ranges,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdClearDepthStencilImage(
@@ -3555,17 +3652,20 @@ pub extern "C" fn gfxCmdClearDepthStencilImage(
     pRanges: *const VkImageSubresourceRange,
 ) {
     let subresource_ranges = unsafe {
-        slice::from_raw_parts(pRanges, rangeCount as _)
-    };
-    commandBuffer.clear_image(
-        image.expect("Bound image expected!"),
-        conv::map_image_layout(imageLayout),
-        unsafe { mem::zeroed() },
-        unsafe { mem::transmute(*pDepthStencil) },
-        subresource_ranges
-            .iter()
-            .map(|&range| image.map_subresource_range(range)),
-    );
+            slice::from_raw_parts(pRanges, rangeCount as _)
+        }
+        .iter()
+        .map(|&range| image.map_subresource_range(range));
+
+    unsafe {
+        commandBuffer.clear_image(
+            &image.raw,
+            conv::map_image_layout(imageLayout),
+            mem::zeroed(),
+            mem::transmute(*pDepthStencil),
+            subresource_ranges
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdClearAttachments(
@@ -3576,13 +3676,10 @@ pub extern "C" fn gfxCmdClearAttachments(
     pRects: *const VkClearRect,
 ) {
     let attachments = unsafe {
-        slice::from_raw_parts(pAttachments, attachmentCount as _)
-    };
-    let rects = unsafe {
-        slice::from_raw_parts(pRects, rectCount as _)
-    };
-    commandBuffer.clear_attachments(
-        attachments.iter().map(|at| {
+            slice::from_raw_parts(pAttachments, attachmentCount as _)
+        }
+        .iter()
+        .map(|at| {
             use VkImageAspectFlagBits::*;
             if at.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
                 com::AttachmentClear::Color {
@@ -3599,9 +3696,20 @@ pub extern "C" fn gfxCmdClearAttachments(
                     } else { None },
                 }
             }
-        }),
-        rects.iter().map(conv::map_clear_rect),
-    );
+        });
+
+    let rects = unsafe {
+            slice::from_raw_parts(pRects, rectCount as _)
+        }
+        .iter()
+        .map(conv::map_clear_rect);
+
+    unsafe {
+        commandBuffer.clear_attachments(
+            attachments,
+            rects
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdResolveImage(
@@ -3614,22 +3722,27 @@ pub extern "C" fn gfxCmdResolveImage(
     pRegions: *const VkImageResolve,
 ) {
     let regions = unsafe {
-        slice::from_raw_parts(pRegions, regionCount as _)
-    }.iter().cloned().map(|resolve| com::ImageResolve {
-        src_subresource: srcImage.map_subresource_layers(resolve.srcSubresource),
-        src_offset: conv::map_offset(resolve.srcOffset),
-        dst_subresource: srcImage.map_subresource_layers(resolve.dstSubresource),
-        dst_offset: conv::map_offset(resolve.dstOffset),
-        extent: conv::map_extent(resolve.extent),
-    });
+            slice::from_raw_parts(pRegions, regionCount as _)
+        }
+        .iter()
+        .cloned()
+        .map(|resolve| com::ImageResolve {
+            src_subresource: srcImage.map_subresource_layers(resolve.srcSubresource),
+            src_offset: conv::map_offset(resolve.srcOffset),
+            dst_subresource: srcImage.map_subresource_layers(resolve.dstSubresource),
+            dst_offset: conv::map_offset(resolve.dstOffset),
+            extent: conv::map_extent(resolve.extent),
+        });
 
-    commandBuffer.resolve_image(
-        srcImage.expect("Bound image expected!"),
-        conv::map_image_layout(srcImageLayout),
-        dstImage.expect("Bound image expected!"),
-        conv::map_image_layout(dstImageLayout),
-        regions,
-    );
+    unsafe {
+        commandBuffer.resolve_image(
+            &srcImage.raw,
+            conv::map_image_layout(srcImageLayout),
+            &dstImage.raw,
+            conv::map_image_layout(dstImageLayout),
+            regions,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdSetEvent(
@@ -3702,7 +3815,9 @@ pub extern "C" fn gfxCmdPipelineBarrier(
         .iter()
         .map(|b| memory::Barrier::Buffer {
             states: conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask),
-            target: b.buffer.expect("Bound buffer is needed here!"),
+            target: &*b.buffer,
+            range: Some(b.offset) .. if b.size as i32 == VK_WHOLE_SIZE { None } else { Some(b.offset + b.size) },
+            families: None,
         });
 
     let image_barriers = unsafe {
@@ -3713,15 +3828,18 @@ pub extern "C" fn gfxCmdPipelineBarrier(
             states:
                 (conv::map_image_access(b.srcAccessMask), conv::map_image_layout(b.oldLayout)) ..
                 (conv::map_image_access(b.dstAccessMask), conv::map_image_layout(b.newLayout)),
-            target: b.image.expect("Bound image is needed here!"),
+            target: &b.image.raw,
             range: b.image.map_subresource_range(b.subresourceRange),
+            families: None,
         });
 
-    commandBuffer.pipeline_barrier(
-        conv::map_pipeline_stage_flags(srcStageMask) .. conv::map_pipeline_stage_flags(dstStageMask),
-        memory::Dependencies::from_bits(dependencyFlags as _).unwrap_or(memory::Dependencies::empty()),
-        global_barriers.chain(buffer_barriers).chain(image_barriers),
-    );
+    unsafe {
+        commandBuffer.pipeline_barrier(
+            conv::map_pipeline_stage_flags(srcStageMask) .. conv::map_pipeline_stage_flags(dstStageMask),
+            memory::Dependencies::from_bits(dependencyFlags as _).unwrap_or(memory::Dependencies::empty()),
+            global_barriers.chain(buffer_barriers).chain(image_barriers),
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginQuery(
@@ -3734,7 +3852,9 @@ pub extern "C" fn gfxCmdBeginQuery(
         pool: &*queryPool,
         id: query,
     };
-    commandBuffer.begin_query(query, conv::map_query_control(flags));
+    unsafe {
+        commandBuffer.begin_query(query, conv::map_query_control(flags));
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdEndQuery(
@@ -3746,7 +3866,9 @@ pub extern "C" fn gfxCmdEndQuery(
         pool: &*queryPool,
         id: query,
     };
-    commandBuffer.end_query(query);
+    unsafe {
+        commandBuffer.end_query(query);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdResetQueryPool(
@@ -3755,7 +3877,9 @@ pub extern "C" fn gfxCmdResetQueryPool(
     firstQuery: u32,
     queryCount: u32,
 ) {
-    commandBuffer.reset_query_pool(&*queryPool, firstQuery .. firstQuery + queryCount);
+    unsafe {
+        commandBuffer.reset_query_pool(&*queryPool, firstQuery .. firstQuery + queryCount);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdWriteTimestamp(
@@ -3768,7 +3892,9 @@ pub extern "C" fn gfxCmdWriteTimestamp(
         pool: &*queryPool,
         id: query,
     };
-    commandBuffer.write_timestamp(conv::map_pipeline_stage_flags(pipelineStage as u32), query);
+    unsafe {
+        commandBuffer.write_timestamp(conv::map_pipeline_stage_flags(pipelineStage as u32), query);
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdCopyQueryPoolResults(
@@ -3781,14 +3907,16 @@ pub extern "C" fn gfxCmdCopyQueryPoolResults(
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) {
-    commandBuffer.copy_query_pool_results(
-        &*queryPool,
-        firstQuery .. firstQuery + queryCount,
-        dstBuffer.expect("Invalid destination buffer!"),
-        dstOffset,
-        stride,
-        conv::map_query_result(flags),
-    );
+    unsafe {
+        commandBuffer.copy_query_pool_results(
+            &*queryPool,
+            firstQuery .. firstQuery + queryCount,
+            &*dstBuffer,
+            dstOffset,
+            stride,
+            conv::map_query_result(flags),
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdPushConstants(
@@ -3800,25 +3928,24 @@ pub extern "C" fn gfxCmdPushConstants(
     pValues: *const ::std::os::raw::c_void,
 ) {
     assert_eq!(size % 4, 0);
+    unsafe {
+        let values = slice::from_raw_parts(pValues as *const u32, size as usize / 4);
 
-    let values = unsafe {
-        slice::from_raw_parts(pValues as *const u32, size as usize / 4)
-    };
-
-    if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
-        commandBuffer.push_compute_constants(
-            &*layout,
-            offset,
-            values,
-        );
-    }
-    if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
-        commandBuffer.push_graphics_constants(
-            &*layout,
-            conv::map_stage_flags(stageFlags),
-            offset,
-            values,
-        );
+        if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
+            commandBuffer.push_compute_constants(
+                &*layout,
+                offset,
+                values,
+            );
+        }
+        if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
+            commandBuffer.push_graphics_constants(
+                &*layout,
+                conv::map_stage_flags(stageFlags),
+                offset,
+                values,
+            );
+        }
     }
 }
 #[inline]
@@ -3845,26 +3972,32 @@ pub extern "C" fn gfxCmdBeginRenderPass(
     };
     let contents = conv::map_subpass_contents(contents);
 
-    commandBuffer.begin_render_pass(
-        &*info.renderPass,
-        &*info.framebuffer,
-        render_area,
-        clear_values,
-        contents,
-    );
+    unsafe {
+        commandBuffer.begin_render_pass(
+            &*info.renderPass,
+            &*info.framebuffer,
+            render_area,
+            clear_values,
+            contents,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdNextSubpass(
     mut commandBuffer: VkCommandBuffer,
     contents: VkSubpassContents,
 ) {
-    commandBuffer.next_subpass(conv::map_subpass_contents(contents));
+    unsafe {
+        commandBuffer.next_subpass(conv::map_subpass_contents(contents));
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdEndRenderPass(
     mut commandBuffer: VkCommandBuffer,
 ) {
-    commandBuffer.end_render_pass();
+    unsafe {
+        commandBuffer.end_render_pass();
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdExecuteCommands(
@@ -3872,10 +4005,11 @@ pub extern "C" fn gfxCmdExecuteCommands(
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    let cmd_buffers = unsafe {
-        slice::from_raw_parts(pCommandBuffers, commandBufferCount as _)
-    };
-    commandBuffer.execute_commands(cmd_buffers.iter().map(|cb| *cb));
+    unsafe {
+        commandBuffer.execute_commands(
+            slice::from_raw_parts(pCommandBuffers, commandBufferCount as _),
+        );
+    }
 }
 
 #[inline]
@@ -3906,7 +4040,22 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _, _) = surface.compatibility(&adapter.physical_device);
+    let (caps, _, _supported_transforms, supported_alphas) =
+        surface.compatibility(&adapter.physical_device);
+
+    let mut composite_alpha_mask: VkCompositeAlphaFlagsKHR = 0;
+    for ca in supported_alphas {
+        composite_alpha_mask |= match ca {
+            hal::window::CompositeAlpha::Opaque =>
+                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR as u32,
+            hal::window::CompositeAlpha::PreMultiplied =>
+                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR as u32,
+            hal::window::CompositeAlpha::PostMultiplied =>
+                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR as u32,
+            hal::window::CompositeAlpha::Inherit =>
+                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR as u32,
+        };
+    }
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
@@ -3924,8 +4073,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        supportedCompositeAlpha: VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR
-            as _,
+        supportedCompositeAlpha: composite_alpha_mask,
         supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
     };
 
@@ -3973,7 +4121,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let (_, _, present_modes) = surface
+    let (_, _, present_modes, _) = surface
         .compatibility(&adapter.physical_device);
 
     let num_present_modes = present_modes.len();
@@ -4017,17 +4165,20 @@ pub extern "C" fn gfxCreateSwapchainKHR(
 
     let config = hal::SwapchainConfig {
         present_mode: conv::map_present_mode(info.presentMode),
+        composite_alpha: conv::map_composite_alpha(info.compositeAlpha),
         format: conv::map_format(info.imageFormat).unwrap(),
         extent: conv::map_extent2d(info.imageExtent),
         image_count: info.minImageCount,
         image_layers: 1,
         image_usage: conv::map_image_usage(info.imageUsage),
     };
-    let (mut swapchain, backbuffers) = match gpu.device.create_swapchain(
-        &mut info.surface.clone(),
-        config,
-        info.oldSwapchain.as_mut().and_then(|s| s.raw.take()), //Note: no unboxing!
-    ) {
+    let (mut swapchain, backbuffers) = match unsafe {
+        gpu.device.create_swapchain(
+            &mut info.surface.clone(),
+            config,
+            info.oldSwapchain.as_mut().and_then(|s| s.raw.take()), //Note: no unboxing!
+        )
+    } {
         Ok(pair) => pair,
         Err(hal::window::CreationError::OutOfMemory(oom)) => return map_oom(oom),
         Err(hal::window::CreationError::DeviceLost(hal::device::DeviceLost)) => return VkResult::VK_ERROR_DEVICE_LOST,
@@ -4053,8 +4204,8 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     let images = match backbuffers {
         hal::Backbuffer::Images(images) => images
             .into_iter()
-            .map(|image| Handle::new(Image::Image {
-                raw: image,
+            .map(|raw| Handle::new(Image {
+                raw,
                 mip_levels: 1,
                 array_layers: 1,
             }))
@@ -4344,7 +4495,9 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
     };
 
-    match raw.acquire_image(timeout, sync) {
+    match unsafe {
+        raw.acquire_image(timeout, sync)
+    } {
         Ok(frame) => {
             unsafe { *pImageIndex = frame; }
             VkResult::VK_SUCCESS
@@ -4378,7 +4531,9 @@ pub extern "C" fn gfxQueuePresentKHR(
             .map(|semaphore| &**semaphore)
     };
 
-    queue.present(swapchains, wait_semaphores).unwrap();
+    unsafe {
+        queue.present(swapchains, wait_semaphores).unwrap();
+    }
 
     VkResult::VK_SUCCESS
 }
