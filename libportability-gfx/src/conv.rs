@@ -553,6 +553,24 @@ pub fn map_present_mode(present_mode: VkPresentModeKHR) -> window::PresentMode {
     unsafe { mem::transmute(present_mode) }
 }
 
+pub fn map_composite_alpha(composite_alpha: VkCompositeAlphaFlagBitsKHR) -> window::CompositeAlpha {
+    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR {
+        window::CompositeAlpha::Opaque
+    } else
+    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR {
+        window::CompositeAlpha::PreMultiplied
+    } else
+    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR {
+        window::CompositeAlpha::PostMultiplied
+    } else
+    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR {
+        window::CompositeAlpha::Inherit
+    } else {
+        error!("Unrecognized composite alpha: {:?}", composite_alpha);
+        window::CompositeAlpha::Opaque
+    }
+}
+
 #[inline]
 pub fn map_present_mode_from_hal(present_mode: window::PresentMode) -> VkPresentModeKHR {
     // Vulkan and HAL values are equal
