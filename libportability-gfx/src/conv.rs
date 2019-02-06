@@ -555,19 +555,19 @@ pub fn map_present_mode(present_mode: VkPresentModeKHR) -> window::PresentMode {
 
 pub fn map_composite_alpha(composite_alpha: VkCompositeAlphaFlagBitsKHR) -> window::CompositeAlpha {
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR {
-        window::CompositeAlpha::Opaque
+        window::CompositeAlpha::OPAQUE
     } else
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR {
-        window::CompositeAlpha::PreMultiplied
+        window::CompositeAlpha::PREMULTIPLIED
     } else
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR {
-        window::CompositeAlpha::PostMultiplied
+        window::CompositeAlpha::POSTMULTIPLIED
     } else
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR {
-        window::CompositeAlpha::Inherit
+        window::CompositeAlpha::INHERIT
     } else {
         error!("Unrecognized composite alpha: {:?}", composite_alpha);
-        window::CompositeAlpha::Opaque
+        window::CompositeAlpha::OPAQUE
     }
 }
 

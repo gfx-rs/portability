@@ -1701,16 +1701,27 @@ pub extern "C" fn gfxDestroyShaderModule(
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
     gpu: VkDevice,
-    _pCreateInfo: *const VkPipelineCacheCreateInfo,
+    pCreateInfo: *const VkPipelineCacheCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    //TODO: load
-    let cache = match gpu.device.create_pipeline_cache() {
+    let info = unsafe { &*pCreateInfo };
+    let data = if info.initialDataSize != 0 {
+        Some(unsafe {
+            slice::from_raw_parts(info.pInitialData as *const u8, info.initialDataSize as usize)
+        })
+    } else {
+        None
+    };
+
+    let cache = match unsafe {
+        gpu.device.create_pipeline_cache(data)
+    } {
         Ok(cache) => cache,
         Err(oom) => return map_oom(oom),
     };
     unsafe { *pPipelineCache = Handle::new(cache) };
+
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -4040,22 +4051,8 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _, _supported_transforms, supported_alphas) =
+    let (caps, _, _supported_transforms) =
         surface.compatibility(&adapter.physical_device);
-
-    let mut composite_alpha_mask: VkCompositeAlphaFlagsKHR = 0;
-    for ca in supported_alphas {
-        composite_alpha_mask |= match ca {
-            hal::window::CompositeAlpha::Opaque =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR as u32,
-            hal::window::CompositeAlpha::PreMultiplied =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR as u32,
-            hal::window::CompositeAlpha::PostMultiplied =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR as u32,
-            hal::window::CompositeAlpha::Inherit =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR as u32,
-        };
-    }
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
@@ -4073,7 +4070,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        supportedCompositeAlpha: composite_alpha_mask,
+        supportedCompositeAlpha: caps.composite_alpha.bits(),
         supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
     };
 
@@ -4121,7 +4118,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let (_, _, present_modes, _) = surface
+    let (_, _, present_modes) = surface
         .compatibility(&adapter.physical_device);
 
     let num_present_modes = present_modes.len();
