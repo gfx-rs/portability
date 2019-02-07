@@ -13,7 +13,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_int;
 #[cfg(feature = "renderdoc")]
 use std::os::raw::c_void;
-use std::{mem, ptr};
+use std::{mem, ptr, str};
 
 use super::*;
 
@@ -67,45 +67,39 @@ pub extern "C" fn gfxCreateInstance(
         .map(Handle::new)
         .collect();
 
-    unsafe {
-        let create_info = &*pCreateInfo;
+    let create_info = unsafe { &*pCreateInfo };
+    let application_info = unsafe { create_info.pApplicationInfo.as_ref() };
 
-        let application_info = create_info.pApplicationInfo.as_ref();
-
-        if let Some(ai) = application_info {
-            // Compare major and minor parts of version only - patch is ignored
-            let (supported_major, supported_minor, _) = VERSION;
-            let requested_major_minor = ai.apiVersion >> 12;
-            let version_supported = requested_major_minor
-                & (supported_major << 10 | supported_minor)
-                == requested_major_minor;
-            if !version_supported {
-                return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
-            }
+    if let Some(ai) = application_info {
+        // Compare major and minor parts of version only - patch is ignored
+        let (supported_major, supported_minor, _) = VERSION;
+        let requested_major_minor = ai.apiVersion >> 12;
+        let version_supported = requested_major_minor
+            & (supported_major << 10 | supported_minor)
+            == requested_major_minor;
+        if !version_supported {
+            return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
         }
+    }
 
-        let enabled_extensions = if create_info.enabledExtensionCount == 0 {
-            Vec::new()
-        } else {
-            let extensions = slice::from_raw_parts(
-                create_info.ppEnabledExtensionNames,
-                create_info.enabledExtensionCount as _,
-            ).iter()
-                .map(|raw| {
-                    CStr::from_ptr(*raw)
-                        .to_str()
-                        .expect("Invalid extension name")
-                        .to_owned()
-                })
-                .collect::<Vec<_>>();
-            for extension in &extensions {
-                if !INSTANCE_EXTENSION_NAMES.contains(&extension.as_str()) {
-                    return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
-                }
+    let mut enabled_extensions = Vec::new();
+    if create_info.enabledExtensionCount != 0 {
+        for raw in unsafe {
+            slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
+        } {
+            let cstr = unsafe { CStr::from_ptr(*raw) };
+            if !INSTANCE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
+                return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
             }
-            extensions
-        };
+            let owned = cstr
+                .to_str()
+                .expect("Invalid extension name")
+                .to_owned();
+            enabled_extensions.push(owned);
+        }
+    }
 
+    unsafe {
         *pInstance = Handle::new(RawInstance {
             backend,
             adapters,
@@ -208,64 +202,56 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures(
     pFeatures: *mut VkPhysicalDeviceFeatures,
 ) {
     let features = adapter.physical_device.features();
-
     unsafe {
-        *pFeatures = VkPhysicalDeviceFeatures {
-            robustBufferAccess: features.contains(Features::ROBUST_BUFFER_ACCESS) as _,
-            fullDrawIndexUint32: features.contains(Features::FULL_DRAW_INDEX_U32) as _,
-            imageCubeArray: features.contains(Features::IMAGE_CUBE_ARRAY) as _,
-            independentBlend: features.contains(Features::INDEPENDENT_BLENDING) as _,
-            geometryShader: features.contains(Features::GEOMETRY_SHADER) as _,
-            tessellationShader: features.contains(Features::TESSELLATION_SHADER) as _,
-            sampleRateShading: features.contains(Features::SAMPLE_RATE_SHADING) as _,
-            dualSrcBlend: features.contains(Features::DUAL_SRC_BLENDING) as _,
-            logicOp: features.contains(Features::LOGIC_OP) as _,
-            multiDrawIndirect: features.contains(Features::MULTI_DRAW_INDIRECT) as _,
-            drawIndirectFirstInstance: features.contains(Features::DRAW_INDIRECT_FIRST_INSTANCE) as _,
-            depthClamp: features.contains(Features::DEPTH_CLAMP) as _,
-            depthBiasClamp: features.contains(Features::DEPTH_BIAS_CLAMP) as _,
-            fillModeNonSolid: features.contains(Features::NON_FILL_POLYGON_MODE) as _,
-            depthBounds: features.contains(Features::DEPTH_BOUNDS) as _,
-            wideLines: features.contains(Features::LINE_WIDTH) as _,
-            largePoints: features.contains(Features::POINT_SIZE) as _,
-            alphaToOne: features.contains(Features::ALPHA_TO_ONE) as _,
-            multiViewport: features.contains(Features::MULTI_VIEWPORTS) as _,
-            samplerAnisotropy: features.contains(Features::SAMPLER_ANISOTROPY) as _,
-            textureCompressionETC2: features.contains(Features::FORMAT_ETC2) as _,
-            textureCompressionASTC_LDR: features.contains(Features::FORMAT_ASTC_LDR) as _,
-            textureCompressionBC: features.contains(Features::FORMAT_BC) as _,
-            occlusionQueryPrecise: features.contains(Features::PRECISE_OCCLUSION_QUERY) as _,
-            pipelineStatisticsQuery: features.contains(Features::PIPELINE_STATISTICS_QUERY) as _,
-            vertexPipelineStoresAndAtomics: features.contains(Features::VERTEX_STORES_AND_ATOMICS) as _,
-            fragmentStoresAndAtomics: features.contains(Features::FRAGMENT_STORES_AND_ATOMICS) as _,
-            shaderTessellationAndGeometryPointSize: features.contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE) as _,
-            shaderImageGatherExtended: features.contains(Features::SHADER_IMAGE_GATHER_EXTENDED) as _,
-            shaderStorageImageExtendedFormats: features.contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS) as _,
-            shaderStorageImageMultisample: features.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE) as _,
-            shaderStorageImageReadWithoutFormat: features.contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT) as _,
-            shaderStorageImageWriteWithoutFormat: features.contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT) as _,
-            shaderUniformBufferArrayDynamicIndexing: features.contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING) as _,
-            shaderSampledImageArrayDynamicIndexing: features.contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING) as _,
-            shaderStorageBufferArrayDynamicIndexing: features.contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING) as _,
-            shaderStorageImageArrayDynamicIndexing: features.contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING) as _,
-            shaderClipDistance: features.contains(Features::SHADER_CLIP_DISTANCE) as _,
-            shaderCullDistance: features.contains(Features::SHADER_CULL_DISTANCE) as _,
-            shaderFloat64: features.contains(Features::SHADER_FLOAT64) as _,
-            shaderInt64: features.contains(Features::SHADER_INT64) as _,
-            shaderInt16: features.contains(Features::SHADER_INT16) as _,
-            shaderResourceResidency: features.contains(Features::SHADER_RESOURCE_RESIDENCY) as _,
-            shaderResourceMinLod: features.contains(Features::SHADER_RESOURCE_MIN_LOD) as _,
-            sparseBinding: features.contains(Features::SPARSE_BINDING) as _,
-            sparseResidencyBuffer: features.contains(Features::SPARSE_RESIDENCY_BUFFER) as _,
-            sparseResidencyImage2D: features.contains(Features::SPARSE_RESIDENCY_IMAGE_2D) as _,
-            sparseResidencyImage3D: features.contains(Features::SPARSE_RESIDENCY_IMAGE_3D) as _,
-            sparseResidency2Samples: features.contains(Features::SPARSE_RESIDENCY_2_SAMPLES) as _,
-            sparseResidency4Samples: features.contains(Features::SPARSE_RESIDENCY_4_SAMPLES) as _,
-            sparseResidency8Samples: features.contains(Features::SPARSE_RESIDENCY_8_SAMPLES) as _,
-            sparseResidency16Samples: features.contains(Features::SPARSE_RESIDENCY_16_SAMPLES) as _,
-            sparseResidencyAliased: features.contains(Features::SPARSE_RESIDENCY_ALIASED) as _,
-            variableMultisampleRate: features.contains(Features::VARIABLE_MULTISAMPLE_RATE) as _,
-            inheritedQueries: features.contains(Features::INHERITED_QUERIES) as _,
+        *pFeatures = conv::features_from_hal(features);
+    }
+}
+#[inline]
+pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
+    adapter: VkPhysicalDevice,
+    pFeatures: *mut VkPhysicalDeviceFeatures2KHR,
+) {
+    let features = adapter.physical_device.features();
+    let mut ptr = pFeatures as *const VkStructureType;
+    while !ptr.is_null() {
+        match unsafe { *ptr } {
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR => {
+                let data = unsafe {
+                    (ptr as *mut VkPhysicalDeviceFeatures2KHR).as_mut().unwrap()
+                };
+                data.features = conv::features_from_hal(features);
+            }
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX =>{
+                let data = unsafe {
+                    (ptr as *mut VkPhysicalDevicePortabilitySubsetFeaturesEXTX).as_mut().unwrap()
+                };
+                if features.contains(hal::Features::TRIANGLE_FAN) {
+                    data.triangleFans = VK_TRUE;
+                }
+                if features.contains(hal::Features::SEPARATE_STENCIL_REF_VALUES) {
+                    data.separateStencilMaskRef = VK_TRUE;
+                }
+                if features.contains(hal::Features::SAMPLER_MIP_LOD_BIAS) {
+                    data.samplerMipLodBias = VK_TRUE;
+                }
+                //TODO: turn this into a feature flag
+                if !cfg!(feature = "gfx-backend-metal") {
+                    data.standardImageViews = VK_TRUE;
+                }
+            }
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
+                let data = unsafe {
+                    (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesEXTX).as_mut().unwrap()
+                };
+                let limits = adapter.physical_device.limits();
+                data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
+            }
+            other => {
+                warn!("Unrecognized {:?}, skipping", other);
+            }
+        };
+        ptr = unsafe {
+            *(ptr.offset(1) as *const *const VkStructureType)
         };
     }
 }
@@ -280,31 +266,118 @@ pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
         *pFormatProperties = conv::format_properties_from_hal(properties);
     }
 }
+
+fn get_physical_device_image_format_properties(
+    adapter: VkPhysicalDevice,
+    info: &VkPhysicalDeviceImageFormatInfo2KHR,
+) -> Option<VkImageFormatProperties> {
+    adapter.physical_device
+        .image_format_properties(
+            conv::map_format(info.format).unwrap(),
+            match info.type_ {
+                VkImageType::VK_IMAGE_TYPE_1D => 1,
+                VkImageType::VK_IMAGE_TYPE_2D => 2,
+                VkImageType::VK_IMAGE_TYPE_3D => 3,
+                other => panic!("Unexpected image type: {:?}", other),
+            },
+            conv::map_tiling(info.tiling),
+            conv::map_image_usage(info.usage),
+            conv::map_image_create_flags(info.flags),
+        )
+    .map(conv::image_format_properties_from_hal)
+}
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
     adapter: VkPhysicalDevice,
     format: VkFormat,
-    typ: VkImageType,
+    type_: VkImageType,
     tiling: VkImageTiling,
     usage: VkImageUsageFlags,
-    create_flags: VkImageCreateFlags,
+    flags: VkImageCreateFlags,
     pImageFormatProperties: *mut VkImageFormatProperties,
 ) -> VkResult {
-    let properties = adapter.physical_device.image_format_properties(
-        conv::map_format(format).unwrap(),
-        match typ {
-            VkImageType::VK_IMAGE_TYPE_1D => 1,
-            VkImageType::VK_IMAGE_TYPE_2D => 2,
-            VkImageType::VK_IMAGE_TYPE_3D => 3,
-            _ => panic!("Unexpected image type: {:?}", typ),
+    let info = VkPhysicalDeviceImageFormatInfo2KHR {
+        sType: VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR,
+        pNext: ptr::null(),
+        format,
+        type_,
+        tiling,
+        usage,
+        flags
+    };
+    match get_physical_device_image_format_properties(adapter, &info) {
+        Some(props) => unsafe {
+            *pImageFormatProperties = props;
+            VkResult::VK_SUCCESS
         },
-        conv::map_tiling(tiling),
-        conv::map_image_usage(usage),
-        conv::map_image_create_flags(create_flags),
-    );
+        None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED,
+    }
+}
+#[inline]
+pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
+    adapter: VkPhysicalDevice,
+    pImageFormatInfo: *const VkPhysicalDeviceImageFormatInfo2KHR,
+    pImageFormatProperties: *mut VkImageFormatProperties2KHR,
+) -> VkResult {
+    let mut properties = None;
+
+    let mut ptr = pImageFormatInfo as *const VkStructureType;
+    while !ptr.is_null() {
+        match unsafe { *ptr } {
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR => {
+                let data = unsafe {
+                    (ptr as *const VkPhysicalDeviceImageFormatInfo2KHR).as_ref().unwrap()
+                };
+                properties = get_physical_device_image_format_properties(adapter, data);
+            }
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX => {
+                let data = unsafe {
+                    (ptr as *const VkPhysicalDeviceImageViewSupportEXTX).as_ref().unwrap()
+                };
+                //TODO: provide the data from gfx-rs itself
+                // copied from `map_format_with_swizzle`
+                let identity = VkComponentMapping {
+                    r: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R,
+                    g: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_G,
+                    b: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_B,
+                    a: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_A,
+                };
+                let bgra = VkComponentMapping {
+                    r: identity.b,
+                    b: identity.r,
+                    .. identity
+                };
+                if data.components != identity && cfg!(feature = "gfx-backend-metal") {
+                    let supported = match data.format {
+                        VkFormat::VK_FORMAT_R8_UNORM => data.components == VkComponentMapping {
+                            r: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_ZERO,
+                            g: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_ZERO,
+                            b: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_ZERO,
+                            a: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R,
+                        },
+                        VkFormat::VK_FORMAT_R8G8B8A8_UNORM => data.components == bgra,
+                        VkFormat::VK_FORMAT_B8G8R8A8_UNORM => data.components == bgra,
+                        VkFormat::VK_FORMAT_B8G8R8A8_SRGB => data.components == bgra,
+                        VkFormat::VK_FORMAT_B5G6R5_UNORM_PACK16 => data.components == bgra,
+                        _ => false,
+                    };
+                    if !supported {
+                        return VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED;
+                    }
+                }
+            }
+            other => {
+                warn!("Unrecognized {:?}, skipping", other);
+            }
+        };
+        ptr = unsafe {
+            *(ptr.offset(1) as *const *const VkStructureType)
+        };
+    }
+
     match properties {
         Some(props) => unsafe {
-            *pImageFormatProperties = conv::image_format_properties_from_hal(props);
+            (*pImageFormatProperties).imageFormatProperties = props;
             VkResult::VK_SUCCESS
         },
         None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED,
@@ -399,9 +472,11 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkEnumerateDeviceLayerProperties, PFN_vkEnumerateDeviceLayerProperties => gfxEnumerateDeviceLayerProperties,
 
         vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures => gfxGetPhysicalDeviceFeatures,
+        vkGetPhysicalDeviceFeatures2KHR, PFN_vkGetPhysicalDeviceFeatures2KHR => gfxGetPhysicalDeviceFeatures2KHR,
         vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties => gfxGetPhysicalDeviceProperties,
         vkGetPhysicalDeviceFormatProperties, PFN_vkGetPhysicalDeviceFormatProperties => gfxGetPhysicalDeviceFormatProperties,
         vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties => gfxGetPhysicalDeviceImageFormatProperties,
+        vkGetPhysicalDeviceImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceImageFormatProperties2KHR => gfxGetPhysicalDeviceImageFormatProperties2KHR,
         vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties => gfxGetPhysicalDeviceMemoryProperties,
         vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties => gfxGetPhysicalDeviceQueueFamilyProperties,
         vkGetPhysicalDeviceSparseImageFormatProperties, PFN_vkGetPhysicalDeviceSparseImageFormatProperties => gfxGetPhysicalDeviceSparseImageFormatProperties,
@@ -412,6 +487,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
 
         vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
+        vkCreateMetalSurfaceEXT, PFN_vkCreateMetalSurfaceEXT => gfxCreateMetalSurfaceEXT,
         vkCreateMacOSSurfaceMVK, PFN_vkCreateMacOSSurfaceMVK => gfxCreateMacOSSurfaceMVK,
 
         vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR => gfxDestroySurfaceKHR,
@@ -438,11 +514,10 @@ pub extern "C" fn gfxGetDeviceProcAddr(
             | "vkGetSwapchainImagesKHR"
             | "vkAcquireNextImageKHR"
             | "vkQueuePresentKHR" => {
-                let swapchain_extension_enabled = device
-                    .enabled_extensions
-                    .iter()
-                    .any(|e| e == DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN);
-                if !swapchain_extension_enabled {
+                let search_name = str::from_utf8(
+                    &VK_KHR_SWAPCHAIN_EXTENSION_NAME[.. VK_KHR_SWAPCHAIN_EXTENSION_NAME.len()-1]
+                ).unwrap();
+                if !device.enabled_extensions.iter().any(|ext| ext == search_name) {
                     return None;
                 }
             }
@@ -737,26 +812,22 @@ pub extern "C" fn gfxCreateDevice(
                 rd_device
             };
 
-            let enabled_extensions = if dev_info.enabledExtensionCount == 0 {
-                Vec::new()
-            } else {
-                let extensions = unsafe {
-                        slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
-                            .iter()
-                            .map(|raw| CStr::from_ptr(*raw)
-                                .to_str()
-                                .expect("Invalid extension name")
-                                .to_owned()
-                            )
-                            .collect::<Vec<_>>()
-                    };
-                for extension in &extensions {
-                    if !DEVICE_EXTENSION_NAMES.contains(&extension.as_ref()) {
+            let mut enabled_extensions = Vec::new();
+            if dev_info.enabledExtensionCount != 0 {
+                for raw in unsafe {
+                    slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
+                } {
+                    let cstr = unsafe { CStr::from_ptr(*raw) };
+                    if !DEVICE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
                         return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
                     }
+                    let owned = cstr
+                        .to_str()
+                        .expect("Invalid extension name")
+                        .to_owned();
+                    enabled_extensions.push(owned);
                 }
-                extensions
-            };
+            }
 
             let gpu = Gpu {
                 device: gpu.device,
@@ -800,29 +871,23 @@ pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocati
     }
 }
 
-// TODO: Avoid redefining these somehow
-static INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE: &str = "VK_KHR_surface";
-#[cfg(target_os="windows")]
-static INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE: &str = "VK_KHR_win32_surface";
-#[cfg(target_os="macos")]
-static INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE: &str = "VK_MVK_macos_surface";
-static DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN: &str = "VK_KHR_swapchain";
-static DEVICE_EXTENSION_NAME_VK_KHR_MAINTENANCE1: &str = "VK_KHR_maintenance1";
-
 lazy_static! {
     // TODO: Request from backend
-    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static str> = {
+    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static [u8]> = {
         vec![
-            INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE,
+            VK_KHR_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="windows")]
-            INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE,
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+            #[cfg(feature="gfx-backend-metal")]
+            VK_EXT_METAL_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="macos")]
-            INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE,
+            VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
         ]
     };
 
     static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
-        let mut extensions = [
+        let mut extensions = vec![
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_SURFACE_SPEC_VERSION,
@@ -832,10 +897,19 @@ lazy_static! {
                 extensionName: [0; 256], // VK_KHR_WIN32_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_WIN32_SURFACE_SPEC_VERSION,
             },
+            #[cfg(feature="gfx-backend-metal")]
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_EXT_METAL_SURFACE_EXTENSION_NAME
+                specVersion: VK_EXT_METAL_SURFACE_SPEC_VERSION,
+            },
             #[cfg(target_os="macos")]
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_MVK_MACOS_SURFACE_EXTENSION_NAME
                 specVersion: VK_MVK_MACOS_SURFACE_SPEC_VERSION,
+            },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+                specVersion: VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION,
             },
         ];
 
@@ -843,17 +917,18 @@ lazy_static! {
             extension
                 .extensionName[.. name.len()]
                 .copy_from_slice(unsafe {
-                    mem::transmute(name.as_bytes())
+                    mem::transmute(name)
                 });
         }
 
-        extensions.to_vec()
+        extensions
     };
 
-    static ref DEVICE_EXTENSION_NAMES: Vec<&'static str> = {
+    static ref DEVICE_EXTENSION_NAMES: Vec<&'static [u8]> = {
         vec![
-            DEVICE_EXTENSION_NAME_VK_KHR_SWAPCHAIN,
-            DEVICE_EXTENSION_NAME_VK_KHR_MAINTENANCE1,
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+            VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME,
         ]
     };
 
@@ -867,14 +942,16 @@ lazy_static! {
                 extensionName: [0; 256], // VK_KHR_MAINTENANCE1_EXTENSION_NAME
                 specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
             },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME
+                specVersion: VK_EXTX_PORTABILITY_SUBSET_SPEC_VERSION,
+            },
         ];
 
         for (&name, extension) in DEVICE_EXTENSION_NAMES.iter().zip(&mut extensions) {
             extension
                 .extensionName[.. name.len()]
-                .copy_from_slice(unsafe {
-                    mem::transmute(name.as_bytes())
-                });
+                .copy_from_slice(unsafe { mem::transmute(name) });
         }
 
         extensions.to_vec()
@@ -1020,8 +1097,8 @@ pub extern "C" fn gfxQueueSubmit(
 
     let submission = hal::queue::Submission {
         command_buffers: cmd_slice.iter(),
-        wait_semaphores: wait_semaphores,
-        signal_semaphores: signal_semaphores,
+        wait_semaphores,
+        signal_semaphores,
     };
 
     unsafe { queue.submit(submission, fence.as_ref()); }
@@ -1701,16 +1778,27 @@ pub extern "C" fn gfxDestroyShaderModule(
 #[inline]
 pub extern "C" fn gfxCreatePipelineCache(
     gpu: VkDevice,
-    _pCreateInfo: *const VkPipelineCacheCreateInfo,
+    pCreateInfo: *const VkPipelineCacheCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    //TODO: load
-    let cache = match gpu.device.create_pipeline_cache() {
+    let info = unsafe { &*pCreateInfo };
+    let data = if info.initialDataSize != 0 {
+        Some(unsafe {
+            slice::from_raw_parts(info.pInitialData as *const u8, info.initialDataSize as usize)
+        })
+    } else {
+        None
+    };
+
+    let cache = match unsafe {
+        gpu.device.create_pipeline_cache(data)
+    } {
         Ok(cache) => cache,
         Err(oom) => return map_oom(oom),
     };
     unsafe { *pPipelineCache = Handle::new(cache) };
+
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -4040,22 +4128,8 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _, _supported_transforms, supported_alphas) =
+    let (caps, _, _supported_transforms) =
         surface.compatibility(&adapter.physical_device);
-
-    let mut composite_alpha_mask: VkCompositeAlphaFlagsKHR = 0;
-    for ca in supported_alphas {
-        composite_alpha_mask |= match ca {
-            hal::window::CompositeAlpha::Opaque =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR as u32,
-            hal::window::CompositeAlpha::PreMultiplied =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR as u32,
-            hal::window::CompositeAlpha::PostMultiplied =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR as u32,
-            hal::window::CompositeAlpha::Inherit =>
-                VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR as u32,
-        };
-    }
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: caps.image_count.start,
@@ -4073,7 +4147,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        supportedCompositeAlpha: composite_alpha_mask,
+        supportedCompositeAlpha: caps.composite_alpha.bits(),
         supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
     };
 
@@ -4121,7 +4195,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let (_, _, present_modes, _) = surface
+    let (_, _, present_modes) = surface
         .compatibility(&adapter.physical_device);
 
     let num_present_modes = present_modes.len();
@@ -4531,11 +4605,36 @@ pub extern "C" fn gfxQueuePresentKHR(
             .map(|semaphore| &**semaphore)
     };
 
-    unsafe {
-        queue.present(swapchains, wait_semaphores).unwrap();
+    match unsafe {
+        queue.present(swapchains, wait_semaphores)
+    } {
+        Ok(_) => VkResult::VK_SUCCESS,
+        Err(_) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
     }
+}
 
-    VkResult::VK_SUCCESS
+#[inline]
+pub extern "C" fn gfxCreateMetalSurfaceEXT(
+    instance: VkInstance,
+    pCreateInfo: *const VkMetalSurfaceCreateInfoEXT,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    assert!(pAllocator.is_null());
+    let info = unsafe { &*pCreateInfo };
+    #[cfg(feature = "gfx-backend-metal")]
+    unsafe {
+        assert_eq!(info.flags, 0);
+        *pSurface = Handle::new(
+            instance.backend.create_surface_from_layer(info.pLayer as *mut _),
+        );
+        VkResult::VK_SUCCESS
+    }
+    #[cfg(not(feature = "gfx-backend-metal"))]
+    {
+        let _ = (instance, info, pSurface);
+        unreachable!()
+    }
 }
 
 #[inline]

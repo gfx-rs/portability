@@ -1,5 +1,5 @@
 use hal::{buffer, command, error, format, image, memory, pass, pso, query, window};
-use hal::{IndexType, Limits, PatchSize, Primitive};
+use hal::{IndexType, Features, Limits, PatchSize, Primitive};
 
 use std::mem;
 
@@ -38,6 +38,66 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         nonCoherentAtomSize: limits.non_coherent_atom_size as _,
         maxSamplerAnisotropy: limits.max_sampler_anisotropy,
         .. unsafe { mem::zeroed() } //TODO
+    }
+}
+
+pub fn features_from_hal(features: Features) -> VkPhysicalDeviceFeatures {
+    VkPhysicalDeviceFeatures {
+        robustBufferAccess: features.contains(Features::ROBUST_BUFFER_ACCESS) as _,
+        fullDrawIndexUint32: features.contains(Features::FULL_DRAW_INDEX_U32) as _,
+        imageCubeArray: features.contains(Features::IMAGE_CUBE_ARRAY) as _,
+        independentBlend: features.contains(Features::INDEPENDENT_BLENDING) as _,
+        geometryShader: features.contains(Features::GEOMETRY_SHADER) as _,
+        tessellationShader: features.contains(Features::TESSELLATION_SHADER) as _,
+        sampleRateShading: features.contains(Features::SAMPLE_RATE_SHADING) as _,
+        dualSrcBlend: features.contains(Features::DUAL_SRC_BLENDING) as _,
+        logicOp: features.contains(Features::LOGIC_OP) as _,
+        multiDrawIndirect: features.contains(Features::MULTI_DRAW_INDIRECT) as _,
+        drawIndirectFirstInstance: features.contains(Features::DRAW_INDIRECT_FIRST_INSTANCE) as _,
+        depthClamp: features.contains(Features::DEPTH_CLAMP) as _,
+        depthBiasClamp: features.contains(Features::DEPTH_BIAS_CLAMP) as _,
+        fillModeNonSolid: features.contains(Features::NON_FILL_POLYGON_MODE) as _,
+        depthBounds: features.contains(Features::DEPTH_BOUNDS) as _,
+        wideLines: features.contains(Features::LINE_WIDTH) as _,
+        largePoints: features.contains(Features::POINT_SIZE) as _,
+        alphaToOne: features.contains(Features::ALPHA_TO_ONE) as _,
+        multiViewport: features.contains(Features::MULTI_VIEWPORTS) as _,
+        samplerAnisotropy: features.contains(Features::SAMPLER_ANISOTROPY) as _,
+        textureCompressionETC2: features.contains(Features::FORMAT_ETC2) as _,
+        textureCompressionASTC_LDR: features.contains(Features::FORMAT_ASTC_LDR) as _,
+        textureCompressionBC: features.contains(Features::FORMAT_BC) as _,
+        occlusionQueryPrecise: features.contains(Features::PRECISE_OCCLUSION_QUERY) as _,
+        pipelineStatisticsQuery: features.contains(Features::PIPELINE_STATISTICS_QUERY) as _,
+        vertexPipelineStoresAndAtomics: features.contains(Features::VERTEX_STORES_AND_ATOMICS) as _,
+        fragmentStoresAndAtomics: features.contains(Features::FRAGMENT_STORES_AND_ATOMICS) as _,
+        shaderTessellationAndGeometryPointSize: features.contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE) as _,
+        shaderImageGatherExtended: features.contains(Features::SHADER_IMAGE_GATHER_EXTENDED) as _,
+        shaderStorageImageExtendedFormats: features.contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS) as _,
+        shaderStorageImageMultisample: features.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE) as _,
+        shaderStorageImageReadWithoutFormat: features.contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT) as _,
+        shaderStorageImageWriteWithoutFormat: features.contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT) as _,
+        shaderUniformBufferArrayDynamicIndexing: features.contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING) as _,
+        shaderSampledImageArrayDynamicIndexing: features.contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING) as _,
+        shaderStorageBufferArrayDynamicIndexing: features.contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING) as _,
+        shaderStorageImageArrayDynamicIndexing: features.contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING) as _,
+        shaderClipDistance: features.contains(Features::SHADER_CLIP_DISTANCE) as _,
+        shaderCullDistance: features.contains(Features::SHADER_CULL_DISTANCE) as _,
+        shaderFloat64: features.contains(Features::SHADER_FLOAT64) as _,
+        shaderInt64: features.contains(Features::SHADER_INT64) as _,
+        shaderInt16: features.contains(Features::SHADER_INT16) as _,
+        shaderResourceResidency: features.contains(Features::SHADER_RESOURCE_RESIDENCY) as _,
+        shaderResourceMinLod: features.contains(Features::SHADER_RESOURCE_MIN_LOD) as _,
+        sparseBinding: features.contains(Features::SPARSE_BINDING) as _,
+        sparseResidencyBuffer: features.contains(Features::SPARSE_RESIDENCY_BUFFER) as _,
+        sparseResidencyImage2D: features.contains(Features::SPARSE_RESIDENCY_IMAGE_2D) as _,
+        sparseResidencyImage3D: features.contains(Features::SPARSE_RESIDENCY_IMAGE_3D) as _,
+        sparseResidency2Samples: features.contains(Features::SPARSE_RESIDENCY_2_SAMPLES) as _,
+        sparseResidency4Samples: features.contains(Features::SPARSE_RESIDENCY_4_SAMPLES) as _,
+        sparseResidency8Samples: features.contains(Features::SPARSE_RESIDENCY_8_SAMPLES) as _,
+        sparseResidency16Samples: features.contains(Features::SPARSE_RESIDENCY_16_SAMPLES) as _,
+        sparseResidencyAliased: features.contains(Features::SPARSE_RESIDENCY_ALIASED) as _,
+        variableMultisampleRate: features.contains(Features::VARIABLE_MULTISAMPLE_RATE) as _,
+        inheritedQueries: features.contains(Features::INHERITED_QUERIES) as _,
     }
 }
 
@@ -555,19 +615,19 @@ pub fn map_present_mode(present_mode: VkPresentModeKHR) -> window::PresentMode {
 
 pub fn map_composite_alpha(composite_alpha: VkCompositeAlphaFlagBitsKHR) -> window::CompositeAlpha {
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR {
-        window::CompositeAlpha::Opaque
+        window::CompositeAlpha::OPAQUE
     } else
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR {
-        window::CompositeAlpha::PreMultiplied
+        window::CompositeAlpha::PREMULTIPLIED
     } else
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR {
-        window::CompositeAlpha::PostMultiplied
+        window::CompositeAlpha::POSTMULTIPLIED
     } else
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR {
-        window::CompositeAlpha::Inherit
+        window::CompositeAlpha::INHERIT
     } else {
         error!("Unrecognized composite alpha: {:?}", composite_alpha);
-        window::CompositeAlpha::Opaque
+        window::CompositeAlpha::OPAQUE
     }
 }
 

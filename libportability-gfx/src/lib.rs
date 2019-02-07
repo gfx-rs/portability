@@ -265,6 +265,9 @@ pub const VK_KHR_WIN32_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
     b"VK_KHR_win32_surface\x00";
 pub const VK_MVK_MACOS_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
     b"VK_MVK_macos_surface\x00";
+pub const VK_EXT_METAL_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
+    b"VK_EXT_metal_surface\x00";
+pub const VK_EXT_METAL_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_swapchain: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SWAPCHAIN_SPEC_VERSION: ::std::os::raw::c_uint = 68;
 pub const VK_KHR_SWAPCHAIN_EXTENSION_NAME: &'static [u8; 17usize] =
@@ -512,6 +515,15 @@ pub const VK_EXT_discard_rectangles: ::std::os::raw::c_uint = 1;
 pub const VK_EXT_DISCARD_RECTANGLES_SPEC_VERSION: ::std::os::raw::c_uint = 1;
 pub const VK_EXT_DISCARD_RECTANGLES_EXTENSION_NAME: &'static [u8; 26usize] =
     b"VK_EXT_discard_rectangles\x00";
+pub const VK_EXTX_portability_subset: ::std::os::raw::c_uint = 1;
+pub const VK_EXTX_PORTABILITY_SUBSET_SPEC_VERSION:
+          ::std::os::raw::c_uint =
+    2;
+pub const VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME:
+          &'static [u8; 27usize] =
+    b"VK_EXTX_portability_subset\x00";
+
+
 pub type wchar_t = ::std::os::raw::c_int;
 #[repr(C)]
 #[derive(Debug, Copy)]
@@ -721,6 +733,7 @@ pub enum VkStructureType {
     VK_STRUCTURE_TYPE_MEMORY_BARRIER = 46,
     VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO = 47,
     VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO = 48,
+    VK_STRUCTURE_TYPE_RANGE_SIZE = 49,
     VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR = 1000001000,
     VK_STRUCTURE_TYPE_PRESENT_INFO_KHR = 1000001001,
     VK_STRUCTURE_TYPE_DISPLAY_MODE_CREATE_INFO_KHR = 1000002000,
@@ -829,7 +842,10 @@ pub enum VkStructureType {
         1000099001,
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK = 1000122000,
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
-    VK_STRUCTURE_TYPE_RANGE_SIZE = 49,
+    VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000248000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX = 100163000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX = 100163001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX = 100163002,
     VK_STRUCTURE_TYPE_MAX_ENUM = 2147483647,
 }
 pub const VkSystemAllocationScope_VK_SYSTEM_ALLOCATION_SCOPE_BEGIN_RANGE:
@@ -1924,6 +1940,8 @@ pub enum VkStencilFaceFlagBits {
     VK_STENCIL_FACE_FLAG_BITS_MAX_ENUM = 2147483647,
 }
 pub type VkStencilFaceFlags = VkFlags;
+pub type VkMetalSurfaceCreateFlagsEXT = VkFlags;
+
 pub type PFN_vkAllocationFunction =
     ::std::option::Option<unsafe extern "C" fn(pUserData:
                                                    *mut ::std::os::raw::c_void,
@@ -2601,7 +2619,7 @@ impl Clone for VkSubresourceLayout {
     fn clone(&self) -> Self { *self }
 }
 #[repr(C)]
-#[derive(Debug, Copy)]
+#[derive(Debug, Copy, PartialEq)]
 pub struct VkComponentMapping {
     pub r: VkComponentSwizzle,
     pub g: VkComponentSwizzle,
@@ -6901,9 +6919,67 @@ pub type PFN_vkCreateWin32SurfaceKHR = ::std::option::Option<unsafe extern "C" f
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult>;
 
+pub type PFN_vkCreateMetalSurfaceEXT = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pCreateInfo: *const VkMetalSurfaceCreateInfoEXT,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult>;
+
 pub type PFN_vkCreateMacOSSurfaceMVK = ::std::option::Option<unsafe extern "C" fn(
     instance: VkInstance,
     pCreateInfo: *const VkMacOSSurfaceCreateInfoMVK,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult>;
+
+
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkPhysicalDevicePortabilitySubsetFeaturesEXTX {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub triangleFans: VkBool32,
+    pub separateStencilMaskRef: VkBool32,
+    pub events: VkBool32,
+    pub standardImageViews: VkBool32,
+    pub samplerMipLodBias: VkBool32,
+}
+impl Clone for VkPhysicalDevicePortabilitySubsetFeaturesEXTX {
+    fn clone(&self) -> Self { *self }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkPhysicalDevicePortabilitySubsetPropertiesEXTX {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub minVertexInputBindingStrideAlignment: u32,
+}
+impl Clone for VkPhysicalDevicePortabilitySubsetPropertiesEXTX {
+    fn clone(&self) -> Self { *self }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkPhysicalDeviceImageViewSupportEXTX {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub flags: VkImageViewCreateFlags,
+    pub viewType: VkImageViewType,
+    pub format: VkFormat,
+    pub components: VkComponentMapping,
+    pub aspectMask: VkImageAspectFlags,
+}
+impl Clone for VkPhysicalDeviceImageViewSupportEXTX {
+    fn clone(&self) -> Self { *self }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkMetalSurfaceCreateInfoEXT {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub flags: VkMetalSurfaceCreateFlagsEXT,
+    pub pLayer: *const ::std::os::raw::c_void,
+}
+impl Clone for VkMetalSurfaceCreateInfoEXT {
+    fn clone(&self) -> Self { *self }
+}
