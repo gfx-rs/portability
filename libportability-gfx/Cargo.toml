@@ -4,6 +4,7 @@ publish = false
 version = "0.1.0"
 authors = [
 	"Dzmitry Malyshau <kvark@mozilla.com>",
+	"Joshua Groves <josh@joshgroves.com>",
 	"Markus Siglreithmaier <m.siglreith@gmail.com>",
 ]
 

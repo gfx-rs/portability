@@ -878,15 +878,16 @@ lazy_static! {
             VK_KHR_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="windows")]
             VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-            #[cfg(target_os="macos")]
+            #[cfg(feature="gfx-backend-metal")]
             VK_EXT_METAL_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="macos")]
             VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
+            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
         ]
     };
 
     static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
-        let mut extensions = [
+        let mut extensions = vec![
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_SURFACE_SPEC_VERSION,
@@ -896,10 +897,19 @@ lazy_static! {
                 extensionName: [0; 256], // VK_KHR_WIN32_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_WIN32_SURFACE_SPEC_VERSION,
             },
+            #[cfg(feature="gfx-backend-metal")]
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_EXT_METAL_SURFACE_EXTENSION_NAME
+                specVersion: VK_EXT_METAL_SURFACE_SPEC_VERSION,
+            },
             #[cfg(target_os="macos")]
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_MVK_MACOS_SURFACE_EXTENSION_NAME
                 specVersion: VK_MVK_MACOS_SURFACE_SPEC_VERSION,
+            },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+                specVersion: VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION,
             },
         ];
 
@@ -911,15 +921,14 @@ lazy_static! {
                 });
         }
 
-        extensions.to_vec()
+        extensions
     };
 
     static ref DEVICE_EXTENSION_NAMES: Vec<&'static [u8]> = {
         vec![
-            &VK_KHR_SWAPCHAIN_EXTENSION_NAME[..],
-            &VK_KHR_MAINTENANCE1_EXTENSION_NAME[..],
-            &VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME[..],
-            &VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME[..],
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+            VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME,
         ]
     };
 
@@ -932,10 +941,6 @@ lazy_static! {
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_MAINTENANCE1_EXTENSION_NAME
                 specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
-            },
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-                specVersion: VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION,
             },
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME
