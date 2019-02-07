@@ -237,20 +237,20 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 if features.contains(hal::Features::SEPARATE_STENCIL_REF_VALUES) {
                     data.separateStencilMaskRef = VK_TRUE;
                 }
-                //TODO: turn those into feature flags
+                if features.contains(hal::Features::SAMPLER_MIP_LOD_BIAS) {
+                    data.samplerMipLodBias = VK_TRUE;
+                }
+                //TODO: turn this into a feature flag
                 if !cfg!(feature = "gfx-backend-metal") {
                     data.standardImageViews = VK_TRUE;
-                    data.samplerMipLodBias = VK_TRUE;
                 }
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
                 let data = unsafe {
                     (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesEXTX).as_mut().unwrap()
                 };
-                //TODO: turn this into a limit value
-                if cfg!(feature = "gfx-backend-metal") {
-                    data.minVertexInputBindingStrideAlignment = 4;
-                }
+                let limits = adapter.physical_device.limits();
+                data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
