@@ -67,45 +67,39 @@ pub extern "C" fn gfxCreateInstance(
         .map(Handle::new)
         .collect();
 
-    unsafe {
-        let create_info = &*pCreateInfo;
+    let create_info = unsafe { &*pCreateInfo };
+    let application_info = unsafe { create_info.pApplicationInfo.as_ref() };
 
-        let application_info = create_info.pApplicationInfo.as_ref();
-
-        if let Some(ai) = application_info {
-            // Compare major and minor parts of version only - patch is ignored
-            let (supported_major, supported_minor, _) = VERSION;
-            let requested_major_minor = ai.apiVersion >> 12;
-            let version_supported = requested_major_minor
-                & (supported_major << 10 | supported_minor)
-                == requested_major_minor;
-            if !version_supported {
-                return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
-            }
+    if let Some(ai) = application_info {
+        // Compare major and minor parts of version only - patch is ignored
+        let (supported_major, supported_minor, _) = VERSION;
+        let requested_major_minor = ai.apiVersion >> 12;
+        let version_supported = requested_major_minor
+            & (supported_major << 10 | supported_minor)
+            == requested_major_minor;
+        if !version_supported {
+            return VkResult::VK_ERROR_INCOMPATIBLE_DRIVER;
         }
+    }
 
-        let enabled_extensions = if create_info.enabledExtensionCount == 0 {
-            Vec::new()
-        } else {
-            let extensions = slice::from_raw_parts(
-                create_info.ppEnabledExtensionNames,
-                create_info.enabledExtensionCount as _,
-            ).iter()
-                .map(|raw| {
-                    CStr::from_ptr(*raw)
-                        .to_str()
-                        .expect("Invalid extension name")
-                        .to_owned()
-                })
-                .collect::<Vec<_>>();
-            for extension in &extensions {
-                if !INSTANCE_EXTENSION_NAMES.contains(&extension.as_str()) {
-                    return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
-                }
+    let mut enabled_extensions = Vec::new();
+    if create_info.enabledExtensionCount != 0 {
+        for raw in unsafe {
+            slice::from_raw_parts(create_info.ppEnabledExtensionNames, create_info.enabledExtensionCount as _)
+        } {
+            let cstr = unsafe { CStr::from_ptr(*raw) };
+            if !INSTANCE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
+                return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
             }
-            extensions
-        };
+            let owned = cstr
+                .to_str()
+                .expect("Invalid extension name")
+                .to_owned();
+            enabled_extensions.push(owned);
+        }
+    }
 
+    unsafe {
         *pInstance = Handle::new(RawInstance {
             backend,
             adapters,
@@ -493,6 +487,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
 
         vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
+        vkCreateMetalSurfaceEXT, PFN_vkCreateMetalSurfaceEXT => gfxCreateMetalSurfaceEXT,
         vkCreateMacOSSurfaceMVK, PFN_vkCreateMacOSSurfaceMVK => gfxCreateMacOSSurfaceMVK,
 
         vkDestroySurfaceKHR, PFN_vkDestroySurfaceKHR => gfxDestroySurfaceKHR,
@@ -817,10 +812,8 @@ pub extern "C" fn gfxCreateDevice(
                 rd_device
             };
 
-            let enabled_extensions = if dev_info.enabledExtensionCount == 0 {
-                Vec::new()
-            } else {
-                let mut extensions = Vec::new();
+            let mut enabled_extensions = Vec::new();
+            if dev_info.enabledExtensionCount != 0 {
                 for raw in unsafe {
                     slice::from_raw_parts(dev_info.ppEnabledExtensionNames, dev_info.enabledExtensionCount as _)
                 } {
@@ -832,10 +825,9 @@ pub extern "C" fn gfxCreateDevice(
                         .to_str()
                         .expect("Invalid extension name")
                         .to_owned();
-                    extensions.push(owned);
+                    enabled_extensions.push(owned);
                 }
-                extensions
-            };
+            }
 
             let gpu = Gpu {
                 device: gpu.device,
@@ -879,22 +871,17 @@ pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocati
     }
 }
 
-// TODO: Avoid redefining these somehow
-static INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE: &str = "VK_KHR_surface";
-#[cfg(target_os="windows")]
-static INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE: &str = "VK_KHR_win32_surface";
-#[cfg(target_os="macos")]
-static INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE: &str = "VK_MVK_macos_surface";
-
 lazy_static! {
     // TODO: Request from backend
-    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static str> = {
+    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static [u8]> = {
         vec![
-            INSTANCE_EXTENSION_NAME_VK_KHR_SURFACE,
+            VK_KHR_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="windows")]
-            INSTANCE_EXTENSION_NAME_VK_KHR_WIN32_SURFACE,
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="macos")]
-            INSTANCE_EXTENSION_NAME_VK_MACOS_SURFACE,
+            VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+            #[cfg(target_os="macos")]
+            VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
         ]
     };
 
@@ -920,7 +907,7 @@ lazy_static! {
             extension
                 .extensionName[.. name.len()]
                 .copy_from_slice(unsafe {
-                    mem::transmute(name.as_bytes())
+                    mem::transmute(name)
                 });
         }
 
@@ -1105,8 +1092,8 @@ pub extern "C" fn gfxQueueSubmit(
 
     let submission = hal::queue::Submission {
         command_buffers: cmd_slice.iter(),
-        wait_semaphores: wait_semaphores,
-        signal_semaphores: signal_semaphores,
+        wait_semaphores,
+        signal_semaphores,
     };
 
     unsafe { queue.submit(submission, fence.as_ref()); }
@@ -4613,11 +4600,36 @@ pub extern "C" fn gfxQueuePresentKHR(
             .map(|semaphore| &**semaphore)
     };
 
-    unsafe {
-        queue.present(swapchains, wait_semaphores).unwrap();
+    match unsafe {
+        queue.present(swapchains, wait_semaphores)
+    } {
+        Ok(_) => VkResult::VK_SUCCESS,
+        Err(_) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
     }
+}
 
-    VkResult::VK_SUCCESS
+#[inline]
+pub extern "C" fn gfxCreateMetalSurfaceEXT(
+    instance: VkInstance,
+    pCreateInfo: *const VkMetalSurfaceCreateInfoEXT,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    assert!(pAllocator.is_null());
+    let info = unsafe { &*pCreateInfo };
+    #[cfg(feature = "gfx-backend-metal")]
+    unsafe {
+        assert_eq!(info.flags, 0);
+        *pSurface = Handle::new(
+            instance.backend.create_surface_from_layer(info.pLayer as *mut _),
+        );
+        VkResult::VK_SUCCESS
+    }
+    #[cfg(not(feature = "gfx-backend-metal"))]
+    {
+        let _ = (instance, info, pSurface);
+        unreachable!()
+    }
 }
 
 #[inline]

@@ -265,6 +265,9 @@ pub const VK_KHR_WIN32_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
     b"VK_KHR_win32_surface\x00";
 pub const VK_MVK_MACOS_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
     b"VK_MVK_macos_surface\x00";
+pub const VK_EXT_METAL_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] =
+    b"VK_EXT_metal_surface\x00";
+pub const VK_EXT_METAL_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_swapchain: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SWAPCHAIN_SPEC_VERSION: ::std::os::raw::c_uint = 68;
 pub const VK_KHR_SWAPCHAIN_EXTENSION_NAME: &'static [u8; 17usize] =
@@ -839,6 +842,7 @@ pub enum VkStructureType {
         1000099001,
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK = 1000122000,
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
+    VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000248000,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX = 100163000,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX = 100163001,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX = 100163002,
@@ -1936,6 +1940,8 @@ pub enum VkStencilFaceFlagBits {
     VK_STENCIL_FACE_FLAG_BITS_MAX_ENUM = 2147483647,
 }
 pub type VkStencilFaceFlags = VkFlags;
+pub type VkMetalSurfaceCreateFlagsEXT = VkFlags;
+
 pub type PFN_vkAllocationFunction =
     ::std::option::Option<unsafe extern "C" fn(pUserData:
                                                    *mut ::std::os::raw::c_void,
@@ -6913,6 +6919,13 @@ pub type PFN_vkCreateWin32SurfaceKHR = ::std::option::Option<unsafe extern "C" f
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult>;
 
+pub type PFN_vkCreateMetalSurfaceEXT = ::std::option::Option<unsafe extern "C" fn(
+    instance: VkInstance,
+    pCreateInfo: *const VkMetalSurfaceCreateInfoEXT,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult>;
+
 pub type PFN_vkCreateMacOSSurfaceMVK = ::std::option::Option<unsafe extern "C" fn(
     instance: VkInstance,
     pCreateInfo: *const VkMacOSSurfaceCreateInfoMVK,
@@ -6957,5 +6970,16 @@ pub struct VkPhysicalDeviceImageViewSupportEXTX {
     pub aspectMask: VkImageAspectFlags,
 }
 impl Clone for VkPhysicalDeviceImageViewSupportEXTX {
+    fn clone(&self) -> Self { *self }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkMetalSurfaceCreateInfoEXT {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub flags: VkMetalSurfaceCreateFlagsEXT,
+    pub pLayer: *const ::std::os::raw::c_void,
+}
+impl Clone for VkMetalSurfaceCreateInfoEXT {
     fn clone(&self) -> Self { *self }
 }
