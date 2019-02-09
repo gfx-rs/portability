@@ -24,13 +24,28 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 
 ## Instructions
 
-Despite the fact it's written in Rust, the produced binary is a standard dynamic library that can be linked to from any program (written in the language of your choice). Typically, you'd need to create a symbolic link with a name that a target application expects, e.g. `libvulkan.dylib -> libportability.dylib`.
+Despite the fact it's written in Rust, the produced binaries have standard lining interface compatible with any program (written in the language of your choice). There are multiple ways to link to gfx-portability.
+
+### Dynamic linking
+
+Typically, you'd need to create a symbolic link with a name that a target application expects, e.g. `libvulkan.dylib -> libportability.dylib`.
 
 Check out and build:
 ```
 git clone --recursive https://github.com/gfx-rs/portability && cd portability
 cargo build --manifest-path libportability/Cargo.toml --features <vulkan|dx12|metal>
 ```
+
+### ICD provider
+
+gfx-portability can be used with Vulkan loader like any other Vulkan driver. In order to use it this way, you need to build `libportability-icd` and point to it from an ICD json file:
+```
+VK_ICD_FILENAMES=portability/libportability-icd/portability-macos-debug.json <some_vulkan_app>
+```
+
+### Static linking
+
+For C, you'd need to add `crate-type = ["cdylib"]` to `libportability-gfx/Cargo.toml` and build it with the backend of your choice. Note: features of this library are fully-qualified crate names, e.g. `features gfx-backend-metal`. For rust, just point the cargo dependency to `libportability-gfx`.
 
 ## Running Samples
 

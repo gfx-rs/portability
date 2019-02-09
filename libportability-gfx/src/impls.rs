@@ -214,12 +214,13 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
     let features = adapter.physical_device.features();
     let mut ptr = pFeatures as *const VkStructureType;
     while !ptr.is_null() {
-        match unsafe { *ptr } {
+        ptr = match unsafe { *ptr } {
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR => {
                 let data = unsafe {
                     (ptr as *mut VkPhysicalDeviceFeatures2KHR).as_mut().unwrap()
                 };
                 data.features = conv::features_from_hal(features);
+                data.pNext
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX =>{
                 let data = unsafe {
@@ -238,6 +239,7 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 if !cfg!(feature = "gfx-backend-metal") {
                     data.standardImageViews = VK_TRUE;
                 }
+                data.pNext
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
                 let data = unsafe {
@@ -245,14 +247,15 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 };
                 let limits = adapter.physical_device.limits();
                 data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
+                data.pNext
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
+                unsafe {
+                    (ptr as *const VkPhysicalDeviceFeatures2KHR).as_ref().unwrap()
+                }.pNext
             }
-        };
-        ptr = unsafe {
-            *(ptr.offset(1) as *const *const VkStructureType)
-        };
+        } as *const VkStructureType;
     }
 }
 #[inline]
@@ -284,7 +287,7 @@ fn get_physical_device_image_format_properties(
             conv::map_image_usage(info.usage),
             conv::map_image_create_flags(info.flags),
         )
-    .map(conv::image_format_properties_from_hal)
+        .map(conv::image_format_properties_from_hal)
 }
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
@@ -323,56 +326,36 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
 
     let mut ptr = pImageFormatInfo as *const VkStructureType;
     while !ptr.is_null() {
-        match unsafe { *ptr } {
+        ptr = match unsafe { *ptr } {
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR => {
                 let data = unsafe {
                     (ptr as *const VkPhysicalDeviceImageFormatInfo2KHR).as_ref().unwrap()
                 };
                 properties = get_physical_device_image_format_properties(adapter, data);
+                data.pNext
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX => {
                 let data = unsafe {
                     (ptr as *const VkPhysicalDeviceImageViewSupportEXTX).as_ref().unwrap()
                 };
-                //TODO: provide the data from gfx-rs itself
-                // copied from `map_format_with_swizzle`
-                let identity = VkComponentMapping {
-                    r: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R,
-                    g: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_G,
-                    b: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_B,
-                    a: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_A,
-                };
-                let bgra = VkComponentMapping {
-                    r: identity.b,
-                    b: identity.r,
-                    .. identity
-                };
-                if data.components != identity && cfg!(feature = "gfx-backend-metal") {
-                    let supported = match data.format {
-                        VkFormat::VK_FORMAT_R8_UNORM => data.components == VkComponentMapping {
-                            r: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_ZERO,
-                            g: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_ZERO,
-                            b: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_ZERO,
-                            a: VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R,
-                        },
-                        VkFormat::VK_FORMAT_R8G8B8A8_UNORM => data.components == bgra,
-                        VkFormat::VK_FORMAT_B8G8R8A8_UNORM => data.components == bgra,
-                        VkFormat::VK_FORMAT_B8G8R8A8_SRGB => data.components == bgra,
-                        VkFormat::VK_FORMAT_B5G6R5_UNORM_PACK16 => data.components == bgra,
-                        _ => false,
-                    };
-                    if !supported {
+                #[cfg(feature = "gfx-backend-metal")]
+                {
+                    if !adapter.physical_device.supports_swizzle(
+                        conv::map_format(data.format).unwrap(),
+                        conv::map_swizzle(data.components),
+                    ) {
                         return VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED;
                     }
                 }
+                data.pNext
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
+                unsafe {
+                    (ptr as *const VkPhysicalDeviceImageFormatInfo2KHR).as_ref().unwrap()
+                }.pNext
             }
-        };
-        ptr = unsafe {
-            *(ptr.offset(1) as *const *const VkStructureType)
-        };
+        } as *const VkStructureType;
     }
 
     match properties {
