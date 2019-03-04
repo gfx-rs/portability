@@ -1086,6 +1086,7 @@ pub extern "C" fn gfxQueueSubmit(
         };
 
         // only provide the fence for the last submission
+        //TODO: support multiple submissions at gfx-hal level
         let fence = if i + 1 == submits.len() {
             fence.as_ref()
         } else {
