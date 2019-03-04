@@ -1094,6 +1094,23 @@ pub extern "C" fn gfxQueueSubmit(
         };
         unsafe { queue.submit(submission, fence); }
     }
+
+    // sometimes, all you need is a fence...
+    if submits.is_empty() {
+        use std::iter::empty;
+        let submission = hal::queue::Submission {
+            command_buffers: empty(),
+            wait_semaphores: empty(),
+            signal_semaphores: empty(),
+        };
+        unsafe {
+            queue.submit::<VkCommandBuffer, _, VkSemaphore, _, _>(
+                submission,
+                fence.as_ref(),
+            )
+        };
+    }
+
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1392,21 +1409,29 @@ pub extern "C" fn gfxWaitForFences(
     waitAll: VkBool32,
     timeout: u64,
 ) -> VkResult {
-    let fence_slice = unsafe {
-        slice::from_raw_parts(pFences, fenceCount as _)
+    let result = match fenceCount {
+        0 => Ok(true),
+        1 => unsafe {
+            gpu.device.wait_for_fence(&**pFences, timeout)
+        },
+        _ => {
+            let fence_slice = unsafe {
+                slice::from_raw_parts(pFences, fenceCount as _)
+            };
+            let fences = fence_slice
+                .into_iter()
+                .map(|fence| &**fence);
+            let wait_for = match waitAll {
+                VK_FALSE => WaitFor::Any,
+                _ => WaitFor::All,
+            };
+            unsafe {
+                gpu.device.wait_for_fences(fences, wait_for, timeout)
+            }
+        }
     };
-    let fences = fence_slice
-        .into_iter()
-        .map(|fence| &**fence);
 
-    let wait_for = match waitAll {
-        VK_FALSE => WaitFor::Any,
-        _ => WaitFor::All,
-    };
-
-    match unsafe {
-        gpu.device.wait_for_fences(fences, wait_for, timeout as _)
-    } {
+    match result {
         Ok(true) => VkResult::VK_SUCCESS,
         Ok(false) => VkResult::VK_TIMEOUT,
         Err(hal::device::OomOrDeviceLost::OutOfMemory(oom)) => map_oom(oom),
