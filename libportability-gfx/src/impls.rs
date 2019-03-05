@@ -188,9 +188,9 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
             queueCount: family.max_queues() as _,
             timestampValidBits: 0, //TODO
             minImageTransferGranularity: VkExtent3D {
-                width: 0,
-                height: 0,
-                depth: 0,
+                width: 1,
+                height: 1,
+                depth: 1,
             }, //TODO
         }
     }
@@ -1058,33 +1058,58 @@ pub extern "C" fn gfxQueueSubmit(
     pSubmits: *const VkSubmitInfo,
     fence: VkFence,
 ) -> VkResult {
-    assert_eq!(submitCount, 1); // TODO;
-
-    let submission = unsafe { *pSubmits };
-    let cmd_slice = unsafe {
-        slice::from_raw_parts(submission.pCommandBuffers, submission.commandBufferCount as _)
+    let submits = unsafe {
+        slice::from_raw_parts(pSubmits, submitCount as usize)
     };
-    let wait_semaphores = unsafe {
-        let semaphores = slice::from_raw_parts(submission.pWaitSemaphores, submission.waitSemaphoreCount as _);
-        let stages = slice::from_raw_parts(submission.pWaitDstStageMask, submission.waitSemaphoreCount as _);
+    for (i, submission) in submits.iter().enumerate() {
+        let cmd_slice = unsafe {
+            slice::from_raw_parts(submission.pCommandBuffers, submission.commandBufferCount as _)
+        };
+        let wait_semaphores = unsafe {
+            let semaphores = slice::from_raw_parts(submission.pWaitSemaphores, submission.waitSemaphoreCount as _);
+            let stages = slice::from_raw_parts(submission.pWaitDstStageMask, submission.waitSemaphoreCount as _);
 
-        stages.into_iter()
-            .zip(semaphores)
-            .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
-    };
-    let signal_semaphores = unsafe {
-        slice::from_raw_parts(submission.pSignalSemaphores, submission.signalSemaphoreCount as _)
-            .into_iter()
-            .map(|semaphore| &**semaphore)
-    };
+            stages.into_iter()
+                .zip(semaphores)
+                .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
+        };
+        let signal_semaphores = unsafe {
+            slice::from_raw_parts(submission.pSignalSemaphores, submission.signalSemaphoreCount as _)
+                .into_iter()
+                .map(|semaphore| &**semaphore)
+        };
 
-    let submission = hal::queue::Submission {
-        command_buffers: cmd_slice.iter(),
-        wait_semaphores,
-        signal_semaphores,
-    };
+        let submission = hal::queue::Submission {
+            command_buffers: cmd_slice.iter(),
+            wait_semaphores,
+            signal_semaphores,
+        };
 
-    unsafe { queue.submit(submission, fence.as_ref()); }
+        // only provide the fence for the last submission
+        //TODO: support multiple submissions at gfx-hal level
+        let fence = if i + 1 == submits.len() {
+            fence.as_ref()
+        } else {
+            None
+        };
+        unsafe { queue.submit(submission, fence); }
+    }
+
+    // sometimes, all you need is a fence...
+    if submits.is_empty() {
+        use std::iter::empty;
+        let submission = hal::queue::Submission {
+            command_buffers: empty(),
+            wait_semaphores: empty(),
+            signal_semaphores: empty(),
+        };
+        unsafe {
+            queue.submit::<VkCommandBuffer, _, VkSemaphore, _, _>(
+                submission,
+                fence.as_ref(),
+            )
+        };
+    }
 
     VkResult::VK_SUCCESS
 }
@@ -1384,21 +1409,29 @@ pub extern "C" fn gfxWaitForFences(
     waitAll: VkBool32,
     timeout: u64,
 ) -> VkResult {
-    let fence_slice = unsafe {
-        slice::from_raw_parts(pFences, fenceCount as _)
+    let result = match fenceCount {
+        0 => Ok(true),
+        1 => unsafe {
+            gpu.device.wait_for_fence(&**pFences, timeout)
+        },
+        _ => {
+            let fence_slice = unsafe {
+                slice::from_raw_parts(pFences, fenceCount as _)
+            };
+            let fences = fence_slice
+                .into_iter()
+                .map(|fence| &**fence);
+            let wait_for = match waitAll {
+                VK_FALSE => WaitFor::Any,
+                _ => WaitFor::All,
+            };
+            unsafe {
+                gpu.device.wait_for_fences(fences, wait_for, timeout)
+            }
+        }
     };
-    let fences = fence_slice
-        .into_iter()
-        .map(|fence| &**fence);
 
-    let wait_for = match waitAll {
-        VK_FALSE => WaitFor::Any,
-        _ => WaitFor::All,
-    };
-
-    match unsafe {
-        gpu.device.wait_for_fences(fences, wait_for, timeout as _)
-    } {
+    match result {
         Ok(true) => VkResult::VK_SUCCESS,
         Ok(false) => VkResult::VK_TIMEOUT,
         Err(hal::device::OomOrDeviceLost::OutOfMemory(oom)) => map_oom(oom),
@@ -1972,8 +2005,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 .iter()
                 .map(|binding| {
                     let rate = match binding.inputRate {
-                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => 0,
-                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => 1,
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => pso::VertexInputRate::Vertex,
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => pso::VertexInputRate::Instance(1),
                         rate => panic!("Unexpected input rate: {:?}", rate),
                     };
 
@@ -2588,7 +2621,11 @@ pub extern "C" fn gfxCreateDescriptorPool(
 
     let pool = super::DescriptorPool {
         raw: match unsafe {
-            gpu.device.create_descriptor_pool(max_sets, ranges)
+            gpu.device.create_descriptor_pool(
+                max_sets,
+                ranges,
+                pso::DescriptorPoolCreateFlags::from_bits_truncate(info.flags),
+            )
         } {
             Ok(pool) => pool,
             Err(oom) => return map_oom(oom),

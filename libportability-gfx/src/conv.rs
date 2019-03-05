@@ -18,6 +18,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxTessellationPatchSize: limits.max_patch_size as _,
         maxPushConstantsSize: 0x80, //TODO
         maxViewports: limits.max_viewports as _,
+        maxViewportDimensions: [limits.max_texture_size as u32; 2],
         maxVertexInputAttributes: limits.max_vertex_input_attributes as _,
         maxVertexInputBindings: limits.max_vertex_input_bindings as _,
         maxVertexInputAttributeOffset: limits.max_vertex_input_attribute_offset as _,
