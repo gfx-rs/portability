@@ -8,27 +8,25 @@ use super::*;
 
 pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
     VkPhysicalDeviceLimits {
-        maxImageDimension1D: limits.max_texture_size as _,
-        maxImageDimension2D: limits.max_texture_size as _,
-        maxImageDimension3D: limits.max_texture_size as _,
-        maxImageDimensionCube: limits.max_texture_size as _,
-        maxFramebufferWidth: limits.max_texture_size as _, //TODO
-        maxFramebufferHeight: limits.max_texture_size as _, //TODO
+        maxImageDimension1D: limits.max_image_1d_size,
+        maxImageDimension2D: limits.max_image_2d_size,
+        maxImageDimension3D: limits.max_image_3d_size,
+        maxImageDimensionCube: limits.max_image_cube_size,
+        maxFramebufferWidth: limits.max_framebuffer_extent.width,
+        maxFramebufferHeight: limits.max_framebuffer_extent.height,
         maxTexelBufferElements: limits.max_texel_elements as _,
         maxTessellationPatchSize: limits.max_patch_size as _,
-        maxPushConstantsSize: 0x80, //TODO
+        maxPushConstantsSize: limits.max_push_constants_size as _,
         maxViewports: limits.max_viewports as _,
-        maxViewportDimensions: [limits.max_texture_size as u32; 2],
+        maxViewportDimensions: limits.max_viewport_dimensions,
         maxVertexInputAttributes: limits.max_vertex_input_attributes as _,
         maxVertexInputBindings: limits.max_vertex_input_bindings as _,
         maxVertexInputAttributeOffset: limits.max_vertex_input_attribute_offset as _,
         maxVertexInputBindingStride: limits.max_vertex_input_binding_stride as _,
         maxVertexOutputComponents: limits.max_vertex_output_components as _,
-        maxComputeWorkGroupCount: limits.max_compute_group_count,
-        maxComputeWorkGroupSize: limits.max_compute_group_size,
-        bufferImageGranularity: 1, //TODO
-        optimalBufferCopyOffsetAlignment: limits.min_buffer_copy_offset_alignment,
-        optimalBufferCopyRowPitchAlignment: limits.min_buffer_copy_pitch_alignment,
+        maxComputeWorkGroupCount: limits.max_compute_work_group_count,
+        maxComputeWorkGroupSize: limits.max_compute_work_group_size,
+        bufferImageGranularity: limits.buffer_image_granularity,
         minTexelBufferOffsetAlignment: limits.min_texel_buffer_offset_alignment,
         minUniformBufferOffsetAlignment: limits.min_uniform_buffer_offset_alignment,
         minStorageBufferOffsetAlignment: limits.min_storage_buffer_offset_alignment,
@@ -38,6 +36,8 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxColorAttachments: limits.max_color_attachments as _,
         nonCoherentAtomSize: limits.non_coherent_atom_size as _,
         maxSamplerAnisotropy: limits.max_sampler_anisotropy,
+        optimalBufferCopyOffsetAlignment: limits.optimal_buffer_copy_offset_alignment,
+        optimalBufferCopyRowPitchAlignment: limits.optimal_buffer_copy_pitch_alignment,
         .. unsafe { mem::zeroed() } //TODO
     }
 }

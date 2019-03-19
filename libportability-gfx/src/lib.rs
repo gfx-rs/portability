@@ -14,6 +14,7 @@ extern crate gfx_backend_metal as back;
 #[cfg(feature = "gfx-backend-vulkan")]
 extern crate gfx_backend_vulkan as back;
 
+extern crate copyless;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]

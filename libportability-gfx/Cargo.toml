@@ -18,6 +18,7 @@ nightly = []
 metal-capture = ["gfx-backend-metal/auto-capture"]
 
 [dependencies]
+copyless = "0.1.1"
 lazy_static = "1.0"
 log = { version = "0.4", features = ["release_max_level_error"] }
 
