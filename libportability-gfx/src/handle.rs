@@ -6,6 +6,9 @@ use std::sync::{Arc, Mutex};
 #[cfg(feature = "nightly")]
 use hal::backend::FastHashMap;
 
+use copyless::{BoxAllocation, BoxHelper};
+
+
 #[cfg(feature = "nightly")]
 lazy_static! {
     static ref REGISTRY: Arc<Mutex<FastHashMap<usize, &'static str>>> = Arc::new(Mutex::new(FastHashMap::default()));
@@ -25,9 +28,12 @@ impl Handle<()> {
     }
 }
 
-impl<T: 'static> Handle<T> {
-    pub fn new(value: T) -> Self {
-        let ptr = Box::into_raw(Box::new(value));
+pub struct HandleAllocation<T>(BoxAllocation<T>);
+
+impl<T> HandleAllocation<T> {
+    #[inline(always)]
+    pub fn init(self, value: T) -> Handle<T> {
+        let ptr = Box::into_raw(self.0.init(value));
         #[cfg(feature = "nightly")]
         {
             use std::intrinsics::type_name;
@@ -35,6 +41,17 @@ impl<T: 'static> Handle<T> {
             REGISTRY.lock().unwrap().insert(ptr as _, name);
         }
         Handle(ptr)
+    }
+}
+
+impl<T: 'static> Handle<T> {
+    pub fn alloc() -> HandleAllocation<T> {
+        HandleAllocation(Box::alloc())
+    }
+
+    // Note: ideally this constructor isn't used
+    pub fn new(value: T) -> Self {
+        Self::alloc().init(value)
     }
 
     pub fn null() -> Self {
@@ -125,6 +142,7 @@ pub type DispatchHandle<T> = Handle<T>;
 #[cfg(feature = "dispatch")]
 mod dispatch {
     use VK_NULL_HANDLE;
+    use copyless::{BoxAllocation, BoxHelper};
     use std::{borrow, cmp, fmt, ops};
 
     const ICD_LOADER_MAGIC: u64 = 0x01CDC0DE;
@@ -132,10 +150,23 @@ mod dispatch {
     #[repr(C)]
     pub struct DispatchHandle<T>(*mut (u64, T));
 
-    impl<T> DispatchHandle<T> {
-        pub fn new(value: T) -> Self {
-            let ptr = Box::into_raw(Box::new((ICD_LOADER_MAGIC, value)));
+    pub struct DisplatchHandleAllocation<T>(BoxAllocation<(u64, T)>);
+
+    impl<T> DisplatchHandleAllocation<T> {
+        #[inline(always)]
+        pub fn init(self, value: T) -> DispatchHandle<T> {
+            let ptr = Box::into_raw(self.0.init((ICD_LOADER_MAGIC, value)));
             DispatchHandle(ptr)
+        }
+    }
+
+    impl<T> DispatchHandle<T> {
+        pub fn alloc() -> DisplatchHandleAllocation<T> {
+            DisplatchHandleAllocation(Box::alloc())
+        }
+
+        pub fn new(value: T) -> Self {
+            Self::alloc().init(value)
         }
 
         pub fn null() -> Self {

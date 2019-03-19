@@ -9,6 +9,8 @@ use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
 use hal::queue::RawCommandQueue;
 
+#[cfg(feature = "gfx-backend-metal")]
+use std::env;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_int;
 #[cfg(feature = "renderdoc")]
@@ -759,7 +761,6 @@ pub extern "C" fn gfxCreateDevice(
             #[cfg(feature = "gfx-backend-metal")]
             {
                 use back::OnlineRecording;
-                use std::env;
 
                 if let Ok(value) = env::var("GFX_METAL_RECORDING") {
                     gpu.device.online_recording = match value.to_lowercase().as_str() {
@@ -1033,8 +1034,6 @@ pub extern "C" fn gfxGetDeviceQueue(
 
         #[cfg(feature = "gfx-backend-metal")]
         {
-            use std::env;
-
             if let Ok(value) = env::var("GFX_METAL_STITCHING") {
                 let mut q = queue;
                 q.stitch_deferred = match value.to_lowercase().as_str() {
@@ -3166,11 +3165,11 @@ pub extern "C" fn gfxAllocateCommandBuffers(
         level => panic!("Unexpected command buffer lvel: {:?}", level),
     };
 
-    let count = info.commandBufferCount as usize;
-    let cmd_bufs = info.commandPool.pool.allocate_vec(count, level);
-
-    let output = unsafe { slice::from_raw_parts_mut(pCommandBuffers, count) };
-    for (out, cmd_buf) in output.iter_mut().zip(cmd_bufs) {
+    let output = unsafe {
+        slice::from_raw_parts_mut(pCommandBuffers, info.commandBufferCount as usize)
+    };
+    for out in output.iter_mut() {
+        let cmd_buf = info.commandPool.pool.allocate_one(level);
         *out = DispatchHandle::new(cmd_buf);
     }
     info.commandPool.buffers.extend_from_slice(output);
@@ -4283,7 +4282,6 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     #[cfg(feature = "gfx-backend-metal")]
     {
         use back::AcquireMode;
-        use std::env;
 
         if let Ok(value) = env::var("GFX_METAL_ACQUIRING") {
             swapchain.acquire_mode = match value.to_lowercase().as_str() {
@@ -4644,9 +4642,13 @@ pub extern "C" fn gfxCreateMetalSurfaceEXT(
     let info = unsafe { &*pCreateInfo };
     #[cfg(feature = "gfx-backend-metal")]
     unsafe {
+        let enable_signposts = env::var("GFX_METAL_SIGNPOSTS").is_ok();
+        if enable_signposts {
+            println!("GFX: enabled signposts");
+        }
         assert_eq!(info.flags, 0);
         *pSurface = Handle::new(
-            instance.backend.create_surface_from_layer(info.pLayer as *mut _),
+            instance.backend.create_surface_from_layer(info.pLayer as *mut _, enable_signposts),
         );
         VkResult::VK_SUCCESS
     }
@@ -4668,9 +4670,15 @@ pub extern "C" fn gfxCreateMacOSSurfaceMVK(
     let info = unsafe { &*pCreateInfo };
     #[cfg(target_os="macos")]
     unsafe {
+        use std::env;
+
+        let enable_signposts = env::var("GFX_METAL_SIGNPOSTS").is_ok();
+        if enable_signposts {
+            println!("GFX: enabled signposts");
+        }
         assert_eq!(info.flags, 0);
         *pSurface = Handle::new(
-            instance.backend.create_surface_from_nsview(info.pView),
+            instance.backend.create_surface_from_nsview(info.pView, enable_signposts),
         );
         VkResult::VK_SUCCESS
     }

@@ -60,7 +60,7 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl package
+.PHONY: all rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl package memcpy-report
 
 all: $(NATIVE_TARGET)
 
@@ -172,3 +172,7 @@ target/debug/libvulkan.$(LIB_EXTENSION):
 
 cherry: $(LIBRARY) target/debug/libvulkan.$(LIB_EXTENSION)
 	cd $(CHERRY_DIR) && rm -f Cherry.db && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
+
+memcpy-report:
+	RUSTFLAGS='-g --emit=llvm-ir' cd libportability && cargo build --release --features $(BACKEND)
+	../memcpy-find/memcpy-find target/release/deps/portability.ll | rustfilt >etc/portability-memcpy.txt
