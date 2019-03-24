@@ -1,7 +1,7 @@
 use hal::{command as com, memory, pass, pso, queue};
 use hal::{
     DescriptorPool, Device, Features, Instance, PhysicalDevice, QueueFamily,
-    Surface, Swapchain as HalSwapchain, FrameSync,
+    Surface, Swapchain as _,
 };
 use hal::buffer::IndexBufferView;
 use hal::command::RawCommandBuffer;
@@ -4577,18 +4577,13 @@ pub extern "C" fn gfxAcquireNextImageKHR(
     fence: VkFence,
     pImageIndex: *mut u32,
 ) -> VkResult {
-    let sync = match semaphore.as_ref() {
-        Some(sem) => FrameSync::Semaphore(sem),
-        None => FrameSync::Fence(&*fence),
-    };
-
     let raw = match swapchain.raw {
         Some(ref mut raw) => raw,
         None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
     };
 
     match unsafe {
-        raw.acquire_image(timeout, sync)
+        raw.acquire_image(timeout, semaphore.as_ref(), fence.as_ref())
     } {
         Ok(frame) => {
             unsafe { *pImageIndex = frame; }
