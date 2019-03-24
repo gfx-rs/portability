@@ -7,6 +7,7 @@ use super::*;
 
 
 pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
+    let viewport_size = limits.max_viewport_dimensions[0].max(limits.max_viewport_dimensions[1]);
     VkPhysicalDeviceLimits {
         maxImageDimension1D: limits.max_image_1d_size,
         maxImageDimension2D: limits.max_image_2d_size,
@@ -19,6 +20,9 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxPushConstantsSize: limits.max_push_constants_size as _,
         maxViewports: limits.max_viewports as _,
         maxViewportDimensions: limits.max_viewport_dimensions,
+        // Warning: spec violation
+        // "The x/y rectangle of the viewport must lie entirely within the current attachment size."
+        viewportBoundsRange: [0.0, viewport_size as f32],
         maxVertexInputAttributes: limits.max_vertex_input_attributes as _,
         maxVertexInputBindings: limits.max_vertex_input_bindings as _,
         maxVertexInputAttributeOffset: limits.max_vertex_input_attribute_offset as _,
