@@ -1728,9 +1728,6 @@ pub extern "C" fn gfxCreateImageView(
     pView: *mut VkImageView,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    assert!(info.subresourceRange.levelCount != VK_REMAINING_MIP_LEVELS as _); // TODO
-    assert!(info.subresourceRange.layerCount != VK_REMAINING_ARRAY_LAYERS as _); // TODO
-
     let view = unsafe {
         gpu.device.create_image_view(
             &info.image.raw,
