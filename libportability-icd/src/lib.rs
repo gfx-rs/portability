@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 
-#[macro_use]
 extern crate portability_gfx;
 
 use portability_gfx::*;

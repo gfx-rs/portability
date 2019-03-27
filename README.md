@@ -9,18 +9,20 @@ This is a prototype library implementing [Vulkan Portability Initiative](https:/
 ### [Dota2](https://github.com/ValveSoftware/Dota-2):
 ![Dota2](etc/dota2-river.jpg)
 
-### [VkQuake](https://github.com/Novum/vkQuake)
-![VkQuake](etc/quake-main.jpg)
+### Quake
+- [vkQuake](https://github.com/Novum/vkQuake)
+- [vkQuake2](https://github.com/kondrak/vkQuake2)
+- [vkQuake3](https://github.com/suijingfeng/vkQuake3)
+
+![VkQuake](etc/quake-main.jpg) ![VkQuake3](etc/quake3-main.jpg)
 
 ### [RPCS3](https://github.com/RPCS3/rpcs3):
-![RPCS3-cube](etc/rpcs3-cube.jpg)
-![RPCS3-scogger](etc/rpcs3-scogger.jpg)
+
+![RPCS3-cube](etc/rpcs3-cube.jpg) ![RPCS3-scogger](etc/rpcs3-scogger.jpg)
 
 ### [Dolphin](https://github.com/dolphin-emu):
-![Dolphin-sb](etc/dolphin-smash-bros.png)
-![Dolphin-pm](etc/dolphin-paper-mario.png)
-![Dolphin-mk](etc/dolphin-mario-kart.jpg)
-![Dolphin-md](etc/dolphin-metroid.jpg)
+![Dolphin-sb](etc/dolphin-smash-bros.png) ![Dolphin-pm](etc/dolphin-paper-mario.png)
+![Dolphin-mk](etc/dolphin-mario-kart.jpg) ![Dolphin-md](etc/dolphin-metroid.jpg)
 
 ## Instructions
 
