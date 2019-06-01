@@ -9,6 +9,7 @@ use hal::device::WaitFor;
 use hal::pool::RawCommandPool;
 use hal::queue::RawCommandQueue;
 
+use std::borrow::Cow;
 #[cfg(feature = "gfx-backend-metal")]
 use std::env;
 use std::ffi::{CStr, CString};
@@ -387,13 +388,22 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
         unsafe { mem::transmute(name) }
     };
 
+    use hal::adapter::DeviceType;
+    let device_type = match adapter.info.device_type {
+        DeviceType::IntegratedGpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
+        DeviceType::DiscreteGpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
+        DeviceType::VirtualGpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU,
+        DeviceType::Other => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_OTHER,
+        DeviceType::Cpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_CPU,
+    };
+
     unsafe {
         *pProperties = VkPhysicalDeviceProperties {
             apiVersion: (major << 22) | (minor << 12) | patch,
             driverVersion: DRIVER_VERSION,
             vendorID: adapter_info.vendor as _,
             deviceID: adapter_info.device as _,
-            deviceType: VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU, // TODO
+            deviceType: device_type,
             deviceName: device_name,
             pipelineCacheUUID: [0; 16usize],
             limits,
@@ -1958,8 +1968,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     entry: name.to_str().unwrap(),
                     module: &*stage.module,
                     specialization: pso::Specialization {
-                        constants: &spec_constants[cur_specialization .. cur_specialization + spec_count],
-                        data: &spec_data,
+                        constants: Cow::from(&spec_constants[cur_specialization .. cur_specialization + spec_count]),
+                        data: Cow::from(&spec_data),
                     },
                 };
                 cur_specialization += spec_count;
@@ -2349,8 +2359,8 @@ pub extern "C" fn gfxCreateComputePipelines(
                 entry: name.to_str().unwrap(),
                 module: &*info.stage.module,
                 specialization: pso::Specialization {
-                    constants: &spec_constants[cur_specialization .. cur_specialization + spec_count],
-                    data: &spec_data,
+                    constants: Cow::from(&spec_constants[cur_specialization .. cur_specialization + spec_count]),
+                    data: Cow::from(&spec_data),
                 },
             };
             cur_specialization += spec_count;
@@ -4290,19 +4300,14 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         }
     }
 
-    let images = match backbuffers {
-        hal::Backbuffer::Images(images) => images
-            .into_iter()
-            .map(|raw| Handle::new(Image {
-                raw,
-                mip_levels: 1,
-                array_layers: 1,
-            }))
-            .collect(),
-        hal::Backbuffer::Framebuffer(_) => panic!(
-            "Expected backbuffer images. Backends returning only framebuffers are not supported!"
-        ),
-    };
+    let images = backbuffers
+        .into_iter()
+        .map(|raw| Handle::new(Image {
+            raw,
+            mip_levels: 1,
+            array_layers: 1,
+        }))
+        .collect();
 
     let swapchain = Swapchain {
         raw: Some(swapchain),
@@ -4579,16 +4584,21 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
     };
 
+    use hal::device::OutOfMemory::{OutOfDeviceMemory, OutOfHostMemory};
+
     match unsafe {
         raw.acquire_image(timeout, semaphore.as_ref(), fence.as_ref())
     } {
         Ok(frame) => {
-            unsafe { *pImageIndex = frame; }
+            unsafe { *pImageIndex = frame.0; }
             VkResult::VK_SUCCESS
         }
         Err(hal::AcquireError::NotReady) => VkResult::VK_NOT_READY,
         Err(hal::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
         Err(hal::AcquireError::SurfaceLost(_)) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
+        Err(hal::AcquireError::DeviceLost(_)) => VkResult::VK_ERROR_DEVICE_LOST,
+        Err(hal::AcquireError::OutOfMemory(OutOfDeviceMemory)) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+        Err(hal::AcquireError::OutOfMemory(OutOfHostMemory)) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
     }
 }
 #[inline]

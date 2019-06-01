@@ -1,0 +1,7 @@
+{
+   "file_format_version": "1.0.0",
+   "ICD": {
+      "library_path": "../target/debug/libportability_icd.so",
+      "api_version": "1.0.0"
+   }
+}

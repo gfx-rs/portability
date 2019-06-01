@@ -53,3 +53,8 @@ optional = true
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/metal"
 optional = true
+
+[dependencies.gfx-backend-gl]
+git = "https://github.com/gfx-rs/gfx"
+#path = "../../gfx/src/backend/gl"
+optional = true
