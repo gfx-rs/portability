@@ -183,9 +183,12 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
                 hal::QueueType::General => {
                     VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32
                         | VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32
+                        | VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32
                 }
-                hal::QueueType::Graphics => VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32,
-                hal::QueueType::Compute => VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32,
+                hal::QueueType::Graphics => VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32
+                    | VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
+                hal::QueueType::Compute => VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32
+                    | VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
                 hal::QueueType::Transfer => VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
             },
             queueCount: family.max_queues() as _,
