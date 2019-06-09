@@ -4602,6 +4602,7 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         Err(hal::AcquireError::DeviceLost(_)) => VkResult::VK_ERROR_DEVICE_LOST,
         Err(hal::AcquireError::OutOfMemory(OutOfDeviceMemory)) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
         Err(hal::AcquireError::OutOfMemory(OutOfHostMemory)) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        Err(hal::AcquireError::Timeout) => VkResult::VK_TIMEOUT,
     }
 }
 #[inline]
@@ -4675,8 +4676,6 @@ pub extern "C" fn gfxCreateMacOSSurfaceMVK(
     let info = unsafe { &*pCreateInfo };
     #[cfg(target_os="macos")]
     unsafe {
-        use std::env;
-
         let enable_signposts = env::var("GFX_METAL_SIGNPOSTS").is_ok();
         if enable_signposts {
             println!("GFX: enabled signposts");
