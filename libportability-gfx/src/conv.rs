@@ -20,6 +20,13 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxPushConstantsSize: limits.max_push_constants_size as _,
         maxViewports: limits.max_viewports as _,
         maxViewportDimensions: limits.max_viewport_dimensions,
+        maxBoundDescriptorSets: limits.max_bound_descriptor_sets as _,
+        maxPerStageDescriptorUniformBuffers: limits.max_per_stage_descriptor_uniform_buffers as _,
+        maxDescriptorSetUniformBuffers: limits.max_descriptor_set_uniform_buffers as _,
+        maxFragmentInputComponents: limits.max_fragment_input_components as _,
+        maxFramebufferLayers: limits.max_framebuffer_layers as _,
+        maxMemoryAllocationCount: limits.max_memory_allocation_count as _,
+        maxUniformBufferRange: limits.max_uniform_buffer_range as _,
         // Warning: spec violation
         // "The x/y rectangle of the viewport must lie entirely within the current attachment size."
         viewportBoundsRange: [0.0, viewport_size as f32],
