@@ -34,6 +34,10 @@ optional = true
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/hal"
 
+[dependencies.gfx-backend-empty]
+git = "https://github.com/gfx-rs/gfx"
+#path = "../../gfx/src/backend/empty"
+
 [target.'cfg(not(target_os = "macos"))'.dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/vulkan"
