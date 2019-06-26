@@ -59,11 +59,23 @@ pub extern "C" fn gfxCreateInstance(
 ) -> VkResult {
     #[cfg(feature = "env_logger")]
     {
-        use env_logger;
         let _ = env_logger::try_init();
     }
 
-    let backend = back::Instance::create("portability", 1);
+    let mut backend = back::Instance::create("portability", 1);
+
+    #[cfg(feature = "gfx-backend-metal")]
+    {
+        if let Ok(value) = env::var("GFX_METAL_ARGUMENTS") {
+            backend.experiments.argument_buffers = match value.to_lowercase().as_str() {
+                "yes" => true,
+                "no" => false,
+                other => panic!("unknown arguments option: {}", other),
+            };
+            println!("GFX: arguments override {:?}", backend.experiments.argument_buffers);
+        }
+    }
+
     let adapters = backend
         .enumerate_adapters()
         .into_iter()
@@ -1481,36 +1493,55 @@ pub extern "C" fn gfxDestroySemaphore(
 }
 #[inline]
 pub extern "C" fn gfxCreateEvent(
-    _gpu: VkDevice,
+    gpu: VkDevice,
     _pCreateInfo: *const VkEventCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
-    _pEvent: *mut VkEvent,
+    pEvent: *mut VkEvent,
 ) -> VkResult {
-    // Vulkan portability doesn't currently support events, but some
-    // test cases use them so fail with an obvious error message.
-    VkResult::VK_ERROR_DEVICE_LOST
+    let event = match gpu.device.create_event() {
+        Ok(e) => e,
+        Err(oom) => return map_oom(oom),
+    };
+
+    unsafe {
+        *pEvent = Handle::new(event);
+    }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroyEvent(
-    _gpu: VkDevice,
+    gpu: VkDevice,
     event: VkEvent,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    if event != ptr::null_mut() {
-        unimplemented!()
+    if let Some(event) = event.unbox() {
+        unsafe {
+            gpu.device.destroy_event(event);
+        }
     }
 }
 #[inline]
-pub extern "C" fn gfxGetEventStatus(_gpu: VkDevice, _event: VkEvent) -> VkResult {
-    unimplemented!()
+pub extern "C" fn gfxGetEventStatus(gpu: VkDevice, event: VkEvent) -> VkResult {
+    match unsafe { gpu.device.get_event_status(&event) } {
+        Ok(true) => VkResult::VK_EVENT_SET,
+        Ok(false) => VkResult::VK_EVENT_RESET,
+        Err(hal::device::OomOrDeviceLost::OutOfMemory(oom)) => map_oom(oom),
+        Err(hal::device::OomOrDeviceLost::DeviceLost(hal::device::DeviceLost)) => VkResult::VK_ERROR_DEVICE_LOST,
+    }
 }
 #[inline]
-pub extern "C" fn gfxSetEvent(_gpu: VkDevice, _event: VkEvent) -> VkResult {
-    unimplemented!()
+pub extern "C" fn gfxSetEvent(gpu: VkDevice, event: VkEvent) -> VkResult {
+    match unsafe { gpu.device.set_event(&event) } {
+        Ok(()) => VkResult::VK_SUCCESS,
+        Err(oom) => map_oom(oom),
+    }
 }
 #[inline]
-pub extern "C" fn gfxResetEvent(_gpu: VkDevice, _event: VkEvent) -> VkResult {
-    unimplemented!()
+pub extern "C" fn gfxResetEvent(gpu: VkDevice, event: VkEvent) -> VkResult {
+    match unsafe { gpu.device.reset_event(&event) } {
+        Ok(()) => VkResult::VK_SUCCESS,
+        Err(oom) => map_oom(oom),
+    }
 }
 #[inline]
 pub extern "C" fn gfxCreateQueryPool(
@@ -1780,7 +1811,7 @@ pub extern "C" fn gfxCreateShaderModule(
 ) -> VkResult {
     unsafe {
         let info = &*pCreateInfo;
-        let code = slice::from_raw_parts(info.pCode as *const u8, info.codeSize as usize);
+        let code = slice::from_raw_parts(info.pCode as *const u32, info.codeSize as usize / 4);
         let shader_module = gpu.device
             .create_shader_module(code)
             .expect("Error creating shader module"); // TODO
@@ -3154,10 +3185,11 @@ pub extern "C" fn gfxDestroyCommandPool(
 pub extern "C" fn gfxResetCommandPool(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
-    _flags: VkCommandPoolResetFlags,
+    flags: VkCommandPoolResetFlags,
 ) -> VkResult {
+    let release = (flags & VkCommandPoolResetFlagBits::VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT as u32) != 0;
     unsafe {
-        commandPool.pool.reset();
+        commandPool.pool.reset(release);
     }
     VkResult::VK_SUCCESS
 }
@@ -3863,35 +3895,103 @@ pub extern "C" fn gfxCmdResolveImage(
 }
 #[inline]
 pub extern "C" fn gfxCmdSetEvent(
-    _commandBuffer: VkCommandBuffer,
-    _event: VkEvent,
-    _stageMask: VkPipelineStageFlags,
+    mut commandBuffer: VkCommandBuffer,
+    event: VkEvent,
+    stageMask: VkPipelineStageFlags,
 ) {
-    unimplemented!()
+    unsafe {
+        commandBuffer.set_event(
+            &event,
+            conv::map_pipeline_stage_flags(stageMask),
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdResetEvent(
-    _commandBuffer: VkCommandBuffer,
-    _event: VkEvent,
-    _stageMask: VkPipelineStageFlags,
+    mut commandBuffer: VkCommandBuffer,
+    event: VkEvent,
+    stageMask: VkPipelineStageFlags,
 ) {
-    unimplemented!()
+    unsafe {
+        commandBuffer.reset_event(
+            &event,
+            conv::map_pipeline_stage_flags(stageMask),
+        );
+    }
 }
+
+fn make_barriers<'a>(
+    raw_globals: &'a [VkMemoryBarrier],
+    raw_buffers: &'a [VkBufferMemoryBarrier],
+    raw_images: &'a [VkImageMemoryBarrier],
+) -> impl Iterator<Item = memory::Barrier<'a, back::Backend>> {
+    let globals = raw_globals.iter().flat_map(|b| {
+        let buf = conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask);
+        let buf_bar = if !buf.start.is_empty() || !buf.end.is_empty() {
+            Some(memory::Barrier::AllBuffers(buf))
+        } else {
+            None
+        };
+        let img = conv::map_image_access(b.srcAccessMask) .. conv::map_image_access(b.dstAccessMask);
+        let img_bar = if !img.start.is_empty() || !img.end.is_empty() {
+            Some(memory::Barrier::AllImages(img))
+        } else {
+            None
+        };
+        buf_bar.into_iter().chain(img_bar)
+    });
+
+    let buffers = raw_buffers.iter().map(|b| memory::Barrier::Buffer {
+        states: conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask),
+        target: &*b.buffer,
+        range: Some(b.offset) .. if b.size as i32 == VK_WHOLE_SIZE { None } else { Some(b.offset + b.size) },
+        families: None,
+    });
+    let images = raw_images.iter().map(|b| memory::Barrier::Image {
+        states:
+            (conv::map_image_access(b.srcAccessMask), conv::map_image_layout(b.oldLayout)) ..
+            (conv::map_image_access(b.dstAccessMask), conv::map_image_layout(b.newLayout)),
+        target: &b.image.raw,
+        range: b.image.map_subresource_range(b.subresourceRange),
+        families: None,
+    });
+
+    globals.chain(buffers).chain(images)
+}
+
 #[inline]
 pub extern "C" fn gfxCmdWaitEvents(
-    _commandBuffer: VkCommandBuffer,
-    _eventCount: u32,
-    _pEvents: *const VkEvent,
-    _srcStageMask: VkPipelineStageFlags,
-    _dstStageMask: VkPipelineStageFlags,
-    _memoryBarrierCount: u32,
-    _pMemoryBarriers: *const VkMemoryBarrier,
-    _bufferMemoryBarrierCount: u32,
-    _pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
-    _imageMemoryBarrierCount: u32,
-    _pImageMemoryBarriers: *const VkImageMemoryBarrier,
+    mut commandBuffer: VkCommandBuffer,
+    eventCount: u32,
+    pEvents: *const VkEvent,
+    srcStageMask: VkPipelineStageFlags,
+    dstStageMask: VkPipelineStageFlags,
+    memoryBarrierCount: u32,
+    pMemoryBarriers: *const VkMemoryBarrier,
+    bufferMemoryBarrierCount: u32,
+    pBufferMemoryBarriers: *const VkBufferMemoryBarrier,
+    imageMemoryBarrierCount: u32,
+    pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    unimplemented!()
+    let raw_globals = unsafe {
+        slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _)
+    };
+    let raw_buffers = unsafe {
+        slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _)
+    };
+    let raw_images = unsafe {
+        slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _)
+    };
+
+    let barriers = make_barriers(raw_globals, raw_buffers, raw_images);
+
+    unsafe {
+        commandBuffer.wait_events(
+            slice::from_raw_parts(pEvents, eventCount as usize).iter().map(|ev| &**ev),
+            conv::map_pipeline_stage_flags(srcStageMask) .. conv::map_pipeline_stage_flags(dstStageMask),
+            barriers,
+        );
+    }
 }
 #[inline]
 pub extern "C" fn gfxCmdPipelineBarrier(
@@ -3906,55 +4006,23 @@ pub extern "C" fn gfxCmdPipelineBarrier(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    let global_barriers = unsafe {
-            slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _)
-        }
-        .iter()
-        .flat_map(|b| {
-            let buf = conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask);
-            let buf_bar = if !buf.start.is_empty() || !buf.end.is_empty() {
-                Some(memory::Barrier::AllBuffers(buf))
-            } else {
-                None
-            };
-            let img = conv::map_image_access(b.srcAccessMask) .. conv::map_image_access(b.dstAccessMask);
-            let img_bar = if !img.start.is_empty() || !img.end.is_empty() {
-                Some(memory::Barrier::AllImages(img))
-            } else {
-                None
-            };
-            buf_bar.into_iter().chain(img_bar)
-        });
+    let raw_globals = unsafe {
+        slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _)
+    };
+    let raw_buffers = unsafe {
+        slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _)
+    };
+    let raw_images = unsafe {
+        slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _)
+    };
 
-    let buffer_barriers = unsafe {
-            slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _)
-        }
-        .iter()
-        .map(|b| memory::Barrier::Buffer {
-            states: conv::map_buffer_access(b.srcAccessMask) .. conv::map_buffer_access(b.dstAccessMask),
-            target: &*b.buffer,
-            range: Some(b.offset) .. if b.size as i32 == VK_WHOLE_SIZE { None } else { Some(b.offset + b.size) },
-            families: None,
-        });
-
-    let image_barriers = unsafe {
-            slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _)
-        }
-        .iter()
-        .map(|b| memory::Barrier::Image {
-            states:
-                (conv::map_image_access(b.srcAccessMask), conv::map_image_layout(b.oldLayout)) ..
-                (conv::map_image_access(b.dstAccessMask), conv::map_image_layout(b.newLayout)),
-            target: &b.image.raw,
-            range: b.image.map_subresource_range(b.subresourceRange),
-            families: None,
-        });
+    let barriers = make_barriers(raw_globals, raw_buffers, raw_images);
 
     unsafe {
         commandBuffer.pipeline_barrier(
             conv::map_pipeline_stage_flags(srcStageMask) .. conv::map_pipeline_stage_flags(dstStageMask),
             memory::Dependencies::from_bits(dependencyFlags as _).unwrap_or(memory::Dependencies::empty()),
-            global_barriers.chain(buffer_barriers).chain(image_barriers),
+            barriers,
         );
     }
 }
@@ -4600,9 +4668,9 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         Err(hal::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
         Err(hal::AcquireError::SurfaceLost(_)) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
         Err(hal::AcquireError::DeviceLost(_)) => VkResult::VK_ERROR_DEVICE_LOST,
+        Err(hal::AcquireError::Timeout) => VkResult::VK_TIMEOUT,
         Err(hal::AcquireError::OutOfMemory(OutOfDeviceMemory)) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
         Err(hal::AcquireError::OutOfMemory(OutOfHostMemory)) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-        Err(hal::AcquireError::Timeout) => VkResult::VK_TIMEOUT,
     }
 }
 #[inline]
@@ -4674,7 +4742,7 @@ pub extern "C" fn gfxCreateMacOSSurfaceMVK(
 ) -> VkResult {
     assert!(pAllocator.is_null());
     let info = unsafe { &*pCreateInfo };
-    #[cfg(target_os="macos")]
+    #[cfg(all(target_os="macos", feature = "gfx-backend-metal"))]
     unsafe {
         let enable_signposts = env::var("GFX_METAL_SIGNPOSTS").is_ok();
         if enable_signposts {
@@ -4686,7 +4754,7 @@ pub extern "C" fn gfxCreateMacOSSurfaceMVK(
         );
         VkResult::VK_SUCCESS
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(all(target_os="macos", feature = "gfx-backend-metal")))]
     {
         let _ = (instance, info, pSurface);
         unreachable!()

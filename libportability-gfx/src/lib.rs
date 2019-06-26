@@ -15,6 +15,14 @@ extern crate gfx_backend_metal as back;
 extern crate gfx_backend_vulkan as back;
 #[cfg(feature = "gfx-backend-gl")]
 extern crate gfx_backend_gl as back;
+#[cfg(not(any(
+    feature = "gfx-backend-dx12",
+    feature = "gfx-backend-dx11",
+    feature = "gfx-backend-metal",
+    feature = "gfx-backend-vulkan",
+    feature = "gfx-backend-gl",
+)))]
+extern crate gfx_backend_empty as back;
 
 extern crate copyless;
 #[macro_use]
@@ -57,6 +65,7 @@ pub type VkImage = Handle<Image<B>>;
 pub type VkImageView = Handle<<B as hal::Backend>::ImageView>;
 pub type VkBuffer = Handle<<B as hal::Backend>::Buffer>;
 pub type VkSemaphore = Handle<<B as hal::Backend>::Semaphore>;
+pub type VkEvent = Handle<<B as hal::Backend>::Event>;
 pub type VkFence = Handle<<B as hal::Backend>::Fence>;
 pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
 pub type VkFramebuffer = Handle<<B as hal::Backend>::Framebuffer>;
@@ -621,13 +630,6 @@ pub type VkFlags = u32;
 pub type VkBool32 = u32;
 pub type VkDeviceSize = u64;
 pub type VkSampleMask = u32;
-
-#[repr(C)]
-#[derive(Debug, Copy, Clone)]
-pub struct VkEvent_T {
-    _unused: [u8; 0],
-}
-pub type VkEvent = *mut VkEvent_T;
 
 pub const VkPipelineCacheHeaderVersion_VK_PIPELINE_CACHE_HEADER_VERSION_BEGIN_RANGE:
           VkPipelineCacheHeaderVersion =
