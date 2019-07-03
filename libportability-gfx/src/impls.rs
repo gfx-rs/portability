@@ -259,14 +259,6 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 }
                 data.pNext
             }
-            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
-                let data = unsafe {
-                    (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesEXTX).as_mut().unwrap()
-                };
-                let limits = adapter.physical_device.limits();
-                data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
-                data.pNext
-            }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 unsafe {
@@ -427,6 +419,38 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
     }
 }
 #[inline]
+pub extern "C" fn gfxGetPhysicalDeviceProperties2KHR(
+    adapter: VkPhysicalDevice,
+    pProperties: *mut VkPhysicalDeviceProperties2KHR,
+) {
+    let mut ptr = pProperties as *const VkStructureType;
+    while !ptr.is_null() {
+        ptr = match unsafe { *ptr } {
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR => {
+                let data = unsafe {
+                    (ptr as *mut VkPhysicalDeviceProperties2KHR).as_mut().unwrap()
+                };
+                gfxGetPhysicalDeviceProperties(adapter, &mut data.properties);
+                data.pNext
+            }
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
+                let data = unsafe {
+                    (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesEXTX).as_mut().unwrap()
+                };
+                let limits = adapter.physical_device.limits();
+                data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
+                data.pNext
+            }
+            other => {
+                warn!("Unrecognized {:?}, skipping", other);
+                unsafe {
+                    (ptr as *const VkPhysicalDeviceProperties2KHR).as_ref().unwrap()
+                }.pNext
+            }
+        } as *const VkStructureType;
+    }
+}
+#[inline]
 pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
     adapter: VkPhysicalDevice,
     pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties,
@@ -484,6 +508,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures => gfxGetPhysicalDeviceFeatures,
         vkGetPhysicalDeviceFeatures2KHR, PFN_vkGetPhysicalDeviceFeatures2KHR => gfxGetPhysicalDeviceFeatures2KHR,
         vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties => gfxGetPhysicalDeviceProperties,
+        vkGetPhysicalDeviceProperties2KHR, PFN_vkGetPhysicalDeviceProperties2KHR => gfxGetPhysicalDeviceProperties2KHR,
         vkGetPhysicalDeviceFormatProperties, PFN_vkGetPhysicalDeviceFormatProperties => gfxGetPhysicalDeviceFormatProperties,
         vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties => gfxGetPhysicalDeviceImageFormatProperties,
         vkGetPhysicalDeviceImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceImageFormatProperties2KHR => gfxGetPhysicalDeviceImageFormatProperties2KHR,
@@ -569,6 +594,7 @@ pub extern "C" fn gfxGetDeviceProcAddr(
         vkCreateImage, PFN_vkCreateImage => gfxCreateImage,
         vkDestroyImage, PFN_vkDestroyImage => gfxDestroyImage,
         vkGetImageMemoryRequirements, PFN_vkGetImageMemoryRequirements => gfxGetImageMemoryRequirements,
+        //vkGetImageMemoryRequirements2KHR, PFN_vkGetImageMemoryRequirements2KHR => gfxGetImageMemoryRequirements2KHR,
         vkGetImageSparseMemoryRequirements, PFN_vkGetImageSparseMemoryRequirements => gfxGetImageSparseMemoryRequirements,
         vkBindImageMemory, PFN_vkBindImageMemory => gfxBindImageMemory,
         vkCreateImageView, PFN_vkCreateImageView => gfxCreateImageView,
@@ -1330,6 +1356,33 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
         memoryTypeBits: req.type_mask as _,
     };
 }
+/*
+#[inline]
+pub extern "C" fn gfxGetImageMemoryRequirements2KHR(
+    gpu: VkDevice,
+    image: VkImage,
+    pMemoryRequirements: *mut VkMemoryRequirements2KHR,
+) {
+    let mut ptr = pMemoryRequirements as *const VkStructureType;
+    while !ptr.is_null() {
+        ptr = match unsafe { *ptr } {
+            VkStructureType::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR => {
+                let data = unsafe {
+                    (ptr as *mut VkMemoryRequirements2KHR).as_mut().unwrap()
+                };
+                gfxGetImageMemoryRequirements(gpu, image, &mut data.memoryRequirements);
+                data.features = conv::features_from_hal(features);
+                data.pNext
+            }
+            other => {
+                warn!("Unrecognized {:?}, skipping", other);
+                unsafe {
+                    (ptr as *const VkMemoryRequirements2KHR).as_ref().unwrap()
+                }.pNext
+            }
+        } as *const VkStructureType;
+    }
+}*/
 
 #[inline]
 pub extern "C" fn gfxGetImageSparseMemoryRequirements(
