@@ -2605,6 +2605,7 @@ pub extern "C" fn gfxCreateSampler(
             None
         },
         border: [0.0; 4].into(), // TODO
+        normalized: info.unnormalizedCoordinates == VK_FALSE,
         anisotropic: if info.anisotropyEnable == VK_TRUE {
             hal::image::Anisotropic::On(info.maxAnisotropy as _)
         } else {
