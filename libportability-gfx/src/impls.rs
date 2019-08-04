@@ -4283,8 +4283,8 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         surface.compatibility(&adapter.physical_device);
 
     let output = VkSurfaceCapabilitiesKHR {
-        minImageCount: caps.image_count.start,
-        maxImageCount: caps.image_count.end - 1,
+        minImageCount: *caps.image_count.start(),
+        maxImageCount: *caps.image_count.end(),
         currentExtent: match caps.current_extent {
             Some(extent) => conv::extent2d_from_hal(extent),
             None => VkExtent2D {
@@ -4292,8 +4292,8 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
                 height: !0,
             },
         },
-        minImageExtent: conv::extent2d_from_hal(caps.extents.start),
-        maxImageExtent: conv::extent2d_from_hal(caps.extents.end),
+        minImageExtent: conv::extent2d_from_hal(*caps.extents.start()),
+        maxImageExtent: conv::extent2d_from_hal(*caps.extents.end()),
         maxImageArrayLayers: caps.max_image_layers as _,
         supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
             as _,
@@ -4649,7 +4649,7 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
             VkResult::VK_SUCCESS
         }
     }
-    #[cfg(feature = "gfx-backend-dx12")]
+    #[cfg(any(feature = "gfx-backend-dx12", feature = "gfx-backend-dx11"))]
     {
         unsafe {
             assert_eq!(info.flags, 0);
@@ -4657,15 +4657,10 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
             VkResult::VK_SUCCESS
         }
     }
-    #[cfg(feature = "gfx-backend-dx11")]
-    {
-        unsafe {
-            assert_eq!(info.flags, 0);
-            *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
-            VkResult::VK_SUCCESS
-        }
-    }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(all(
+        target_os = "windows",
+        any(feature = "gfx-backend-vulkan", feature = "gfx-backend-dx12", feature = "gfx-backend-dx11")
+    )))]
     {
         let _ = (instance, info, pSurface);
         unreachable!()
