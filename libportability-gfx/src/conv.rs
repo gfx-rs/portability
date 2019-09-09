@@ -49,6 +49,10 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxSamplerAnisotropy: limits.max_sampler_anisotropy,
         optimalBufferCopyOffsetAlignment: limits.optimal_buffer_copy_offset_alignment,
         optimalBufferCopyRowPitchAlignment: limits.optimal_buffer_copy_pitch_alignment,
+        maxPerStageDescriptorSampledImages: limits.max_per_stage_descriptor_sampled_images as _,
+        maxPerStageDescriptorSamplers: limits.max_per_stage_descriptor_samplers as _,
+        maxDescriptorSetSampledImages: limits.max_descriptor_set_sampled_images as _,
+        maxDescriptorSetSamplers: limits.max_descriptor_set_samplers as _,
         .. unsafe { mem::zeroed() } //TODO
     }
 }
