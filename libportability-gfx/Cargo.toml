@@ -33,6 +33,7 @@ optional = true
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/hal"
+features = ["fxhash"]
 
 [dependencies.gfx-backend-empty]
 git = "https://github.com/gfx-rs/gfx"

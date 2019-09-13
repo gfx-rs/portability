@@ -1,13 +1,13 @@
 use hal::{command as com, memory, pass, pso, queue};
-use hal::{
-    DescriptorPool, Device, Features, Instance, PhysicalDevice, QueueFamily,
-    Surface, Swapchain as _,
-};
+use hal::{Features, Instance};
+use hal::adapter::PhysicalDevice;
 use hal::buffer::IndexBufferView;
-use hal::command::RawCommandBuffer;
-use hal::device::WaitFor;
-use hal::pool::RawCommandPool;
-use hal::queue::RawCommandQueue;
+use hal::command::CommandBuffer;
+use hal::device::{Device, WaitFor};
+use hal::pso::DescriptorPool;
+use hal::pool::CommandPool as _;
+use hal::queue::{CommandQueue, QueueFamily};
+use hal::window::{Surface, Swapchain as _};
 
 use std::borrow::Cow;
 #[cfg(feature = "gfx-backend-metal")]
@@ -25,8 +25,8 @@ const DRIVER_VERSION: u32 = 1;
 
 fn map_oom(oom: hal::device::OutOfMemory) -> VkResult {
     match oom {
-        hal::device::OutOfMemory::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-        hal::device::OutOfMemory::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+        hal::device::OutOfMemory::Host => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        hal::device::OutOfMemory::Device => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
     }
 }
 
@@ -62,7 +62,8 @@ pub extern "C" fn gfxCreateInstance(
         let _ = env_logger::try_init();
     }
 
-    let mut backend = back::Instance::create("portability", 1);
+    let mut backend =
+        back::Instance::create("portability", 1).expect("failed to create backend instance");
 
     #[cfg(feature = "gfx-backend-metal")]
     {
@@ -192,16 +193,16 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
     for (ref mut out, ref family) in output.iter_mut().zip(families.iter()) {
         **out = VkQueueFamilyProperties {
             queueFlags: match family.queue_type() {
-                hal::QueueType::General => {
+                hal::queue::QueueType::General => {
                     VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32
                         | VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32
                         | VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32
                 }
-                hal::QueueType::Graphics => VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32
+                hal::queue::QueueType::Graphics => VkQueueFlagBits::VK_QUEUE_GRAPHICS_BIT as u32
                     | VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
-                hal::QueueType::Compute => VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32
+                hal::queue::QueueType::Compute => VkQueueFlagBits::VK_QUEUE_COMPUTE_BIT as u32
                     | VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
-                hal::QueueType::Transfer => VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
+                hal::queue::QueueType::Transfer => VkQueueFlagBits::VK_QUEUE_TRANSFER_BIT as u32,
             },
             queueCount: family.max_queues() as _,
             timestampValidBits: 0, //TODO
@@ -827,9 +828,12 @@ pub extern "C" fn gfxCreateDevice(
             let queues = queue_infos
                 .iter()
                 .map(|info| {
-                    let id = queue::QueueFamilyId(info.queueFamilyIndex as usize);
-                    let group = gpu.queues.take_raw(id).unwrap();
-                    let queues = group
+                    let queues =
+                        gpu.queue_groups
+                        .iter()
+                        .position(|group| group.family.0 == info.queueFamilyIndex as usize)
+                        .map(|i| gpu.queue_groups.swap_remove(i).queues)
+                        .unwrap()
                         .into_iter()
                         .map(DispatchHandle::new)
                         .collect();
@@ -881,7 +885,7 @@ pub extern "C" fn gfxCreateDevice(
             VkResult::VK_SUCCESS
         }
         Err(err) => {
-            error!("{}", err);
+            error!("{:?}", err);
             conv::map_err_device_creation(err)
         },
     }
@@ -2007,7 +2011,18 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         let rasterizer = {
             let state = unsafe { &*info.pRasterizationState };
             pso::Rasterizer {
-                polygon_mode: conv::map_polygon_mode(state.polygonMode, state.lineWidth),
+                polygon_mode: match state.polygonMode {
+                    VkPolygonMode::VK_POLYGON_MODE_FILL => pso::PolygonMode::Fill,
+                    VkPolygonMode::VK_POLYGON_MODE_LINE => {
+                        pso::PolygonMode::Line(if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_LINE_WIDTH) {
+                            pso::State::Dynamic
+                        } else {
+                            pso::State::Static(state.lineWidth)
+                        })
+                    }
+                    VkPolygonMode::VK_POLYGON_MODE_POINT => pso::PolygonMode::Point,
+                    mode => panic!("Unexpected polygon mode: {:?}", mode),
+                },
                 cull_face: conv::map_cull_face(state.cullMode),
                 front_face: conv::map_front_face(state.frontFace),
                 depth_clamping: state.depthClampEnable == VK_TRUE,
@@ -2174,10 +2189,10 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 blend_desc.targets = attachments
                     .into_iter()
                     .map(|attachment| {
-                        let color_mask = conv::map_color_components(attachment.colorWriteMask);
+                        let mask = conv::map_color_components(attachment.colorWriteMask);
 
                         let blend = if attachment.blendEnable == VK_TRUE {
-                            pso::BlendState::On {
+                            Some(pso::BlendState {
                                 color: conv::map_blend_op(
                                     attachment.colorBlendOp,
                                     attachment.srcColorBlendFactor,
@@ -2188,12 +2203,12 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                                     attachment.srcAlphaBlendFactor,
                                     attachment.dstAlphaBlendFactor,
                                 ),
-                            }
+                            })
                         } else {
-                            pso::BlendState::Off
+                            None
                         };
 
-                        pso::ColorBlendDesc(color_mask, blend)
+                        pso::ColorBlendDesc { mask, blend }
                     })
                     .collect();
             }
@@ -2227,33 +2242,17 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 .as_ref()
                 .map(|state| {
                     let depth_test = if state.depthTestEnable == VK_TRUE {
-                        pso::DepthTest::On {
+                        Some(pso::DepthTest {
                             fun: conv::map_compare_op(state.depthCompareOp),
                             write: state.depthWriteEnable == VK_TRUE,
-                        }
+                        })
                     } else {
-                        pso::DepthTest::Off
+                        None
                     };
 
-                    fn map_stencil_state(state: VkStencilOpState, dyn_states: &[VkDynamicState]) -> pso::StencilFace {
-                        // TODO: reference value
+                    fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
                         pso::StencilFace {
                             fun: conv::map_compare_op(state.compareOp),
-                            mask_read: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK) {
-                                pso::State::Dynamic
-                            } else {
-                                pso::State::Static(state.compareMask)
-                            },
-                            mask_write: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_WRITE_MASK) {
-                                pso::State::Dynamic
-                            } else {
-                                pso::State::Static(state.writeMask)
-                            },
-                            reference: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_REFERENCE) {
-                                pso::State::Dynamic
-                            } else {
-                                pso::State::Static(state.reference)
-                            },
                             op_fail: conv::map_stencil_op(state.failOp),
                             op_depth_fail: conv::map_stencil_op(state.depthFailOp),
                             op_pass: conv::map_stencil_op(state.passOp),
@@ -2261,12 +2260,26 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     }
 
                     let stencil_test = if state.stencilTestEnable == VK_TRUE {
-                        pso::StencilTest::On {
-                            front: map_stencil_state(state.front, &dyn_states),
-                            back: map_stencil_state(state.back, &dyn_states),
-                        }
+                        Some(pso::StencilTest {
+                            faces: pso::Sided { front: map_stencil_state(state.front), back: map_stencil_state(state.back) },
+                            read_masks: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(pso::Sided { front: state.front.compareMask, back: state.back.compareMask })
+                            },
+                            write_masks: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_WRITE_MASK) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(pso::Sided { front: state.front.writeMask, back: state.back.writeMask })
+                            },
+                            reference_values: if dyn_states.iter().any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_REFERENCE) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(pso::Sided { front: state.front.reference, back: state.back.reference })
+                            },
+                        })
                     } else {
-                        pso::StencilTest::Off
+                        None
                     };
 
                     // TODO: depth bounds
@@ -2378,7 +2391,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     if pipelines.iter().any(|p| p.is_err()) {
         for pipeline in pipelines {
             if let Err(e) = pipeline {
-                error!("{}", e);
+                error!("{:?}", e);
             }
         }
         for op in out_pipelines {
@@ -2499,7 +2512,7 @@ pub extern "C" fn gfxCreateComputePipelines(
     if pipelines.iter().any(|p| p.is_err()) {
         for pipeline in pipelines {
             if let Err(e) = pipeline {
-                error!("{}", e);
+                error!("{:?}", e);
             }
         }
         for op in out_pipelines {
@@ -2805,10 +2818,10 @@ pub extern "C" fn gfxAllocateDescriptorSets(
             for set in out_sets.iter_mut() {
                 *set = Handle::null();
             }
-            error!("{}", e);
+            error!("{:?}", e);
             match e {
-                pso::AllocationError::OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-                pso::AllocationError::OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                pso::AllocationError::Host => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+                pso::AllocationError::Device => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
                 pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
                 pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
                 pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
@@ -3256,8 +3269,8 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 ) -> VkResult {
     let info = unsafe { &mut *(pAllocateInfo as *mut VkCommandBufferAllocateInfo) };
     let level = match info.level {
-        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY => com::RawLevel::Primary,
-        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_SECONDARY => com::RawLevel::Secondary,
+        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY => com::Level::Primary,
+        VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_SECONDARY => com::Level::Secondary,
         level => panic!("Unexpected command buffer lvel: {:?}", level),
     };
 
@@ -3839,8 +3852,7 @@ pub extern "C" fn gfxCmdClearColorImage(
         commandBuffer.clear_image(
             &image.raw,
             conv::map_image_layout(imageLayout),
-            mem::transmute(*pColor),
-            mem::zeroed(),
+            com::ClearValue { color: mem::transmute(*pColor) },
             subresource_ranges,
         );
     }
@@ -3864,8 +3876,7 @@ pub extern "C" fn gfxCmdClearDepthStencilImage(
         commandBuffer.clear_image(
             &image.raw,
             conv::map_image_layout(imageLayout),
-            mem::zeroed(),
-            mem::transmute(*pDepthStencil),
+            com::ClearValue { depth_stencil: mem::transmute(*pDepthStencil) },
             subresource_ranges
         );
     }
@@ -3887,7 +3898,7 @@ pub extern "C" fn gfxCmdClearAttachments(
             if at.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
                 com::AttachmentClear::Color {
                     index: at.colorAttachment as _,
-                    value: unsafe { at.clearValue.color.float32 }.into(), //TODO?
+                    value: com::ClearColor { float32: unsafe { at.clearValue.color.float32 } } //TODO?
                 }
             } else {
                 com::AttachmentClear::DepthStencil {
@@ -4206,7 +4217,7 @@ pub extern "C" fn gfxCmdBeginRenderPass(
             .into_iter()
             .map(|cv| {
                 // HAL and Vulkan clear value union sharing same memory representation
-                mem::transmute::<_, com::ClearValueRaw>(*cv)
+                mem::transmute::<_, com::ClearValue>(*cv)
             })
     };
     let contents = conv::map_subpass_contents(contents);
@@ -4388,7 +4399,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         VkSharingMode::VK_SHARING_MODE_EXCLUSIVE
     ); // TODO
 
-    let config = hal::SwapchainConfig {
+    let config = hal::window::SwapchainConfig {
         present_mode: conv::map_present_mode(info.presentMode),
         composite_alpha: conv::map_composite_alpha(info.compositeAlpha),
         format: conv::map_format(info.imageFormat).unwrap(),
@@ -4704,7 +4715,7 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
     };
 
-    use hal::device::OutOfMemory::{OutOfDeviceMemory, OutOfHostMemory};
+    use hal::device::OutOfMemory::{Device, Host};
 
     match unsafe {
         raw.acquire_image(timeout, semaphore.as_ref(), fence.as_ref())
@@ -4713,13 +4724,13 @@ pub extern "C" fn gfxAcquireNextImageKHR(
             unsafe { *pImageIndex = frame.0; }
             VkResult::VK_SUCCESS
         }
-        Err(hal::AcquireError::NotReady) => VkResult::VK_NOT_READY,
-        Err(hal::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
-        Err(hal::AcquireError::SurfaceLost(_)) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
-        Err(hal::AcquireError::DeviceLost(_)) => VkResult::VK_ERROR_DEVICE_LOST,
-        Err(hal::AcquireError::Timeout) => VkResult::VK_TIMEOUT,
-        Err(hal::AcquireError::OutOfMemory(OutOfDeviceMemory)) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
-        Err(hal::AcquireError::OutOfMemory(OutOfHostMemory)) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        Err(hal::window::AcquireError::NotReady) => VkResult::VK_NOT_READY,
+        Err(hal::window::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
+        Err(hal::window::AcquireError::SurfaceLost(_)) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
+        Err(hal::window::AcquireError::DeviceLost(_)) => VkResult::VK_ERROR_DEVICE_LOST,
+        Err(hal::window::AcquireError::Timeout) => VkResult::VK_TIMEOUT,
+        Err(hal::window::AcquireError::OutOfMemory(Device)) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+        Err(hal::window::AcquireError::OutOfMemory(Host)) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
     }
 }
 #[inline]
