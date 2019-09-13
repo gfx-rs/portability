@@ -48,7 +48,7 @@ pub use impls::*;
 
 // Vulkan objects
 pub type VkInstance = Handle<RawInstance>;
-pub type VkPhysicalDevice = Handle<hal::Adapter<B>>;
+pub type VkPhysicalDevice = Handle<hal::adapter::Adapter<B>>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
 pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
 pub type VkCommandPool = Handle<CommandPool<B>>;

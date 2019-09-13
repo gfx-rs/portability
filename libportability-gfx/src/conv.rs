@@ -1,4 +1,4 @@
-use hal::{buffer, command, error, format, image, memory, pass, pso, query, window};
+use hal::{buffer, command, device, format, image, memory, pass, pso, query, window};
 use hal::{IndexType, Features, Limits, PatchSize, Primitive};
 
 use std::mem;
@@ -527,17 +527,16 @@ pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineSt
     }
 }
 
-pub fn map_err_device_creation(err: error::DeviceCreationError) -> VkResult {
-    use hal::error::DeviceCreationError::*;
-
+pub fn map_err_device_creation(err: device::CreationError) -> VkResult {
+    use hal::device::OutOfMemory::{Device, Host};
     match err {
-        OutOfHostMemory => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-        OutOfDeviceMemory => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
-        InitializationFailed => VkResult::VK_ERROR_INITIALIZATION_FAILED,
-        MissingExtension => VkResult::VK_ERROR_EXTENSION_NOT_PRESENT,
-        MissingFeature => VkResult::VK_ERROR_FEATURE_NOT_PRESENT,
-        TooManyObjects => VkResult::VK_ERROR_TOO_MANY_OBJECTS,
-        DeviceLost => VkResult::VK_ERROR_DEVICE_LOST,
+        device::CreationError::OutOfMemory(Host) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        device::CreationError::OutOfMemory(Device) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+        device::CreationError::InitializationFailed => VkResult::VK_ERROR_INITIALIZATION_FAILED,
+        device::CreationError::MissingExtension => VkResult::VK_ERROR_EXTENSION_NOT_PRESENT,
+        device::CreationError::MissingFeature => VkResult::VK_ERROR_FEATURE_NOT_PRESENT,
+        device::CreationError::TooManyObjects => VkResult::VK_ERROR_TOO_MANY_OBJECTS,
+        device::CreationError::DeviceLost => VkResult::VK_ERROR_DEVICE_LOST,
     }
 }
 
@@ -565,15 +564,6 @@ pub fn map_subpass_contents(contents: VkSubpassContents) -> command::SubpassCont
             command::SubpassContents::SecondaryBuffers,
 
         _ => panic!("Unexpected subpass contents: {:?}", contents),
-    }
-}
-
-pub fn map_polygon_mode(mode: VkPolygonMode, line_width: f32) -> pso::PolygonMode {
-    match mode {
-        VkPolygonMode::VK_POLYGON_MODE_FILL => pso::PolygonMode::Fill,
-        VkPolygonMode::VK_POLYGON_MODE_LINE => pso::PolygonMode::Line(line_width),
-        VkPolygonMode::VK_POLYGON_MODE_POINT => pso::PolygonMode::Point,
-        _ => panic!("Unexpected polygon mode: {:?}", mode),
     }
 }
 
