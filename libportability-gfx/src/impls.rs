@@ -164,7 +164,7 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
         (VkResult::VK_SUCCESS, num_adapters)
     };
 
-    output.copy_from_slice(&instance.adapters[..count]);
+    output[..count].copy_from_slice(&instance.adapters[..count]);
     unsafe { *pPhysicalDeviceCount = count as _ };
 
     code
