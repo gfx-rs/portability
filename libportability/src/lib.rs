@@ -240,6 +240,14 @@ pub extern "C" fn vkGetPhysicalDeviceSurfacePresentModesKHR(
 }
 
 #[no_mangle]
+pub extern "C" fn vkGetPhysicalDeviceWin32PresentationSupportKHR(
+    adapter: VkPhysicalDevice,
+    queueFamilyIndex: u32,
+) -> VkBool32 {
+    gfxGetPhysicalDeviceWin32PresentationSupportKHR(adapter, queueFamilyIndex)
+}
+
+#[no_mangle]
 pub extern "C" fn vkCreateSwapchainKHR(
     device: VkDevice,
     pCreateInfo: *const VkSwapchainCreateInfoKHR,

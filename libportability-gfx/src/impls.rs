@@ -521,6 +521,7 @@ pub extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
         vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR => gfxGetPhysicalDeviceSurfaceFormatsKHR,
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
+        vkGetPhysicalDeviceWin32PresentationSupportKHR, PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR => gfxGetPhysicalDeviceWin32PresentationSupportKHR,
 
         vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
         vkCreateMetalSurfaceEXT, PFN_vkCreateMetalSurfaceEXT => gfxCreateMetalSurfaceEXT,
@@ -4382,6 +4383,14 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
 
     unsafe { *pPresentModeCount = count as _ };
     code
+}
+
+#[inline]
+pub extern "C" fn gfxGetPhysicalDeviceWin32PresentationSupportKHR(
+    adapter: VkPhysicalDevice,
+    queueFamilyIndex: u32
+) -> VkBool32 {
+    VK_TRUE
 }
 
 #[inline]
