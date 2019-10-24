@@ -6938,6 +6938,10 @@ pub type PFN_vkCreateMacOSSurfaceMVK = ::std::option::Option<unsafe extern "C" f
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult>;
 
+pub type PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR = ::std::option::Option<unsafe extern "C" fn(
+    physicalDevice: VkPhysicalDevice,
+    queueFamilyIndex: u32,
+) -> VkBool32>;
 
 #[repr(C)]
 #[derive(Debug, Copy)]
