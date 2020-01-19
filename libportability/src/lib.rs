@@ -638,14 +638,7 @@ pub extern "C" fn vkGetQueryPoolResults(
     flags: VkQueryResultFlags,
 ) -> VkResult {
     gfxGetQueryPoolResults(
-        device,
-        queryPool,
-        firstQuery,
-        queryCount,
-        dataSize,
-        pData,
-        stride,
-        flags,
+        device, queryPool, firstQuery, queryCount, dataSize, pData, stride, flags,
     )
 }
 #[no_mangle]
@@ -1078,7 +1071,13 @@ pub extern "C" fn vkCmdDraw(
     firstVertex: u32,
     firstInstance: u32,
 ) {
-    gfxCmdDraw(commandBuffer, vertexCount, instanceCount, firstVertex, firstInstance)
+    gfxCmdDraw(
+        commandBuffer,
+        vertexCount,
+        instanceCount,
+        firstVertex,
+        firstInstance,
+    )
 }
 #[no_mangle]
 pub extern "C" fn vkCmdDrawIndexed(
@@ -1231,13 +1230,7 @@ pub extern "C" fn vkCmdUpdateBuffer(
     dataSize: VkDeviceSize,
     pData: *const ::std::os::raw::c_void,
 ) {
-    gfxCmdUpdateBuffer(
-        commandBuffer,
-        dstBuffer,
-        dstOffset,
-        dataSize,
-        pData,
-    )
+    gfxCmdUpdateBuffer(commandBuffer, dstBuffer, dstOffset, dataSize, pData)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdFillBuffer(
@@ -1327,11 +1320,7 @@ pub extern "C" fn vkCmdSetEvent(
     event: VkEvent,
     stageMask: VkPipelineStageFlags,
 ) {
-    gfxCmdSetEvent(
-        commandBuffer,
-        event,
-        stageMask,
-    )
+    gfxCmdSetEvent(commandBuffer, event, stageMask)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdResetEvent(
@@ -1339,11 +1328,7 @@ pub extern "C" fn vkCmdResetEvent(
     event: VkEvent,
     stageMask: VkPipelineStageFlags,
 ) {
-    gfxCmdResetEvent(
-        commandBuffer,
-        event,
-        stageMask,
-    )
+    gfxCmdResetEvent(commandBuffer, event, stageMask)
 }
 #[no_mangle]
 pub extern "C" fn vkCmdWaitEvents(
@@ -1500,14 +1485,7 @@ pub extern "C" fn vkAcquireNextImageKHR(
     fence: VkFence,
     pImageIndex: *mut u32,
 ) -> VkResult {
-    gfxAcquireNextImageKHR(
-        device,
-        swapchain,
-        timeout,
-        semaphore,
-        fence,
-        pImageIndex,
-    )
+    gfxAcquireNextImageKHR(device, swapchain, timeout, semaphore, fence, pImageIndex)
 }
 #[no_mangle]
 pub extern "C" fn vkQueuePresentKHR(
