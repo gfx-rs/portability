@@ -1,5 +1,5 @@
 use hal::{buffer, command, device, format, image, memory, pass, pso, query, window};
-use hal::{Features, IndexType, Limits, PatchSize, Primitive};
+use hal::{pso::PatchSize, pso::Primitive, Features, IndexType, Limits};
 
 use std::mem;
 
@@ -444,7 +444,7 @@ pub fn map_buffer_access(access: VkAccessFlags) -> buffer::Access {
         mask |= buffer::Access::VERTEX_BUFFER_READ;
     }
     if access & VkAccessFlagBits::VK_ACCESS_UNIFORM_READ_BIT as u32 != 0 {
-        mask |= buffer::Access::CONSTANT_BUFFER_READ;
+        mask |= buffer::Access::UNIFORM_READ;
     }
     if access & VkAccessFlagBits::VK_ACCESS_INDIRECT_COMMAND_READ_BIT as u32 != 0 {
         mask |= buffer::Access::INDIRECT_COMMAND_READ;
@@ -502,18 +502,53 @@ pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPro
 pub fn map_descriptor_type(ty: VkDescriptorType) -> pso::DescriptorType {
     use super::VkDescriptorType::*;
 
+    // TODO(krolli): Determining value of read_only in pso::BufferDescriptorType::Storage. Vulkan storage buffer variants always allow writes.
     match ty {
         VK_DESCRIPTOR_TYPE_SAMPLER => pso::DescriptorType::Sampler,
-        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE => pso::DescriptorType::SampledImage,
-        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE => pso::DescriptorType::StorageImage,
-        VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER => pso::DescriptorType::UniformTexelBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER => pso::DescriptorType::StorageTexelBuffer,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER => pso::DescriptorType::UniformBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::StorageBuffer,
+        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE => pso::DescriptorType::Image {
+            ty: pso::ImageDescriptorType::Sampled {
+                with_sampler: false,
+            },
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE => pso::DescriptorType::Image {
+            ty: pso::ImageDescriptorType::Storage,
+        },
+        VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Uniform,
+            format: pso::BufferDescriptorFormat::Texel,
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Storage { read_only: false },
+            format: pso::BufferDescriptorFormat::Texel,
+        },
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Uniform,
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: false,
+            },
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Storage { read_only: false },
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: false,
+            },
+        },
         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT => pso::DescriptorType::InputAttachment,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER => pso::DescriptorType::CombinedImageSampler,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC => pso::DescriptorType::UniformBufferDynamic,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => pso::DescriptorType::StorageBufferDynamic,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER => pso::DescriptorType::Image {
+            ty: pso::ImageDescriptorType::Sampled { with_sampler: true },
+        },
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Uniform,
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: true,
+            },
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Storage { read_only: false },
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: true,
+            },
+        },
         _ => panic!("Unexpected descriptor type: {:?}", ty),
     }
 }
@@ -553,6 +588,19 @@ pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineSt
         // GRAPHICS and ALL are missing
         warn!("Unsupported pipeline stage flags: {:?}", stages);
         pso::PipelineStage::all()
+    }
+}
+
+pub fn map_dependency_flags(dependencies: VkDependencyFlags) -> memory::Dependencies {
+    let max_flag = VkDependencyFlagBits::VK_DEPENDENCY_BY_REGION_BIT as u32;
+
+    if (dependencies & !((max_flag << 1) - 1)) == 0 {
+        // HAL flags have the same numeric representation as Vulkan flags
+        unsafe { mem::transmute(dependencies) }
+    } else {
+        // VIEW_LOCAL and DEVICE_GROUP are missing
+        warn!("Unsupported dependency flags: {:?}", dependencies);
+        memory::Dependencies::all()
     }
 }
 
@@ -627,21 +675,21 @@ pub fn map_front_face(face: VkFrontFace) -> pso::FrontFace {
 pub fn map_primitive_topology(
     topology: VkPrimitiveTopology,
     patch_size: PatchSize,
-) -> Option<Primitive> {
+) -> Option<(Primitive, bool)> {
     use super::VkPrimitiveTopology::*;
 
     Some(match topology {
-        VK_PRIMITIVE_TOPOLOGY_POINT_LIST => Primitive::PointList,
-        VK_PRIMITIVE_TOPOLOGY_LINE_LIST => Primitive::LineList,
-        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP => Primitive::LineStrip,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST => Primitive::TriangleList,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP => Primitive::TriangleStrip,
+        VK_PRIMITIVE_TOPOLOGY_POINT_LIST => (Primitive::PointList, false),
+        VK_PRIMITIVE_TOPOLOGY_LINE_LIST => (Primitive::LineList, false),
+        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP => (Primitive::LineStrip, false),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST => (Primitive::TriangleList, false),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP => (Primitive::TriangleStrip, false),
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN => return None,
-        VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY => Primitive::LineListAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY => Primitive::LineStripAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY => Primitive::TriangleListAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY => Primitive::TriangleStripAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_PATCH_LIST => Primitive::PatchList(patch_size),
+        VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY => (Primitive::LineList, true),
+        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY => (Primitive::LineStrip, true),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY => (Primitive::TriangleList, true),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY => (Primitive::TriangleStrip, true),
+        VK_PRIMITIVE_TOPOLOGY_PATCH_LIST => (Primitive::PatchList(patch_size), false),
         _ => return None,
     })
 }
@@ -652,29 +700,25 @@ pub fn map_present_mode(present_mode: VkPresentModeKHR) -> window::PresentMode {
     unsafe { mem::transmute(present_mode) }
 }
 
-pub fn map_composite_alpha(composite_alpha: VkCompositeAlphaFlagBitsKHR) -> window::CompositeAlpha {
+pub fn map_composite_alpha(
+    composite_alpha: VkCompositeAlphaFlagBitsKHR,
+) -> window::CompositeAlphaMode {
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR {
-        window::CompositeAlpha::OPAQUE
+        window::CompositeAlphaMode::OPAQUE
     } else if composite_alpha
         == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
     {
-        window::CompositeAlpha::PREMULTIPLIED
+        window::CompositeAlphaMode::PREMULTIPLIED
     } else if composite_alpha
         == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
     {
-        window::CompositeAlpha::POSTMULTIPLIED
+        window::CompositeAlphaMode::POSTMULTIPLIED
     } else if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR {
-        window::CompositeAlpha::INHERIT
+        window::CompositeAlphaMode::INHERIT
     } else {
         error!("Unrecognized composite alpha: {:?}", composite_alpha);
-        window::CompositeAlpha::OPAQUE
+        window::CompositeAlphaMode::OPAQUE
     }
-}
-
-#[inline]
-pub fn map_present_mode_from_hal(present_mode: window::PresentMode) -> VkPresentModeKHR {
-    // Vulkan and HAL values are equal
-    unsafe { mem::transmute(present_mode) }
 }
 
 #[inline]

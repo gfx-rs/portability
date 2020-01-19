@@ -5,7 +5,7 @@ use hal::device::{Device, WaitFor};
 use hal::pool::CommandPool as _;
 use hal::pso::DescriptorPool;
 use hal::queue::{CommandQueue, QueueFamily};
-use hal::window::{Surface, Swapchain as _};
+use hal::window::{PresentMode, Surface, Swapchain as _};
 use hal::{command as com, memory, pass, pso, queue};
 use hal::{Features, Instance};
 
@@ -2197,25 +2197,26 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 warn!("Primitive restart may not work as expected!");
             }
 
-            let primitive = match conv::map_primitive_topology(
+            let (primitive, with_adjacency) = match conv::map_primitive_topology(
                 input_state.topology,
                 tessellation_state
                     .map(|state| state.patchControlPoints as _)
                     .unwrap_or(0),
             ) {
-                Some(primitive) => primitive,
+                Some(mapped) => mapped,
                 None => {
                     error!(
                         "Primitive topology {:?} is not supported",
                         input_state.topology
                     );
-                    hal::Primitive::PointList
+                    (hal::pso::Primitive::PointList, false)
                 }
             };
 
             pso::InputAssemblerDesc {
                 primitive,
-                primitive_restart: pso::PrimitiveRestart::Disabled, // TODO
+                with_adjacency,
+                restart_index: None, // TODO
             }
         };
 
@@ -2686,7 +2687,7 @@ pub extern "C" fn gfxCreateSampler(
     pSampler: *mut VkSampler,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-    let gfx_info = hal::image::SamplerInfo {
+    let gfx_info = hal::image::SamplerDesc {
         min_filter: conv::map_filter(info.minFilter),
         mag_filter: conv::map_filter(info.magFilter),
         mip_filter: conv::map_mipmap_filter(info.mipmapMode),
@@ -2695,8 +2696,8 @@ pub extern "C" fn gfxCreateSampler(
             conv::map_wrap_mode(info.addressModeV),
             conv::map_wrap_mode(info.addressModeW),
         ),
-        lod_bias: info.mipLodBias.into(),
-        lod_range: info.minLod.into()..info.maxLod.into(),
+        lod_bias: hal::image::Lod(info.mipLodBias),
+        lod_range: hal::image::Lod(info.minLod)..hal::image::Lod(info.maxLod),
         comparison: if info.compareEnable == VK_TRUE {
             Some(conv::map_compare_op(info.compareOp))
         } else {
@@ -2710,7 +2711,7 @@ pub extern "C" fn gfxCreateSampler(
             hal::image::Anisotropic::Off
         },
     };
-    let sampler = match unsafe { gpu.device.create_sampler(gfx_info) } {
+    let sampler = match unsafe { gpu.device.create_sampler(&gfx_info) } {
         Ok(s) => s,
         Err(alloc) => return map_alloc_error(alloc),
     };
@@ -2815,7 +2816,7 @@ pub extern "C" fn gfxCreateDescriptorPool(
             Ok(pool) => pool,
             Err(oom) => return map_oom(oom),
         },
-        temp_sets: Vec::with_capacity(max_sets),
+        temp_sets: SmallVec::with_capacity(max_sets),
         set_handles: if info.flags
             & VkDescriptorPoolCreateFlagBits::VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
                 as u32
@@ -2945,43 +2946,54 @@ impl<'a> Iterator for DescriptorIter<'a> {
                 .image_infos
                 .next()
                 .map(|image| pso::Descriptor::Sampler(&*image.sampler)),
-            pso::DescriptorType::InputAttachment
-            | pso::DescriptorType::SampledImage
-            | pso::DescriptorType::StorageImage => self.image_infos.next().map(|image| {
-                pso::Descriptor::Image(&*image.imageView, conv::map_image_layout(image.imageLayout))
-            }),
-            pso::DescriptorType::UniformTexelBuffer => self
-                .texel_buffer_views
-                .next()
-                .map(|view| pso::Descriptor::UniformTexelBuffer(&**view)),
-            pso::DescriptorType::StorageTexelBuffer => self
-                .texel_buffer_views
-                .next()
-                .map(|view| pso::Descriptor::StorageTexelBuffer(&**view)),
-            pso::DescriptorType::UniformBuffer
-            | pso::DescriptorType::StorageBuffer
-            | pso::DescriptorType::UniformBufferDynamic
-            | pso::DescriptorType::StorageBufferDynamic => {
-                self.buffer_infos.next().map(|buffer| {
-                    let end = if buffer.range as i32 == VK_WHOLE_SIZE {
-                        None
-                    } else {
-                        Some(buffer.offset + buffer.range)
-                    };
-                    pso::Descriptor::Buffer(
-                        // Non-sparse buffer need to be bound to device memory.
-                        &*buffer.buffer,
-                        Some(buffer.offset)..end,
-                    )
-                })
-            }
-            pso::DescriptorType::CombinedImageSampler => self.image_infos.next().map(|image| {
+
+            pso::DescriptorType::Image {
+                ty: pso::ImageDescriptorType::Sampled { with_sampler: true },
+            } => self.image_infos.next().map(|image| {
                 pso::Descriptor::CombinedImageSampler(
                     &*image.imageView,
                     conv::map_image_layout(image.imageLayout),
                     &*image.sampler,
                 )
             }),
+
+            pso::DescriptorType::InputAttachment | pso::DescriptorType::Image { .. } => {
+                self.image_infos.next().map(|image| {
+                    pso::Descriptor::Image(
+                        &*image.imageView,
+                        conv::map_image_layout(image.imageLayout),
+                    )
+                })
+            }
+
+            pso::DescriptorType::Buffer { ty, format } => {
+                match format {
+                    pso::BufferDescriptorFormat::Texel => match ty {
+                        pso::BufferDescriptorType::Storage { .. } => self
+                            .texel_buffer_views
+                            .next()
+                            .map(|view| pso::Descriptor::StorageTexelBuffer(&**view)),
+                        pso::BufferDescriptorType::Uniform => self
+                            .texel_buffer_views
+                            .next()
+                            .map(|view| pso::Descriptor::UniformTexelBuffer(&**view)),
+                    },
+                    pso::BufferDescriptorFormat::Structured { .. } => {
+                        self.buffer_infos.next().map(|buffer| {
+                            let end = if buffer.range as i32 == VK_WHOLE_SIZE {
+                                None
+                            } else {
+                                Some(buffer.offset + buffer.range)
+                            };
+                            pso::Descriptor::Buffer(
+                                // Non-sparse buffer need to be bound to device memory.
+                                &*buffer.buffer,
+                                Some(buffer.offset)..end,
+                            )
+                        })
+                    }
+                }
+            }
         }
     }
 }
@@ -3226,6 +3238,7 @@ pub extern "C" fn gfxCreateRenderPass(
             passes: src_pass..dst_pass,
             stages: src_stage..dst_stage,
             accesses: src_access..dst_access,
+            flags: conv::map_dependency_flags(dependency.dependencyFlags),
         }
     });
 
@@ -3349,7 +3362,7 @@ pub extern "C" fn gfxAllocateCommandBuffers(
     let output =
         unsafe { slice::from_raw_parts_mut(pCommandBuffers, info.commandBufferCount as usize) };
     for out in output.iter_mut() {
-        let cmd_buf = info.commandPool.pool.allocate_one(level);
+        let cmd_buf = unsafe { info.commandPool.pool.allocate_one(level) };
         *out = DispatchHandle::new(cmd_buf);
     }
     info.commandPool.buffers.extend_from_slice(output);
@@ -4302,7 +4315,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let (caps, _, _supported_transforms) = surface.compatibility(&adapter.physical_device);
+    let caps = surface.capabilities(&adapter.physical_device);
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: *caps.image_count.start(),
@@ -4320,7 +4333,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         supportedTransforms: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        supportedCompositeAlpha: caps.composite_alpha.bits(),
+        supportedCompositeAlpha: caps.composite_alpha_modes.bits(),
         supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
     };
 
@@ -4336,8 +4349,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     pSurfaceFormats: *mut VkSurfaceFormatKHR,
 ) -> VkResult {
     let formats = surface
-        .compatibility(&adapter.physical_device)
-        .1
+        .supported_formats(&adapter.physical_device)
         .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
         .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
 
@@ -4368,29 +4380,34 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let (_, _, present_modes) = surface.compatibility(&adapter.physical_device);
+    let present_modes = surface.capabilities(&adapter.physical_device).present_modes;
 
-    let num_present_modes = present_modes.len();
+    let num_present_modes = present_modes.bits().count_ones();
 
     // If NULL, number of present modes is returned.
     if pPresentModes.is_null() {
-        unsafe { *pPresentModeCount = num_present_modes as _ };
+        unsafe { *pPresentModeCount = num_present_modes };
         return VkResult::VK_SUCCESS;
     }
 
-    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, *pPresentModeCount as _) };
-    let num_output = output.len();
+    let num_output = unsafe { *pPresentModeCount };
+    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, num_output as _) };
     let (code, count) = if num_output < num_present_modes {
         (VkResult::VK_INCOMPLETE, num_output)
     } else {
         (VkResult::VK_SUCCESS, num_present_modes)
     };
 
-    for (out, present_mode) in output.iter_mut().zip(present_modes) {
-        *out = conv::map_present_mode_from_hal(present_mode);
+    let mut out_idx = 0;
+    for i in 0..PresentMode::all().bits().count_ones() {
+        let present_mode = PresentMode::from_bits_truncate(1 << i);
+        if present_modes.contains(present_mode) {
+            output[out_idx] = unsafe { mem::transmute(i) };
+            out_idx += 1;
+        }
     }
 
-    unsafe { *pPresentModeCount = count as _ };
+    unsafe { *pPresentModeCount = count };
     code
 }
 
@@ -4419,7 +4436,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
 
     let config = hal::window::SwapchainConfig {
         present_mode: conv::map_present_mode(info.presentMode),
-        composite_alpha: conv::map_composite_alpha(info.compositeAlpha),
+        composite_alpha_mode: conv::map_composite_alpha(info.compositeAlpha),
         format: conv::map_format(info.imageFormat).unwrap(),
         extent: conv::map_extent2d(info.imageExtent),
         image_count: info.minImageCount,

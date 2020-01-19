@@ -23,6 +23,7 @@ extern crate gfx_backend_metal as back;
 #[cfg(feature = "gfx-backend-vulkan")]
 extern crate gfx_backend_vulkan as back;
 extern crate gfx_hal as hal;
+extern crate smallvec;
 
 extern crate copyless;
 #[macro_use]
@@ -31,12 +32,16 @@ extern crate lazy_static;
 extern crate log;
 #[cfg(feature = "env_logger")]
 extern crate env_logger;
+#[cfg(feature = "nightly")]
+extern crate gfx_auxil;
 #[cfg(feature = "renderdoc")]
 extern crate renderdoc;
 
 mod conv;
 mod handle;
 mod impls;
+
+use smallvec::SmallVec;
 
 use back::Backend as B;
 use handle::{DispatchHandle, Handle};
@@ -93,7 +98,7 @@ pub struct Gpu<B: hal::Backend> {
 
 pub struct DescriptorPool<B: hal::Backend> {
     raw: B::DescriptorPool,
-    temp_sets: Vec<B::DescriptorSet>,
+    temp_sets: SmallVec<[B::DescriptorSet; 1]>,
     set_handles: Option<Vec<VkDescriptorSet>>,
 }
 

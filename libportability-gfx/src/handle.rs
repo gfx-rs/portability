@@ -4,7 +4,7 @@ use std::{borrow, cmp, fmt, ops};
 use VK_NULL_HANDLE;
 
 #[cfg(feature = "nightly")]
-use hal::backend::FastHashMap;
+use gfx_auxil::FastHashMap;
 
 use copyless::{BoxAllocation, BoxHelper};
 
