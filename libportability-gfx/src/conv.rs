@@ -1,10 +1,9 @@
 use hal::{buffer, command, device, format, image, memory, pass, pso, query, window};
-use hal::{IndexType, Features, Limits, PatchSize, Primitive};
+use hal::{pso::PatchSize, pso::Primitive, Features, IndexType, Limits};
 
 use std::mem;
 
 use super::*;
-
 
 pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
     let viewport_size = limits.max_viewport_dimensions[0].max(limits.max_viewport_dimensions[1]);
@@ -53,7 +52,7 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxPerStageDescriptorSamplers: limits.max_per_stage_descriptor_samplers as _,
         maxDescriptorSetSampledImages: limits.max_descriptor_set_sampled_images as _,
         maxDescriptorSetSamplers: limits.max_descriptor_set_samplers as _,
-        .. unsafe { mem::zeroed() } //TODO
+        ..unsafe { mem::zeroed() } //TODO
     }
 }
 
@@ -86,16 +85,33 @@ pub fn features_from_hal(features: Features) -> VkPhysicalDeviceFeatures {
         pipelineStatisticsQuery: features.contains(Features::PIPELINE_STATISTICS_QUERY) as _,
         vertexPipelineStoresAndAtomics: features.contains(Features::VERTEX_STORES_AND_ATOMICS) as _,
         fragmentStoresAndAtomics: features.contains(Features::FRAGMENT_STORES_AND_ATOMICS) as _,
-        shaderTessellationAndGeometryPointSize: features.contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE) as _,
+        shaderTessellationAndGeometryPointSize: features
+            .contains(Features::SHADER_TESSELLATION_AND_GEOMETRY_POINT_SIZE)
+            as _,
         shaderImageGatherExtended: features.contains(Features::SHADER_IMAGE_GATHER_EXTENDED) as _,
-        shaderStorageImageExtendedFormats: features.contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS) as _,
-        shaderStorageImageMultisample: features.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE) as _,
-        shaderStorageImageReadWithoutFormat: features.contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT) as _,
-        shaderStorageImageWriteWithoutFormat: features.contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT) as _,
-        shaderUniformBufferArrayDynamicIndexing: features.contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING) as _,
-        shaderSampledImageArrayDynamicIndexing: features.contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING) as _,
-        shaderStorageBufferArrayDynamicIndexing: features.contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING) as _,
-        shaderStorageImageArrayDynamicIndexing: features.contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING) as _,
+        shaderStorageImageExtendedFormats: features
+            .contains(Features::SHADER_STORAGE_IMAGE_EXTENDED_FORMATS)
+            as _,
+        shaderStorageImageMultisample: features.contains(Features::SHADER_STORAGE_IMAGE_MULTISAMPLE)
+            as _,
+        shaderStorageImageReadWithoutFormat: features
+            .contains(Features::SHADER_STORAGE_IMAGE_READ_WITHOUT_FORMAT)
+            as _,
+        shaderStorageImageWriteWithoutFormat: features
+            .contains(Features::SHADER_STORAGE_IMAGE_WRITE_WITHOUT_FORMAT)
+            as _,
+        shaderUniformBufferArrayDynamicIndexing: features
+            .contains(Features::SHADER_UNIFORM_BUFFER_ARRAY_DYNAMIC_INDEXING)
+            as _,
+        shaderSampledImageArrayDynamicIndexing: features
+            .contains(Features::SHADER_SAMPLED_IMAGE_ARRAY_DYNAMIC_INDEXING)
+            as _,
+        shaderStorageBufferArrayDynamicIndexing: features
+            .contains(Features::SHADER_STORAGE_BUFFER_ARRAY_DYNAMIC_INDEXING)
+            as _,
+        shaderStorageImageArrayDynamicIndexing: features
+            .contains(Features::SHADER_STORAGE_IMAGE_ARRAY_DYNAMIC_INDEXING)
+            as _,
         shaderClipDistance: features.contains(Features::SHADER_CLIP_DISTANCE) as _,
         shaderCullDistance: features.contains(Features::SHADER_CULL_DISTANCE) as _,
         shaderFloat64: features.contains(Features::SHADER_FLOAT64) as _,
@@ -131,7 +147,9 @@ pub fn format_properties_from_hal(properties: format::Properties) -> VkFormatPro
     }
 }
 
-pub fn image_format_properties_from_hal(properties: image::FormatProperties) -> VkImageFormatProperties {
+pub fn image_format_properties_from_hal(
+    properties: image::FormatProperties,
+) -> VkImageFormatProperties {
     VkImageFormatProperties {
         maxExtent: extent3d_from_hal(properties.max_extent),
         maxMipLevels: properties.max_levels as _,
@@ -284,9 +302,16 @@ pub fn map_image_kind(
     debug_assert_ne!(array_layers, 0);
     match ty {
         VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width as _, array_layers),
-        VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2(extent.width as _, extent.height as _, array_layers, samples as _),
-        VkImageType::VK_IMAGE_TYPE_3D => image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _),
-        _ => unreachable!()
+        VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2(
+            extent.width as _,
+            extent.height as _,
+            array_layers,
+            samples as _,
+        ),
+        VkImageType::VK_IMAGE_TYPE_3D => {
+            image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _)
+        }
+        _ => unreachable!(),
     }
 }
 
@@ -299,7 +324,7 @@ pub fn map_view_kind(ty: VkImageViewType) -> image::ViewKind {
         VkImageViewType::VK_IMAGE_VIEW_TYPE_3D => image::ViewKind::D3,
         VkImageViewType::VK_IMAGE_VIEW_TYPE_CUBE => image::ViewKind::Cube,
         VkImageViewType::VK_IMAGE_VIEW_TYPE_CUBE_ARRAY => image::ViewKind::CubeArray,
-        _ => unreachable!()
+        _ => unreachable!(),
     }
 }
 
@@ -309,8 +334,12 @@ pub fn map_image_layout(layout: VkImageLayout) -> image::Layout {
         VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => Undefined,
         VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => General,
         VkImageLayout::VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL => ColorAttachmentOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL => DepthStencilAttachmentOptimal,
-        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL => DepthStencilReadOnlyOptimal,
+        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL => {
+            DepthStencilAttachmentOptimal
+        }
+        VkImageLayout::VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL => {
+            DepthStencilReadOnlyOptimal
+        }
         VkImageLayout::VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL => ShaderReadOnlyOptimal,
         VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL => TransferSrcOptimal,
         VkImageLayout::VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL => TransferDstOptimal,
@@ -415,7 +444,7 @@ pub fn map_buffer_access(access: VkAccessFlags) -> buffer::Access {
         mask |= buffer::Access::VERTEX_BUFFER_READ;
     }
     if access & VkAccessFlagBits::VK_ACCESS_UNIFORM_READ_BIT as u32 != 0 {
-        mask |= buffer::Access::CONSTANT_BUFFER_READ;
+        mask |= buffer::Access::UNIFORM_READ;
     }
     if access & VkAccessFlagBits::VK_ACCESS_INDIRECT_COMMAND_READ_BIT as u32 != 0 {
         mask |= buffer::Access::INDIRECT_COMMAND_READ;
@@ -473,18 +502,53 @@ pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPro
 pub fn map_descriptor_type(ty: VkDescriptorType) -> pso::DescriptorType {
     use super::VkDescriptorType::*;
 
+    // TODO(krolli): Determining value of read_only in pso::BufferDescriptorType::Storage. Vulkan storage buffer variants always allow writes.
     match ty {
         VK_DESCRIPTOR_TYPE_SAMPLER => pso::DescriptorType::Sampler,
-        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE => pso::DescriptorType::SampledImage,
-        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE => pso::DescriptorType::StorageImage,
-        VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER => pso::DescriptorType::UniformTexelBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER => pso::DescriptorType::StorageTexelBuffer,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER => pso::DescriptorType::UniformBuffer,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::StorageBuffer,
+        VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE => pso::DescriptorType::Image {
+            ty: pso::ImageDescriptorType::Sampled {
+                with_sampler: false,
+            },
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE => pso::DescriptorType::Image {
+            ty: pso::ImageDescriptorType::Storage,
+        },
+        VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Uniform,
+            format: pso::BufferDescriptorFormat::Texel,
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Storage { read_only: false },
+            format: pso::BufferDescriptorFormat::Texel,
+        },
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Uniform,
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: false,
+            },
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Storage { read_only: false },
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: false,
+            },
+        },
         VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT => pso::DescriptorType::InputAttachment,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER => pso::DescriptorType::CombinedImageSampler,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC => pso::DescriptorType::UniformBufferDynamic,
-        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => pso::DescriptorType::StorageBufferDynamic,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER => pso::DescriptorType::Image {
+            ty: pso::ImageDescriptorType::Sampled { with_sampler: true },
+        },
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Uniform,
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: true,
+            },
+        },
+        VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC => pso::DescriptorType::Buffer {
+            ty: pso::BufferDescriptorType::Storage { read_only: false },
+            format: pso::BufferDescriptorFormat::Structured {
+                dynamic_offset: true,
+            },
+        },
         _ => panic!("Unexpected descriptor type: {:?}", ty),
     }
 }
@@ -527,6 +591,19 @@ pub fn map_pipeline_stage_flags(stages: VkPipelineStageFlags) -> pso::PipelineSt
     }
 }
 
+pub fn map_dependency_flags(dependencies: VkDependencyFlags) -> memory::Dependencies {
+    let max_flag = VkDependencyFlagBits::VK_DEPENDENCY_BY_REGION_BIT as u32;
+
+    if (dependencies & !((max_flag << 1) - 1)) == 0 {
+        // HAL flags have the same numeric representation as Vulkan flags
+        unsafe { mem::transmute(dependencies) }
+    } else {
+        // VIEW_LOCAL and DEVICE_GROUP are missing
+        warn!("Unsupported dependency flags: {:?}", dependencies);
+        memory::Dependencies::all()
+    }
+}
+
 pub fn map_err_device_creation(err: device::CreationError) -> VkResult {
     use hal::device::OutOfMemory::{Device, Host};
     match err {
@@ -560,8 +637,9 @@ pub fn map_attachment_store_op(op: VkAttachmentStoreOp) -> pass::AttachmentStore
 pub fn map_subpass_contents(contents: VkSubpassContents) -> command::SubpassContents {
     match contents {
         VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE => command::SubpassContents::Inline,
-        VkSubpassContents::VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS =>
-            command::SubpassContents::SecondaryBuffers,
+        VkSubpassContents::VK_SUBPASS_CONTENTS_SECONDARY_COMMAND_BUFFERS => {
+            command::SubpassContents::SecondaryBuffers
+        }
 
         _ => panic!("Unexpected subpass contents: {:?}", contents),
     }
@@ -570,7 +648,7 @@ pub fn map_subpass_contents(contents: VkSubpassContents) -> command::SubpassCont
 pub fn map_stencil_face(face: VkStencilFaceFlags) -> pso::Face {
     match unsafe { mem::transmute(face) } {
         VkStencilFaceFlagBits::VK_STENCIL_FACE_FRONT_BIT => pso::Face::FRONT,
-        VkStencilFaceFlagBits::VK_STENCIL_FACE_BACK_BIT  => pso::Face::BACK,
+        VkStencilFaceFlagBits::VK_STENCIL_FACE_BACK_BIT => pso::Face::BACK,
         VkStencilFaceFlagBits::VK_STENCIL_FRONT_AND_BACK => pso::Face::all(),
         _ => panic!("Unexpected stencil face: {:?}", face),
     }
@@ -594,21 +672,24 @@ pub fn map_front_face(face: VkFrontFace) -> pso::FrontFace {
     }
 }
 
-pub fn map_primitive_topology(topology: VkPrimitiveTopology, patch_size: PatchSize) -> Option<Primitive> {
+pub fn map_primitive_topology(
+    topology: VkPrimitiveTopology,
+    patch_size: PatchSize,
+) -> Option<(Primitive, bool)> {
     use super::VkPrimitiveTopology::*;
 
     Some(match topology {
-        VK_PRIMITIVE_TOPOLOGY_POINT_LIST => Primitive::PointList,
-        VK_PRIMITIVE_TOPOLOGY_LINE_LIST => Primitive::LineList,
-        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP => Primitive::LineStrip,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST => Primitive::TriangleList,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP => Primitive::TriangleStrip,
+        VK_PRIMITIVE_TOPOLOGY_POINT_LIST => (Primitive::PointList, false),
+        VK_PRIMITIVE_TOPOLOGY_LINE_LIST => (Primitive::LineList, false),
+        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP => (Primitive::LineStrip, false),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST => (Primitive::TriangleList, false),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP => (Primitive::TriangleStrip, false),
         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN => return None,
-        VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY => Primitive::LineListAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY => Primitive::LineStripAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY => Primitive::TriangleListAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY => Primitive::TriangleStripAdjacency,
-        VK_PRIMITIVE_TOPOLOGY_PATCH_LIST => Primitive::PatchList(patch_size),
+        VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY => (Primitive::LineList, true),
+        VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY => (Primitive::LineStrip, true),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY => (Primitive::TriangleList, true),
+        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY => (Primitive::TriangleStrip, true),
+        VK_PRIMITIVE_TOPOLOGY_PATCH_LIST => (Primitive::PatchList(patch_size), false),
         _ => return None,
     })
 }
@@ -619,28 +700,25 @@ pub fn map_present_mode(present_mode: VkPresentModeKHR) -> window::PresentMode {
     unsafe { mem::transmute(present_mode) }
 }
 
-pub fn map_composite_alpha(composite_alpha: VkCompositeAlphaFlagBitsKHR) -> window::CompositeAlpha {
+pub fn map_composite_alpha(
+    composite_alpha: VkCompositeAlphaFlagBitsKHR,
+) -> window::CompositeAlphaMode {
     if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR {
-        window::CompositeAlpha::OPAQUE
-    } else
-    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR {
-        window::CompositeAlpha::PREMULTIPLIED
-    } else
-    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR {
-        window::CompositeAlpha::POSTMULTIPLIED
-    } else
-    if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR {
-        window::CompositeAlpha::INHERIT
+        window::CompositeAlphaMode::OPAQUE
+    } else if composite_alpha
+        == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_PRE_MULTIPLIED_BIT_KHR
+    {
+        window::CompositeAlphaMode::PREMULTIPLIED
+    } else if composite_alpha
+        == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_POST_MULTIPLIED_BIT_KHR
+    {
+        window::CompositeAlphaMode::POSTMULTIPLIED
+    } else if composite_alpha == VkCompositeAlphaFlagBitsKHR::VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR {
+        window::CompositeAlphaMode::INHERIT
     } else {
         error!("Unrecognized composite alpha: {:?}", composite_alpha);
-        window::CompositeAlpha::OPAQUE
+        window::CompositeAlphaMode::OPAQUE
     }
-}
-
-#[inline]
-pub fn map_present_mode_from_hal(present_mode: window::PresentMode) -> VkPresentModeKHR {
-    // Vulkan and HAL values are equal
-    unsafe { mem::transmute(present_mode) }
 }
 
 #[inline]
@@ -674,21 +752,23 @@ fn map_blend_factor(factor: VkBlendFactor) -> pso::Factor {
 }
 
 pub fn map_blend_op(
-    blend_op: VkBlendOp, src_factor: VkBlendFactor, dst_factor: VkBlendFactor,
+    blend_op: VkBlendOp,
+    src_factor: VkBlendFactor,
+    dst_factor: VkBlendFactor,
 ) -> pso::BlendOp {
     use super::VkBlendOp::*;
     match blend_op {
         VK_BLEND_OP_ADD => pso::BlendOp::Add {
             src: map_blend_factor(src_factor),
-            dst: map_blend_factor(dst_factor)
+            dst: map_blend_factor(dst_factor),
         },
         VK_BLEND_OP_SUBTRACT => pso::BlendOp::Sub {
             src: map_blend_factor(src_factor),
-            dst: map_blend_factor(dst_factor)
+            dst: map_blend_factor(dst_factor),
         },
         VK_BLEND_OP_REVERSE_SUBTRACT => pso::BlendOp::RevSub {
             src: map_blend_factor(src_factor),
-            dst: map_blend_factor(dst_factor)
+            dst: map_blend_factor(dst_factor),
         },
         VK_BLEND_OP_MIN => pso::BlendOp::Min,
         VK_BLEND_OP_MAX => pso::BlendOp::Max,
@@ -706,7 +786,7 @@ pub fn map_filter(filter: VkFilter) -> image::Filter {
     match filter {
         VkFilter::VK_FILTER_NEAREST => image::Filter::Nearest,
         VkFilter::VK_FILTER_LINEAR => image::Filter::Linear,
-        _ => panic!("Unsupported filter {:?}", filter)
+        _ => panic!("Unsupported filter {:?}", filter),
     }
 }
 
@@ -714,7 +794,7 @@ pub fn map_mipmap_filter(mode: VkSamplerMipmapMode) -> image::Filter {
     match mode {
         VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_NEAREST => image::Filter::Nearest,
         VkSamplerMipmapMode::VK_SAMPLER_MIPMAP_MODE_LINEAR => image::Filter::Linear,
-        _ => panic!("Unsupported mipmap mode {:?}", mode)
+        _ => panic!("Unsupported mipmap mode {:?}", mode),
     }
 }
 
@@ -761,7 +841,7 @@ pub fn map_clear_rect(rect: &VkClearRect) -> pso::ClearRect {
     let base = rect.baseArrayLayer as image::Layer;
     pso::ClearRect {
         rect: map_rect(&rect.rect),
-        layers: base .. base + rect.layerCount as image::Layer,
+        layers: base..base + rect.layerCount as image::Layer,
     }
 }
 
@@ -773,7 +853,7 @@ pub fn map_viewport(vp: &VkViewport) -> pso::Viewport {
             w: vp.width as _,
             h: vp.height as _,
         },
-        depth: vp.minDepth .. vp.maxDepth,
+        depth: vp.minDepth..vp.maxDepth,
     }
 }
 
@@ -797,9 +877,9 @@ pub fn map_index_type(ty: VkIndexType) -> IndexType {
 pub fn map_query_type(ty: VkQueryType, statistic: VkQueryPipelineStatisticFlags) -> query::Type {
     match ty {
         VkQueryType::VK_QUERY_TYPE_OCCLUSION => query::Type::Occlusion,
-        VkQueryType::VK_QUERY_TYPE_PIPELINE_STATISTICS => query::Type::PipelineStatistics(
-            map_pipeline_statistics(statistic)
-        ),
+        VkQueryType::VK_QUERY_TYPE_PIPELINE_STATISTICS => {
+            query::Type::PipelineStatistics(map_pipeline_statistics(statistic))
+        }
         VkQueryType::VK_QUERY_TYPE_TIMESTAMP => query::Type::Timestamp,
         _ => panic!("Unexpected query type: {:?}", ty),
     }

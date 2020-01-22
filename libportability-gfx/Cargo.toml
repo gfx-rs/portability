@@ -14,13 +14,14 @@ name = "portability_gfx"
 [features]
 default = []
 dispatch = []
-nightly = []
+nightly = ["gfx-auxil"]
 metal-capture = ["gfx-backend-metal/auto-capture"]
 
 [dependencies]
 copyless = "0.1.1"
 lazy_static = "1.0"
 log = { version = "0.4", features = ["release_max_level_error"] }
+smallvec = "1.0"
 
 [dependencies.env_logger]
 version = "0.5"
@@ -33,7 +34,6 @@ optional = true
 [dependencies.gfx-hal]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/hal"
-features = ["fxhash"]
 
 [dependencies.gfx-backend-empty]
 git = "https://github.com/gfx-rs/gfx"
@@ -63,4 +63,9 @@ optional = true
 [dependencies.gfx-backend-gl]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/gl"
+optional = true
+
+[dependencies.gfx-auxil]
+git = "https://github.com/gfx-rs/gfx"
+# path = "../../gfx/src/auxil/auxil"
 optional = true

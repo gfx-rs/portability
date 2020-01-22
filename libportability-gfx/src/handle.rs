@@ -1,17 +1,17 @@
-use VK_NULL_HANDLE;
-use std::{borrow, cmp, fmt, ops};
 #[cfg(feature = "nightly")]
 use std::sync::{Arc, Mutex};
+use std::{borrow, cmp, fmt, ops};
+use VK_NULL_HANDLE;
 
 #[cfg(feature = "nightly")]
-use hal::backend::FastHashMap;
+use gfx_auxil::FastHashMap;
 
 use copyless::{BoxAllocation, BoxHelper};
 
-
 #[cfg(feature = "nightly")]
 lazy_static! {
-    static ref REGISTRY: Arc<Mutex<FastHashMap<usize, &'static str>>> = Arc::new(Mutex::new(FastHashMap::default()));
+    static ref REGISTRY: Arc<Mutex<FastHashMap<usize, &'static str>>> =
+        Arc::new(Mutex::new(FastHashMap::default()));
 }
 
 #[repr(C)]
@@ -141,9 +141,9 @@ pub type DispatchHandle<T> = Handle<T>;
 
 #[cfg(feature = "dispatch")]
 mod dispatch {
-    use VK_NULL_HANDLE;
     use copyless::{BoxAllocation, BoxHelper};
     use std::{borrow, cmp, fmt, ops};
+    use VK_NULL_HANDLE;
 
     const ICD_LOADER_MAGIC: u64 = 0x01CDC0DE;
 

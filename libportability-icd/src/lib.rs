@@ -7,7 +7,6 @@ use portability_gfx::*;
 use std::ffi::CStr;
 use std::mem;
 
-
 const ICD_VERSION: u32 = 5;
 
 #[no_mangle]
@@ -41,7 +40,7 @@ pub extern "C" fn vk_icdGetPhysicalDeviceProcAddr(
         Err(_) => return None,
     };
 
-    proc_addr!{ name,
+    proc_addr! { name,
         vkGetPhysicalDeviceFeatures, PFN_vkGetPhysicalDeviceFeatures => gfxGetPhysicalDeviceFeatures,
         vkGetPhysicalDeviceFeatures2KHR, PFN_vkGetPhysicalDeviceFeatures2KHR => gfxGetPhysicalDeviceFeatures2KHR,
         vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties => gfxGetPhysicalDeviceProperties,
