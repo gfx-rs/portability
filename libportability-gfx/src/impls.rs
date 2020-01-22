@@ -62,6 +62,8 @@ pub extern "C" fn gfxCreateInstance(
         let _ = env_logger::try_init();
     }
 
+    #[allow(unused_mut)]
+    // Metal branch performs mutation, so we silence the warning on other backends.
     let mut backend =
         back::Instance::create("portability", 1).expect("failed to create backend instance");
 
@@ -2074,13 +2076,11 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         };
 
         let shaders = {
-            let mut set = pso::GraphicsShaderSet {
-                vertex: unsafe { mem::zeroed() }, // fake entry point
-                hull: None,
-                domain: None,
-                geometry: None,
-                fragment: None,
-            };
+            let mut vertex = mem::MaybeUninit::uninit();
+            let mut hull = None;
+            let mut domain = None;
+            let mut geometry = None;
+            let mut fragment = None;
 
             let stages = unsafe { slice::from_raw_parts(info.pStages, info.stageCount as _) };
 
@@ -2109,26 +2109,31 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
 
                 match stage.stage {
                     VK_SHADER_STAGE_VERTEX_BIT => {
-                        let fake_vs_entry = mem::replace(&mut set.vertex, entry_point);
-                        mem::forget(fake_vs_entry);
+                        vertex = mem::MaybeUninit::new(entry_point);
                     }
                     VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => {
-                        set.hull = Some(entry_point);
+                        hull = Some(entry_point);
                     }
                     VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => {
-                        set.domain = Some(entry_point);
+                        domain = Some(entry_point);
                     }
                     VK_SHADER_STAGE_GEOMETRY_BIT => {
-                        set.geometry = Some(entry_point);
+                        geometry = Some(entry_point);
                     }
                     VK_SHADER_STAGE_FRAGMENT_BIT if !rasterizer_discard => {
-                        set.fragment = Some(entry_point);
+                        fragment = Some(entry_point);
                     }
                     stage => panic!("Unexpected shader stage: {:?}", stage),
                 }
             }
 
-            set
+            pso::GraphicsShaderSet {
+                vertex: unsafe { vertex.assume_init() },
+                hull,
+                domain,
+                geometry,
+                fragment,
+            }
         };
 
         let (vertex_buffers, attributes) = {
@@ -4413,8 +4418,8 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
 
 #[inline]
 pub extern "C" fn gfxGetPhysicalDeviceWin32PresentationSupportKHR(
-    adapter: VkPhysicalDevice,
-    queueFamilyIndex: u32,
+    _adapter: VkPhysicalDevice,
+    _queueFamilyIndex: u32,
 ) -> VkBool32 {
     VK_TRUE
 }
@@ -4443,6 +4448,8 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         image_layers: 1,
         image_usage: conv::map_image_usage(info.imageUsage),
     };
+
+    #[allow(unused_mut)] // Metal branch performs mutation.
     let (mut swapchain, backbuffers) = match unsafe {
         gpu.device.create_swapchain(
             &mut info.surface.clone(),
