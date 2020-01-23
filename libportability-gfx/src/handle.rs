@@ -37,7 +37,7 @@ impl<T> HandleAllocation<T> {
         #[cfg(feature = "nightly")]
         {
             use std::intrinsics::type_name;
-            let name = unsafe { type_name::<T>() };
+            let name = type_name::<T>();
             REGISTRY.lock().unwrap().insert(ptr as _, name);
         }
         Handle(ptr)
