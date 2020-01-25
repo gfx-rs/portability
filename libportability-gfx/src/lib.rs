@@ -5,9 +5,9 @@
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
 #[cfg(feature = "gfx-backend-dx11")]
-extern crate gfx_backend_dx11 as back;
+use gfx_backend_dx11 as back;
 #[cfg(feature = "gfx-backend-dx12")]
-extern crate gfx_backend_dx12 as back;
+use gfx_backend_dx12 as back;
 #[cfg(not(any(
     feature = "gfx-backend-dx12",
     feature = "gfx-backend-dx11",
@@ -15,27 +15,17 @@ extern crate gfx_backend_dx12 as back;
     feature = "gfx-backend-vulkan",
     feature = "gfx-backend-gl",
 )))]
-extern crate gfx_backend_empty as back;
+use gfx_backend_empty as back;
 #[cfg(feature = "gfx-backend-gl")]
-extern crate gfx_backend_gl as back;
+use gfx_backend_gl as back;
 #[cfg(feature = "gfx-backend-metal")]
-extern crate gfx_backend_metal as back;
+use gfx_backend_metal as back;
 #[cfg(feature = "gfx-backend-vulkan")]
-extern crate gfx_backend_vulkan as back;
-extern crate gfx_hal as hal;
-extern crate smallvec;
+use gfx_backend_vulkan as back;
+use gfx_hal as hal;
 
-extern crate copyless;
-#[macro_use]
-extern crate lazy_static;
-#[macro_use]
-extern crate log;
-#[cfg(feature = "env_logger")]
-extern crate env_logger;
-#[cfg(feature = "nightly")]
-extern crate gfx_auxil;
-#[cfg(feature = "renderdoc")]
-extern crate renderdoc;
+use lazy_static::lazy_static;
+use log::{error, warn};
 
 mod conv;
 mod handle;
@@ -43,13 +33,13 @@ mod impls;
 
 use smallvec::SmallVec;
 
-use back::Backend as B;
-use handle::{DispatchHandle, Handle};
+use crate::back::Backend as B;
+use crate::handle::{DispatchHandle, Handle};
 
 use std::collections::HashMap;
 use std::slice;
 
-pub use impls::*;
+pub use crate::impls::*;
 
 // Vulkan objects
 pub type VkInstance = Handle<RawInstance>;

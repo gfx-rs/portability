@@ -1,12 +1,15 @@
+use crate::VK_NULL_HANDLE;
 #[cfg(feature = "nightly")]
 use std::sync::{Arc, Mutex};
 use std::{borrow, cmp, fmt, ops};
-use VK_NULL_HANDLE;
 
 #[cfg(feature = "nightly")]
 use gfx_auxil::FastHashMap;
 
 use copyless::{BoxAllocation, BoxHelper};
+
+#[cfg(feature = "nightly")]
+use lazy_static::lazy_static;
 
 #[cfg(feature = "nightly")]
 lazy_static! {
@@ -141,9 +144,9 @@ pub type DispatchHandle<T> = Handle<T>;
 
 #[cfg(feature = "dispatch")]
 mod dispatch {
+    use crate::VK_NULL_HANDLE;
     use copyless::{BoxAllocation, BoxHelper};
     use std::{borrow, cmp, fmt, ops};
-    use VK_NULL_HANDLE;
 
     const ICD_LOADER_MAGIC: u64 = 0x01CDC0DE;
 

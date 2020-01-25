@@ -1,5 +1,5 @@
-use hal::{buffer, command, device, format, image, memory, pass, pso, query, window};
-use hal::{pso::PatchSize, pso::Primitive, Features, IndexType, Limits};
+use crate::hal::{buffer, command, device, format, image, memory, pass, pso, query, window};
+use crate::hal::{pso::PatchSize, pso::Primitive, Features, IndexType, Limits};
 
 use std::mem;
 
@@ -258,7 +258,7 @@ fn map_swizzle_component(
     component: VkComponentSwizzle,
     identity: format::Component,
 ) -> format::Component {
-    use VkComponentSwizzle::*;
+    use crate::VkComponentSwizzle::*;
 
     match component {
         VK_COMPONENT_SWIZZLE_IDENTITY => identity,
@@ -329,7 +329,7 @@ pub fn map_view_kind(ty: VkImageViewType) -> image::ViewKind {
 }
 
 pub fn map_image_layout(layout: VkImageLayout) -> image::Layout {
-    use hal::image::Layout::*;
+    use crate::hal::image::Layout::*;
     match layout {
         VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => Undefined,
         VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => General,
@@ -605,7 +605,7 @@ pub fn map_dependency_flags(dependencies: VkDependencyFlags) -> memory::Dependen
 }
 
 pub fn map_err_device_creation(err: device::CreationError) -> VkResult {
-    use hal::device::OutOfMemory::{Device, Host};
+    use crate::hal::device::OutOfMemory::{Device, Host};
     match err {
         device::CreationError::OutOfMemory(Host) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
         device::CreationError::OutOfMemory(Device) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
