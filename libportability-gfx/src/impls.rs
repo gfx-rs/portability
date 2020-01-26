@@ -1,13 +1,13 @@
-use hal::adapter::PhysicalDevice;
-use hal::buffer::IndexBufferView;
-use hal::command::CommandBuffer;
-use hal::device::{Device, WaitFor};
-use hal::pool::CommandPool as _;
-use hal::pso::DescriptorPool;
-use hal::queue::{CommandQueue, QueueFamily};
-use hal::window::{PresentMode, Surface, Swapchain as _};
-use hal::{command as com, memory, pass, pso, queue};
-use hal::{Features, Instance};
+use crate::hal::adapter::PhysicalDevice;
+use crate::hal::buffer::IndexBufferView;
+use crate::hal::command::CommandBuffer;
+use crate::hal::device::{Device, WaitFor};
+use crate::hal::pool::CommandPool as _;
+use crate::hal::pso::DescriptorPool;
+use crate::hal::queue::{CommandQueue, QueueFamily};
+use crate::hal::window::{PresentMode, Surface, Swapchain as _};
+use crate::hal::{command as com, memory, pass, pso, queue};
+use crate::hal::{Features, Instance};
 
 use std::borrow::Cow;
 #[cfg(feature = "gfx-backend-metal")]
@@ -417,7 +417,7 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
         unsafe { mem::transmute(name) }
     };
 
-    use hal::adapter::DeviceType;
+    use crate::hal::adapter::DeviceType;
     let device_type = match adapter.info.device_type {
         DeviceType::IntegratedGpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
         DeviceType::DiscreteGpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU,
@@ -3293,7 +3293,7 @@ pub extern "C" fn gfxCreateCommandPool(
     _pAllocator: *const VkAllocationCallbacks,
     pCommandPool: *mut VkCommandPool,
 ) -> VkResult {
-    use hal::pool::CommandPoolCreateFlags;
+    use crate::hal::pool::CommandPoolCreateFlags;
 
     let info = unsafe { &*pCreateInfo };
     let family = queue::QueueFamilyId(info.queueFamilyIndex as _);
@@ -3929,7 +3929,7 @@ pub extern "C" fn gfxCmdClearAttachments(
     let attachments = unsafe { slice::from_raw_parts(pAttachments, attachmentCount as _) }
         .iter()
         .map(|at| {
-            use VkImageAspectFlagBits::*;
+            use crate::VkImageAspectFlagBits::*;
             if at.aspectMask & VK_IMAGE_ASPECT_COLOR_BIT as u32 != 0 {
                 com::AttachmentClear::Color {
                     index: at.colorAttachment as _,
@@ -4773,7 +4773,7 @@ pub extern "C" fn gfxAcquireNextImageKHR(
         None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
     };
 
-    use hal::device::OutOfMemory::{Device, Host};
+    use crate::hal::device::OutOfMemory::{Device, Host};
 
     match unsafe { raw.acquire_image(timeout, semaphore.as_ref(), fence.as_ref()) } {
         Ok(frame) => {

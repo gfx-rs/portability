@@ -2,6 +2,7 @@
 name = "portability-gfx"
 publish = false
 version = "0.1.0"
+edition = "2018"
 authors = [
 	"Dzmitry Malyshau <kvark@mozilla.com>",
 	"Joshua Groves <josh@joshgroves.com>",

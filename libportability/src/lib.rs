@@ -1,7 +1,5 @@
 #![allow(non_snake_case)]
 
-extern crate portability_gfx;
-
 use portability_gfx::*;
 
 // These are only shims, reexporting the gfx functions with an vk prefix.
