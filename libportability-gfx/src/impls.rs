@@ -4294,11 +4294,13 @@ pub extern "C" fn gfxCmdExecuteCommands(
 
 #[inline]
 pub extern "C" fn gfxDestroySurfaceKHR(
-    _instance: VkInstance,
+    instance: VkInstance,
     surface: VkSurfaceKHR,
     _: *const VkAllocationCallbacks,
 ) {
-    let _ = surface.unbox(); //TODO
+    if let Some(be_surface) = surface.unbox() {
+        unsafe { instance.backend.destroy_surface(be_surface) };
+    }
 }
 
 #[inline]
@@ -4505,14 +4507,21 @@ pub extern "C" fn gfxCreateSwapchainKHR(
 }
 #[inline]
 pub extern "C" fn gfxDestroySwapchainKHR(
-    _gpu: VkDevice,
+    gpu: VkDevice,
     mut swapchain: VkSwapchainKHR,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     for image in &mut swapchain.images {
         let _ = image.unbox();
     }
-    let _ = swapchain.unbox();
+
+    if let Some(Swapchain {
+        raw: Some(be_swapchain),
+        ..
+    }) = swapchain.unbox()
+    {
+        unsafe { gpu.device.destroy_swapchain(be_swapchain) };
+    }
 }
 #[inline]
 pub extern "C" fn gfxGetSwapchainImagesKHR(
