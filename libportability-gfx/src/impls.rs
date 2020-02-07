@@ -2037,16 +2037,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             pso::Rasterizer {
                 polygon_mode: match state.polygonMode {
                     VkPolygonMode::VK_POLYGON_MODE_FILL => pso::PolygonMode::Fill,
-                    VkPolygonMode::VK_POLYGON_MODE_LINE => pso::PolygonMode::Line(
-                        if dyn_states
-                            .iter()
-                            .any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_LINE_WIDTH)
-                        {
-                            pso::State::Dynamic
-                        } else {
-                            pso::State::Static(state.lineWidth)
-                        },
-                    ),
+                    VkPolygonMode::VK_POLYGON_MODE_LINE => pso::PolygonMode::Line,
                     VkPolygonMode::VK_POLYGON_MODE_POINT => pso::PolygonMode::Point,
                     mode => panic!("Unexpected polygon mode: {:?}", mode),
                 },
@@ -2072,6 +2063,14 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                     None
                 },
                 conservative: false,
+                line_width: if dyn_states
+                    .iter()
+                    .any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_LINE_WIDTH)
+                {
+                    pso::State::Dynamic
+                } else {
+                    pso::State::Static(state.lineWidth)
+                },
             }
         };
 
