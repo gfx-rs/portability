@@ -1,7 +1,16 @@
-#![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
-#![allow(non_upper_case_globals)]
-#![allow(improper_ctypes)] //TEMP: buggy Rustc FFI analysis
+#![warn(
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications
+)]
+#![allow(
+    non_snake_case,
+    non_camel_case_types,
+    non_upper_case_globals,
+    improper_ctypes, //TEMP: buggy Rustc FFI analysis
+)]
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
 #[cfg(feature = "gfx-backend-dx11")]
@@ -22,7 +31,6 @@ use gfx_backend_gl as back;
 use gfx_backend_metal as back;
 #[cfg(feature = "gfx-backend-vulkan")]
 use gfx_backend_vulkan as back;
-use gfx_hal as hal;
 
 use lazy_static::lazy_static;
 use log::{error, warn};
@@ -30,8 +38,6 @@ use log::{error, warn};
 mod conv;
 mod handle;
 mod impls;
-
-use smallvec::SmallVec;
 
 use crate::back::Backend as B;
 use crate::handle::{DispatchHandle, Handle};
@@ -88,7 +94,7 @@ pub struct Gpu<B: hal::Backend> {
 
 pub struct DescriptorPool<B: hal::Backend> {
     raw: B::DescriptorPool,
-    temp_sets: SmallVec<[B::DescriptorSet; 1]>,
+    temp_sets: Vec<B::DescriptorSet>,
     set_handles: Option<Vec<VkDescriptorSet>>,
 }
 
