@@ -1,7 +1,7 @@
 use crate::VK_NULL_HANDLE;
 #[cfg(feature = "nightly")]
 use std::sync::{Arc, Mutex};
-use std::{borrow, cmp, fmt, ops};
+use std::{borrow, fmt, ops};
 
 #[cfg(feature = "nightly")]
 use gfx_auxil::FastHashMap;
@@ -125,7 +125,7 @@ impl<T> borrow::Borrow<T> for Handle<T> {
     }
 }
 
-impl<T> cmp::PartialEq for Handle<T> {
+impl<T> PartialEq for Handle<T> {
     fn eq(&self, other: &Self) -> bool {
         self.0.eq(&other.0)
     }
@@ -146,7 +146,7 @@ pub type DispatchHandle<T> = Handle<T>;
 mod dispatch {
     use crate::VK_NULL_HANDLE;
     use copyless::{BoxAllocation, BoxHelper};
-    use std::{borrow, cmp, fmt, ops};
+    use std::{borrow, fmt, ops};
 
     const ICD_LOADER_MAGIC: u64 = 0x01CDC0DE;
 
@@ -220,7 +220,7 @@ mod dispatch {
         }
     }
 
-    impl<T> cmp::PartialEq for DispatchHandle<T> {
+    impl<T> PartialEq for DispatchHandle<T> {
         fn eq(&self, other: &Self) -> bool {
             self.0.eq(&other.0)
         }

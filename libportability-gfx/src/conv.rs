@@ -1,5 +1,7 @@
-use crate::hal::{buffer, command, device, format, image, memory, pass, pso, query, window};
-use crate::hal::{pso::PatchSize, pso::Primitive, Features, IndexType, Limits};
+use hal::{
+    buffer, command, device, format, image, memory, pass, pso, query, window,
+    pso::PatchSize, pso::Primitive, Features, IndexType, Limits,
+};
 
 use std::mem;
 
@@ -290,7 +292,7 @@ pub fn map_aspect(aspects: VkImageAspectFlags) -> format::Aspects {
 }
 
 pub fn map_image_create_flags(flags: VkImageCreateFlags) -> image::ViewCapabilities {
-    image::ViewCapabilities::from_bits_truncate(flags as u32)
+    image::ViewCapabilities::from_bits_truncate(flags)
 }
 
 pub fn map_image_kind(
@@ -301,15 +303,15 @@ pub fn map_image_kind(
 ) -> image::Kind {
     debug_assert_ne!(array_layers, 0);
     match ty {
-        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width as _, array_layers),
+        VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width, array_layers),
         VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2(
-            extent.width as _,
-            extent.height as _,
+            extent.width,
+            extent.height,
             array_layers,
             samples as _,
         ),
         VkImageType::VK_IMAGE_TYPE_3D => {
-            image::Kind::D3(extent.width as _, extent.height as _, extent.depth as _)
+            image::Kind::D3(extent.width, extent.height, extent.depth)
         }
         _ => unreachable!(),
     }
@@ -329,7 +331,7 @@ pub fn map_view_kind(ty: VkImageViewType) -> image::ViewKind {
 }
 
 pub fn map_image_layout(layout: VkImageLayout) -> image::Layout {
-    use crate::hal::image::Layout::*;
+    use hal::image::Layout::*;
     match layout {
         VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED => Undefined,
         VkImageLayout::VK_IMAGE_LAYOUT_GENERAL => General,
@@ -350,7 +352,7 @@ pub fn map_image_layout(layout: VkImageLayout) -> image::Layout {
 }
 
 pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
-    image::Usage::from_bits_truncate(usage as u32)
+    image::Usage::from_bits_truncate(usage)
 }
 
 pub fn map_image_usage_from_hal(usage: image::Usage) -> VkImageUsageFlags {
@@ -511,7 +513,7 @@ pub fn map_descriptor_type(ty: VkDescriptorType) -> pso::DescriptorType {
             },
         },
         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE => pso::DescriptorType::Image {
-            ty: pso::ImageDescriptorType::Storage,
+            ty: pso::ImageDescriptorType::Storage { read_only: false },
         },
         VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER => pso::DescriptorType::Buffer {
             ty: pso::BufferDescriptorType::Uniform,
@@ -605,7 +607,7 @@ pub fn map_dependency_flags(dependencies: VkDependencyFlags) -> memory::Dependen
 }
 
 pub fn map_err_device_creation(err: device::CreationError) -> VkResult {
-    use crate::hal::device::OutOfMemory::{Device, Host};
+    use hal::device::OutOfMemory::{Device, Host};
     match err {
         device::CreationError::OutOfMemory(Host) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
         device::CreationError::OutOfMemory(Device) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
@@ -888,17 +890,17 @@ pub fn map_query_type(ty: VkQueryType, statistic: VkQueryPipelineStatisticFlags)
 #[inline]
 pub fn map_query_control(flags: VkQueryControlFlags) -> query::ControlFlags {
     // Vulkan and HAL flags are equal
-    query::ControlFlags::from_bits_truncate(flags as u32)
+    query::ControlFlags::from_bits_truncate(flags)
 }
 
 #[inline]
 pub fn map_query_result(flags: VkQueryResultFlags) -> query::ResultFlags {
     // Vulkan and HAL flags are equal
-    query::ResultFlags::from_bits_truncate(flags as u32)
+    query::ResultFlags::from_bits_truncate(flags)
 }
 
 #[inline]
 pub fn map_pipeline_statistics(flags: VkQueryPipelineStatisticFlags) -> query::PipelineStatistic {
     // Vulkan and HAL flags are equal
-    query::PipelineStatistic::from_bits_truncate(flags as u32)
+    query::PipelineStatistic::from_bits_truncate(flags)
 }
