@@ -67,7 +67,7 @@ pub type VkImageView = Handle<ImageView>;
 pub type VkBuffer = Handle<<B as hal::Backend>::Buffer>;
 pub type VkSemaphore = Handle<Semaphore<B>>;
 pub type VkEvent = Handle<<B as hal::Backend>::Event>;
-pub type VkFence = Handle<<B as hal::Backend>::Fence>;
+pub type VkFence = Handle<Fence<B>>;
 pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
 pub type VkFramebuffer = Handle<Framebuffer>;
 pub type VkPipeline = Handle<Pipeline<B>>;
@@ -248,6 +248,11 @@ impl Framebuffer {
 
 pub struct Semaphore<B: hal::Backend> {
     raw: B::Semaphore,
+    is_fake: bool,
+}
+
+pub struct Fence<B: hal::Backend> {
+    raw: B::Fence,
     is_fake: bool,
 }
 
