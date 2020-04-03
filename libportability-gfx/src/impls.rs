@@ -6,7 +6,7 @@ use hal::{
     pool::CommandPool as _,
     pso::DescriptorPool,
     queue::{CommandQueue as _, QueueFamily},
-    window::{PresentMode, Surface, Swapchain as _},
+    window::{PresentMode, PresentationSurface as _, Surface as _},
     {command as com, memory, pass, pso, queue},
     {Features, Instance},
 };
@@ -1173,7 +1173,8 @@ pub extern "C" fn gfxQueueSubmit(
             stages
                 .into_iter()
                 .zip(semaphores)
-                .map(|(stage, semaphore)| (&**semaphore, conv::map_pipeline_stage_flags(*stage)))
+                .filter(|(_, semaphore)| !semaphore.is_fake)
+                .map(|(stage, semaphore)| (&semaphore.raw, conv::map_pipeline_stage_flags(*stage)))
         };
         let signal_semaphores = unsafe {
             slice::from_raw_parts(
@@ -1181,7 +1182,10 @@ pub extern "C" fn gfxQueueSubmit(
                 submission.signalSemaphoreCount as _,
             )
             .into_iter()
-            .map(|semaphore| &**semaphore)
+            .map(|semaphore| {
+                semaphore.as_mut().unwrap().is_fake = false;
+                &semaphore.raw
+            })
         };
 
         let submission = hal::queue::Submission {
@@ -1210,8 +1214,9 @@ pub extern "C" fn gfxQueueSubmit(
             wait_semaphores: empty(),
             signal_semaphores: empty(),
         };
+        type RawSemaphore = <B as hal::Backend>::Semaphore;
         unsafe {
-            queue.submit::<VkCommandBuffer, _, VkSemaphore, _, _>(submission, fence.as_ref())
+            queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(submission, fence.as_ref())
         };
     }
 
@@ -1356,9 +1361,13 @@ pub extern "C" fn gfxBindImageMemory(
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
+    let raw = match *image {
+        Image::Native { ref mut raw, .. } => raw,
+        Image::SwapchainFrame { .. } => panic!("Unexpected swapchain image"),
+    };
     unsafe {
         gpu.device
-            .bind_image_memory(&memory, memoryOffset, &mut image.raw)
+            .bind_image_memory(&memory, memoryOffset, raw)
             .unwrap(); //TODO
     }
     VkResult::VK_SUCCESS
@@ -1383,7 +1392,8 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = unsafe { gpu.device.get_image_requirements(&image.raw) };
+    let raw = image.to_native().unwrap().raw;
+    let req = unsafe { gpu.device.get_image_requirements(raw) };
 
     *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
         size: req.size,
@@ -1546,7 +1556,7 @@ pub extern "C" fn gfxCreateSemaphore(
     pSemaphore: *mut VkSemaphore,
 ) -> VkResult {
     let semaphore = match gpu.device.create_semaphore() {
-        Ok(s) => s,
+        Ok(raw) => Semaphore { raw, is_fake: false },
         Err(oom) => return map_oom(oom),
     };
 
@@ -1563,7 +1573,7 @@ pub extern "C" fn gfxDestroySemaphore(
 ) {
     if let Some(sem) = semaphore.unbox() {
         unsafe {
-            gpu.device.destroy_semaphore(sem);
+            gpu.device.destroy_semaphore(sem.raw);
         }
     }
 }
@@ -1794,7 +1804,7 @@ pub extern "C" fn gfxCreateImage(
             )
             .expect("Error on creating image");
 
-        *pImage = Handle::new(Image {
+        *pImage = Handle::new(Image::Native {
             raw: image,
             mip_levels: info.mipLevels,
             array_layers: info.arrayLayers,
@@ -1809,9 +1819,9 @@ pub extern "C" fn gfxDestroyImage(
     image: VkImage,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    if let Some(image) = image.unbox() {
+    if let Some(Image::Native { raw, .. }) = image.unbox() {
         unsafe {
-            gpu.device.destroy_image(image.raw);
+            gpu.device.destroy_image(raw);
         }
     }
 }
@@ -1822,9 +1832,10 @@ pub extern "C" fn gfxGetImageSubresourceLayout(
     pSubresource: *const VkImageSubresource,
     pLayout: *mut VkSubresourceLayout,
 ) {
+    let img = image.to_native().unwrap();
     let footprint = unsafe {
         gpu.device
-            .get_image_subresource_footprint(&image.raw, image.map_subresource(*pSubresource))
+            .get_image_subresource_footprint(img.raw, img.map_subresource(*pSubresource))
     };
 
     let sub_layout = VkSubresourceLayout {
@@ -1847,19 +1858,30 @@ pub extern "C" fn gfxCreateImageView(
     pView: *mut VkImageView,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
+    if let Image::SwapchainFrame { swapchain, frame } = *info.image {
+        unsafe {
+            *pView = Handle::new(ImageView::SwapchainFrame {
+                swapchain,
+                frame,
+            });
+        }
+        return VkResult::VK_SUCCESS;
+    }
+
+    let img = info.image.to_native().unwrap();
     let view = unsafe {
         gpu.device.create_image_view(
-            &info.image.raw,
+            img.raw,
             conv::map_view_kind(info.viewType),
             conv::map_format(info.format).unwrap(),
             conv::map_swizzle(info.components),
-            info.image.map_subresource_range(info.subresourceRange),
+            img.map_subresource_range(info.subresourceRange),
         )
     };
 
     match view {
         Ok(view) => {
-            unsafe { *pView = Handle::new(view) };
+            unsafe { *pView = Handle::new(ImageView::Native(view)) };
             VkResult::VK_SUCCESS
         }
         Err(err) => panic!("Unexpected image view creation error: {:?}", err),
@@ -1871,7 +1893,7 @@ pub extern "C" fn gfxDestroyImageView(
     imageView: VkImageView,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    if let Some(view) = imageView.unbox() {
+    if let Some(ImageView::Native(view)) = imageView.unbox() {
         unsafe {
             gpu.device.destroy_image_view(view);
         }
@@ -2902,8 +2924,7 @@ pub extern "C" fn gfxAllocateDescriptorSets(
             }
             error!("{:?}", e);
             match e {
-                pso::AllocationError::Host => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
-                pso::AllocationError::Device => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                pso::AllocationError::OutOfMemory(oom) => map_oom(oom),
                 pso::AllocationError::OutOfPoolMemory => VkResult::VK_ERROR_OUT_OF_POOL_MEMORY_KHR,
                 pso::AllocationError::IncompatibleLayout => VkResult::VK_ERROR_DEVICE_LOST,
                 pso::AllocationError::FragmentedPool => VkResult::VK_ERROR_FRAGMENTED_POOL,
@@ -2950,7 +2971,7 @@ impl<'a> Iterator for DescriptorIter<'a> {
                 ty: pso::ImageDescriptorType::Sampled { with_sampler: true },
             } => self.image_infos.next().map(|image| {
                 pso::Descriptor::CombinedImageSampler(
-                    &*image.imageView,
+                    image.imageView.to_native().unwrap(),
                     conv::map_image_layout(image.imageLayout),
                     &*image.sampler,
                 )
@@ -2959,7 +2980,7 @@ impl<'a> Iterator for DescriptorIter<'a> {
             pso::DescriptorType::InputAttachment | pso::DescriptorType::Image { .. } => {
                 self.image_infos.next().map(|image| {
                     pso::Descriptor::Image(
-                        &*image.imageView,
+                        image.imageView.to_native().unwrap(),
                         conv::map_image_layout(image.imageLayout),
                     )
                 })
@@ -3047,27 +3068,37 @@ pub extern "C" fn gfxCreateFramebuffer(
     pFramebuffer: *mut VkFramebuffer,
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
-
-    let attachments_slice =
-        unsafe { slice::from_raw_parts(info.pAttachments, info.attachmentCount as _) };
-    let attachments = attachments_slice
-        .into_iter()
-        .map(|attachment| &**attachment);
-
     let extent = hal::image::Extent {
         width: info.width,
         height: info.height,
         depth: info.layers,
     };
 
-    unsafe {
-        let framebuffer = gpu
-            .device
-            .create_framebuffer(&*info.renderPass, attachments, extent)
-            .unwrap();
-        *pFramebuffer = Handle::new(framebuffer);
-    }
+    let attachments_slice =
+        unsafe { slice::from_raw_parts(info.pAttachments, info.attachmentCount as _) };
+    let framebuffer = if attachments_slice.iter().any(|attachment| match **attachment {
+        ImageView::Native(_) => false,
+        ImageView::SwapchainFrame { .. } => true,
+    }) {
+        Framebuffer::Lazy {
+            extent,
+            views: attachments_slice.to_vec(),
+        }
+    } else {
+        let attachments = attachments_slice
+            .iter()
+            .map(|attachment| attachment.to_native().unwrap());
+        Framebuffer::Native(unsafe {
+            gpu
+                .device
+                .create_framebuffer(&*info.renderPass, attachments, extent)
+                .unwrap()
+        })
+    };
 
+    unsafe {
+        *pFramebuffer = Handle::new(framebuffer)
+    };
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -3077,8 +3108,11 @@ pub extern "C" fn gfxDestroyFramebuffer(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(fbo) = framebuffer.unbox() {
-        unsafe {
-            gpu.device.destroy_framebuffer(fbo);
+        match fbo {
+            Framebuffer::Native(raw) => unsafe {
+                gpu.device.destroy_framebuffer(raw);
+            },
+            Framebuffer::Lazy { .. } => {}
         }
     }
 }
@@ -3236,7 +3270,7 @@ pub extern "C" fn gfxCreateRenderPass(
         gpu.device
             .create_render_pass(attachments, subpasses, dependencies)
     } {
-        Ok(pass) => pass,
+        Ok(raw) => raw,
         Err(oom) => return map_oom(oom),
     };
 
@@ -3384,11 +3418,11 @@ pub extern "C" fn gfxBeginCommandBuffer(
     let info = unsafe { &*pBeginInfo };
     let inheritance = match unsafe { info.pInheritanceInfo.as_ref() } {
         Some(ii) => com::CommandBufferInheritanceInfo {
-            subpass: ii.renderPass.as_ref().map(|main_pass| pass::Subpass {
-                main_pass,
+            subpass: ii.renderPass.as_ref().map(|rp| pass::Subpass {
+                main_pass: &*rp,
                 index: ii.subpass as _,
             }),
-            framebuffer: ii.framebuffer.as_ref(),
+            framebuffer: ii.framebuffer.as_ref().map(|fbo| fbo.resolve(ii.renderPass)),
             occlusion_query_enable: ii.occlusionQueryEnable != VK_FALSE,
             occlusion_query_flags: conv::map_query_control(ii.queryFlags),
             pipeline_statistics: conv::map_pipeline_statistics(ii.pipelineStatistics),
@@ -3713,21 +3747,36 @@ pub extern "C" fn gfxCmdCopyImage(
     regionCount: u32,
     pRegions: *const VkImageCopy,
 ) {
+    let src = match srcImage.to_native() {
+        Ok(img) => img,
+        Err(_) => {
+            warn!("Unable to copy from a swapchain image!");
+            return;
+        }
+    };
+    let dst = match dstImage.to_native() {
+        Ok(img) => img,
+        Err(_) => {
+            warn!("Unable to copy into a swapchain image!");
+            return;
+        }
+    };
+
     let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
         .iter()
         .map(|r| com::ImageCopy {
-            src_subresource: srcImage.map_subresource_layers(r.srcSubresource),
+            src_subresource: src.map_subresource_layers(r.srcSubresource),
             src_offset: conv::map_offset(r.srcOffset),
-            dst_subresource: dstImage.map_subresource_layers(r.dstSubresource),
+            dst_subresource: dst.map_subresource_layers(r.dstSubresource),
             dst_offset: conv::map_offset(r.dstOffset),
             extent: conv::map_extent(r.extent),
         });
 
     unsafe {
         commandBuffer.copy_image(
-            &srcImage.raw,
+            src.raw,
             conv::map_image_layout(srcImageLayout),
-            &dstImage.raw,
+            dst.raw,
             conv::map_image_layout(dstImageLayout),
             regions,
         );
@@ -3744,20 +3793,23 @@ pub extern "C" fn gfxCmdBlitImage(
     pRegions: *const VkImageBlit,
     filter: VkFilter,
 ) {
+    let src = srcImage.to_native().unwrap();
+    let dst = dstImage.to_native().unwrap();
+
     let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
         .iter()
         .map(|r| com::ImageBlit {
-            src_subresource: srcImage.map_subresource_layers(r.srcSubresource),
+            src_subresource: src.map_subresource_layers(r.srcSubresource),
             src_bounds: conv::map_offset(r.srcOffsets[0])..conv::map_offset(r.srcOffsets[1]),
-            dst_subresource: dstImage.map_subresource_layers(r.dstSubresource),
+            dst_subresource: dst.map_subresource_layers(r.dstSubresource),
             dst_bounds: conv::map_offset(r.dstOffsets[0])..conv::map_offset(r.dstOffsets[1]),
         });
 
     unsafe {
         commandBuffer.blit_image(
-            &srcImage.raw,
+            src.raw,
             conv::map_image_layout(srcImageLayout),
-            &dstImage.raw,
+            dst.raw,
             conv::map_image_layout(dstImageLayout),
             conv::map_filter(filter),
             regions,
@@ -3773,13 +3825,15 @@ pub extern "C" fn gfxCmdCopyBufferToImage(
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
+    let dst = dstImage.to_native().unwrap();
+
     let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
         .iter()
         .map(|r| com::BufferImageCopy {
             buffer_offset: r.bufferOffset,
             buffer_width: r.bufferRowLength,
             buffer_height: r.bufferImageHeight,
-            image_layers: dstImage.map_subresource_layers(r.imageSubresource),
+            image_layers: dst.map_subresource_layers(r.imageSubresource),
             image_offset: conv::map_offset(r.imageOffset),
             image_extent: conv::map_extent(r.imageExtent),
         });
@@ -3787,7 +3841,7 @@ pub extern "C" fn gfxCmdCopyBufferToImage(
     unsafe {
         commandBuffer.copy_buffer_to_image(
             &*srcBuffer,
-            &dstImage.raw,
+            dst.raw,
             conv::map_image_layout(dstImageLayout),
             regions,
         );
@@ -3802,20 +3856,22 @@ pub extern "C" fn gfxCmdCopyImageToBuffer(
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
+    let src = srcImage.to_native().unwrap();
+
     let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
         .iter()
         .map(|r| com::BufferImageCopy {
             buffer_offset: r.bufferOffset,
             buffer_width: r.bufferRowLength,
             buffer_height: r.bufferImageHeight,
-            image_layers: srcImage.map_subresource_layers(r.imageSubresource),
+            image_layers: src.map_subresource_layers(r.imageSubresource),
             image_offset: conv::map_offset(r.imageOffset),
             image_extent: conv::map_extent(r.imageExtent),
         });
 
     unsafe {
         commandBuffer.copy_image_to_buffer(
-            &srcImage.raw,
+            src.raw,
             conv::map_image_layout(srcImageLayout),
             &*dstBuffer,
             regions,
@@ -3863,13 +3919,21 @@ pub extern "C" fn gfxCmdClearColorImage(
     rangeCount: u32,
     pRanges: *const VkImageSubresourceRange,
 ) {
+    let img = match image.to_native() {
+        Ok(img) => img,
+        Err(_) => {
+            warn!("Unable to clear a swapchain image!");
+            return;
+        }
+    };
     let subresource_ranges = unsafe { slice::from_raw_parts(pRanges, rangeCount as _) }
+
         .iter()
-        .map(|&range| image.map_subresource_range(range));
+        .map(|&range| img.map_subresource_range(range));
 
     unsafe {
         commandBuffer.clear_image(
-            &image.raw,
+            img.raw,
             conv::map_image_layout(imageLayout),
             com::ClearValue {
                 color: mem::transmute(*pColor),
@@ -3887,13 +3951,14 @@ pub extern "C" fn gfxCmdClearDepthStencilImage(
     rangeCount: u32,
     pRanges: *const VkImageSubresourceRange,
 ) {
+    let img = image.to_native().unwrap();
     let subresource_ranges = unsafe { slice::from_raw_parts(pRanges, rangeCount as _) }
         .iter()
-        .map(|&range| image.map_subresource_range(range));
+        .map(|&range| img.map_subresource_range(range));
 
     unsafe {
         commandBuffer.clear_image(
-            &image.raw,
+            img.raw,
             conv::map_image_layout(imageLayout),
             com::ClearValue {
                 depth_stencil: mem::transmute(*pDepthStencil),
@@ -3955,22 +4020,25 @@ pub extern "C" fn gfxCmdResolveImage(
     regionCount: u32,
     pRegions: *const VkImageResolve,
 ) {
+    let src = srcImage.to_native().unwrap();
+    let dst = dstImage.to_native().unwrap();
+
     let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
         .iter()
         .cloned()
         .map(|resolve| com::ImageResolve {
-            src_subresource: srcImage.map_subresource_layers(resolve.srcSubresource),
+            src_subresource: src.map_subresource_layers(resolve.srcSubresource),
             src_offset: conv::map_offset(resolve.srcOffset),
-            dst_subresource: srcImage.map_subresource_layers(resolve.dstSubresource),
+            dst_subresource: dst.map_subresource_layers(resolve.dstSubresource),
             dst_offset: conv::map_offset(resolve.dstOffset),
             extent: conv::map_extent(resolve.extent),
         });
 
     unsafe {
         commandBuffer.resolve_image(
-            &srcImage.raw,
+            src.raw,
             conv::map_image_layout(srcImageLayout),
-            &dstImage.raw,
+            dst.raw,
             conv::map_image_layout(dstImageLayout),
             regions,
         );
@@ -4028,18 +4096,22 @@ fn make_barriers<'a>(
             size: if b.size as i32 == VK_WHOLE_SIZE { None } else { Some(b.size) },
         },
     });
-    let images = raw_images.iter().map(|b| memory::Barrier::Image {
-        states: (
+    let images = raw_images.iter().map(|b| {
+        let img = b.image.to_native().unwrap();
+        let from = (
             conv::map_image_access(b.srcAccessMask),
             conv::map_image_layout(b.oldLayout),
-        )
-            ..(
-                conv::map_image_access(b.dstAccessMask),
-                conv::map_image_layout(b.newLayout),
-            ),
-        target: &b.image.raw,
-        range: b.image.map_subresource_range(b.subresourceRange),
-        families: None,
+        );
+        let to = (
+            conv::map_image_access(b.dstAccessMask),
+            conv::map_image_layout(b.newLayout),
+        );
+        memory::Barrier::Image {
+            states: from .. to,
+            target: img.raw,
+            range: img.map_subresource_range(b.subresourceRange),
+            families: None,
+        }
     });
 
     globals.chain(buffers).chain(images)
@@ -4235,11 +4307,12 @@ pub extern "C" fn gfxCmdBeginRenderPass(
             })
     };
     let contents = conv::map_subpass_contents(contents);
+    let framebuffer = info.framebuffer.resolve(info.renderPass);
 
     unsafe {
         commandBuffer.begin_render_pass(
             &*info.renderPass,
-            &*info.framebuffer,
+            framebuffer,
             render_area,
             clear_values,
             contents,
@@ -4322,7 +4395,8 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
         supportedCompositeAlpha: caps.composite_alpha_modes.bits(),
-        supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
+        // Ignoring `caps.usage` since we only work with the new swapchain model here.
+        supportedUsageFlags: VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as _,
     };
 
     unsafe { *pSurfaceCapabilities = output };
@@ -4422,6 +4496,10 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         VkSharingMode::VK_SHARING_MODE_EXCLUSIVE
     ); // TODO
 
+    if info.imageUsage != VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as _ {
+        warn!("Unsupported swapchain usage: {:?}", info.imageUsage);
+    }
+
     let config = hal::window::SwapchainConfig {
         present_mode: conv::map_present_mode(info.presentMode),
         composite_alpha_mode: conv::map_composite_alpha(info.compositeAlpha),
@@ -4429,73 +4507,52 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         extent: conv::map_extent2d(info.imageExtent),
         image_count: info.minImageCount,
         image_layers: 1,
-        image_usage: conv::map_image_usage(info.imageUsage),
+        image_usage: hal::image::Usage::COLOR_ATTACHMENT,
     };
 
-    #[allow(unused_mut)] // Metal branch performs mutation.
-    let (mut swapchain, backbuffers) = match unsafe {
-        gpu.device.create_swapchain(
-            &mut info.surface.clone(),
-            config,
-            info.oldSwapchain.as_mut().and_then(|s| s.raw.take()), //Note: no unboxing!
-        )
+    match unsafe {
+        info.surface
+            .as_mut()
+            .unwrap()
+            .configure_swapchain(&gpu.device, config)
     } {
-        Ok(pair) => pair,
-        Err(hal::window::CreationError::OutOfMemory(oom)) => return map_oom(oom),
-        Err(hal::window::CreationError::DeviceLost(hal::device::DeviceLost)) => {
-            return VkResult::VK_ERROR_DEVICE_LOST
-        }
-        Err(hal::window::CreationError::SurfaceLost(hal::device::SurfaceLost)) => {
-            return VkResult::VK_ERROR_SURFACE_LOST_KHR
-        }
-        Err(hal::window::CreationError::WindowInUse(hal::device::WindowInUse)) => {
-            return VkResult::VK_ERROR_NATIVE_WINDOW_IN_USE_KHR
-        }
-    };
-
-    #[cfg(feature = "gfx-backend-metal")]
-    {
-        use back::AcquireMode;
-
-        if let Ok(value) = env::var("GFX_METAL_ACQUIRING") {
-            swapchain.acquire_mode = match value.to_lowercase().as_str() {
-                "wait" => AcquireMode::Wait,
-                "oldest" => AcquireMode::Oldest,
-                other => panic!("unknown acquiring option: {}", other),
+        Ok(()) => {
+            let swapchain = Swapchain {
+                gpu,
+                surface: info.surface,
+                count: info.minImageCount as u8,
+                current_index: 0,
+                active: None,
+                lazy_framebuffers: Vec::with_capacity(1),
             };
-            println!("GFX: acquiring override {:?}", swapchain.acquire_mode);
+            unsafe { *pSwapchain = Handle::new(swapchain) };
+            VkResult::VK_SUCCESS
+        }
+        Err(err) => {
+            use hal::window::CreationError as Ce;
+            match err {
+                Ce::OutOfMemory(oom) => map_oom(oom),
+                Ce::DeviceLost(hal::device::DeviceLost) =>
+                    VkResult::VK_ERROR_DEVICE_LOST,
+                Ce::SurfaceLost(hal::device::SurfaceLost) =>
+                    VkResult::VK_ERROR_SURFACE_LOST_KHR,
+                Ce::WindowInUse(hal::device::WindowInUse) =>
+                    VkResult::VK_ERROR_NATIVE_WINDOW_IN_USE_KHR,
+            }
         }
     }
-
-    let images = backbuffers
-        .into_iter()
-        .map(|raw| {
-            Handle::new(Image {
-                raw,
-                mip_levels: 1,
-                array_layers: 1,
-            })
-        })
-        .collect();
-
-    let swapchain = Swapchain {
-        raw: Some(swapchain),
-        images,
-    };
-
-    unsafe { *pSwapchain = Handle::new(swapchain) };
-    VkResult::VK_SUCCESS
 }
 #[inline]
 pub extern "C" fn gfxDestroySwapchainKHR(
-    _gpu: VkDevice,
-    mut swapchain: VkSwapchainKHR,
+    gpu: VkDevice,
+    swapchain: VkSwapchainKHR,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
-    for image in &mut swapchain.images {
-        let _ = image.unbox();
+    if let Some(mut sc) = swapchain.unbox() {
+        unsafe {
+            sc.surface.unconfigure_swapchain(&gpu.device)
+        };
     }
-    let _ = swapchain.unbox();
 }
 #[inline]
 pub extern "C" fn gfxGetSwapchainImagesKHR(
@@ -4507,18 +4564,21 @@ pub extern "C" fn gfxGetSwapchainImagesKHR(
     debug_assert!(!pSwapchainImageCount.is_null());
 
     let swapchain_image_count = unsafe { &mut *pSwapchainImageCount };
-    let available_images = swapchain.images.len() as u32;
+    let available_images = swapchain.count as u32;
 
     if pSwapchainImages.is_null() {
         // If NULL the number of presentable images is returned.
         *swapchain_image_count = available_images;
     } else {
         *swapchain_image_count = available_images.min(*swapchain_image_count);
-        let swapchain_images =
-            unsafe { slice::from_raw_parts_mut(pSwapchainImages, *swapchain_image_count as _) };
 
-        for i in 0..*swapchain_image_count as _ {
-            swapchain_images[i] = swapchain.images[i];
+        for frame in 0 .. *swapchain_image_count as u8 {
+            unsafe {
+                *pSwapchainImages.offset(frame as isize) = Handle::new(Image::SwapchainFrame {
+                    swapchain,
+                    frame,
+                });
+            };
         }
 
         if *swapchain_image_count < available_images {
@@ -4744,36 +4804,41 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
 }
 #[inline]
 pub extern "C" fn gfxAcquireNextImageKHR(
-    _device: VkDevice,
+    gpu: VkDevice,
     mut swapchain: VkSwapchainKHR,
     timeout: u64,
     semaphore: VkSemaphore,
     fence: VkFence,
     pImageIndex: *mut u32,
 ) -> VkResult {
-    let raw = match swapchain.raw {
-        Some(ref mut raw) => raw,
-        None => return VkResult::VK_ERROR_OUT_OF_DATE_KHR,
-    };
+    if let Some(fence) = fence.as_ref() {
+        let _ = unsafe { gpu.device.reset_fences(std::iter::once(&*fence)) };
+    }
+    if let Some(sem) = semaphore.as_mut() {
+        sem.is_fake = true;
+    }
 
-    use hal::device::OutOfMemory::{Device, Host};
-
-    match unsafe { raw.acquire_image(timeout, semaphore.as_ref(), fence.as_ref()) } {
-        Ok(frame) => {
+    if let Some(_old_frame) = swapchain.active.take() {
+        warn!("Swapchain frame {} was not presented!", swapchain.current_index);
+    }
+    match unsafe { swapchain.surface.acquire_image(timeout) } {
+        Ok((frame, suboptimal)) => {
+            swapchain.current_index = (swapchain.current_index + 1) % swapchain.count;
+            swapchain.active = Some(frame);
             unsafe {
-                *pImageIndex = frame.0;
+                *pImageIndex = swapchain.current_index as u32;
             }
-            VkResult::VK_SUCCESS
+            match suboptimal {
+                Some(_) => VkResult::VK_SUBOPTIMAL_KHR,
+                None => VkResult::VK_SUCCESS,
+            }
         }
         Err(hal::window::AcquireError::NotReady) => VkResult::VK_NOT_READY,
         Err(hal::window::AcquireError::OutOfDate) => VkResult::VK_ERROR_OUT_OF_DATE_KHR,
         Err(hal::window::AcquireError::SurfaceLost(_)) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
         Err(hal::window::AcquireError::DeviceLost(_)) => VkResult::VK_ERROR_DEVICE_LOST,
         Err(hal::window::AcquireError::Timeout) => VkResult::VK_TIMEOUT,
-        Err(hal::window::AcquireError::OutOfMemory(Device)) => {
-            VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY
-        }
-        Err(hal::window::AcquireError::OutOfMemory(Host)) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
+        Err(hal::window::AcquireError::OutOfMemory(oom)) => map_oom(oom),
     }
 }
 #[inline]
@@ -4787,21 +4852,34 @@ pub extern "C" fn gfxQueuePresentKHR(
         unsafe { slice::from_raw_parts(info.pSwapchains, info.swapchainCount as _) };
     let index_slice =
         unsafe { slice::from_raw_parts(info.pImageIndices, info.swapchainCount as _) };
-    let swapchains = swapchain_slice
-        .into_iter()
-        .zip(index_slice)
-        .map(|(swapchain, index)| (swapchain.raw.as_ref().unwrap(), *index));
-
     let wait_semaphores = unsafe {
         slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)
-            .into_iter()
-            .map(|semaphore| &**semaphore)
     };
-
-    match unsafe { queue.present(swapchains, wait_semaphores) } {
-        Ok(_) => VkResult::VK_SUCCESS,
-        Err(_) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
+    if wait_semaphores.len() > 1 {
+        warn!("Only one semaphore is supported for present, {} are given", wait_semaphores.len());
     }
+
+    for (swapchain, index) in swapchain_slice.iter().zip(index_slice) {
+        let sc = swapchain.as_mut().unwrap();
+        let frame = sc.active.take().expect("Frame was not acquired properly!");
+        if sc.current_index == *index as u8 {
+            let sem = wait_semaphores.first().map(|s| &s.raw);
+            if let Err(_) = unsafe {
+                queue.present_surface(&mut *sc.surface, frame, sem)
+            } {
+                return VkResult::VK_ERROR_SURFACE_LOST_KHR;
+            }
+        } else {
+            warn!("Swapchain frame {} is stale, can't be presented.", *index);
+        }
+        for framebuffer in sc.lazy_framebuffers.drain(..) {
+            unsafe {
+                sc.gpu.device.destroy_framebuffer(framebuffer)
+            };
+        }
+    }
+
+    VkResult::VK_SUCCESS
 }
 
 #[inline]

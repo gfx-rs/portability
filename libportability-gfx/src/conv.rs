@@ -355,7 +355,7 @@ pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
     image::Usage::from_bits_truncate(usage)
 }
 
-pub fn map_image_usage_from_hal(usage: image::Usage) -> VkImageUsageFlags {
+pub fn _map_image_usage_from_hal(usage: image::Usage) -> VkImageUsageFlags {
     usage.bits()
 }
 
