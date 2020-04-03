@@ -2672,10 +2672,7 @@ pub extern "C" fn gfxCreatePipelineLayout(
 
     let ranges = push_constants.iter().map(|constant| {
         let stages = conv::map_stage_flags(constant.stageFlags);
-        let start = constant.offset / 4;
-        let size = constant.size / 4;
-
-        (stages, start..start + size)
+        (stages, constant.offset..constant.offset + constant.size)
     });
 
     let pipeline_layout = match unsafe { gpu.device.create_pipeline_layout(layouts, ranges) } {
