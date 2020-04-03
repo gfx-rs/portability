@@ -1197,7 +1197,7 @@ pub extern "C" fn gfxQueueSubmit(
         // only provide the fence for the last submission
         //TODO: support multiple submissions at gfx-hal level
         let fence = if i + 1 == submits.len() {
-            fence.as_ref()
+            fence.as_ref().map(|f| &f.raw)
         } else {
             None
         };
@@ -1216,7 +1216,7 @@ pub extern "C" fn gfxQueueSubmit(
         };
         type RawSemaphore = <B as hal::Backend>::Semaphore;
         unsafe {
-            queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(submission, fence.as_ref())
+            queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(submission, fence.as_ref().map(|f| &f.raw))
         };
     }
 
@@ -1473,7 +1473,7 @@ pub extern "C" fn gfxCreateFence(
     let signalled = flags & VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT as u32 != 0;
 
     let fence = match gpu.device.create_fence(signalled) {
-        Ok(f) => f,
+        Ok(raw) => Fence { raw, is_fake: false },
         Err(oom) => return map_oom(oom),
     };
 
@@ -1491,7 +1491,7 @@ pub extern "C" fn gfxDestroyFence(
 ) {
     if let Some(fence) = fence.unbox() {
         unsafe {
-            gpu.device.destroy_fence(fence);
+            gpu.device.destroy_fence(fence.raw);
         }
     }
 }
@@ -1502,7 +1502,10 @@ pub extern "C" fn gfxResetFences(
     pFences: *const VkFence,
 ) -> VkResult {
     let fence_slice = unsafe { slice::from_raw_parts(pFences, fenceCount as _) };
-    let fences = fence_slice.into_iter().map(|fence| &**fence);
+    let fences = fence_slice.iter().map(|fence| {
+        fence.as_mut().unwrap().is_fake = false;
+        &fence.raw
+    });
 
     match unsafe { gpu.device.reset_fences(fences) } {
         Ok(()) => VkResult::VK_SUCCESS,
@@ -1511,10 +1514,14 @@ pub extern "C" fn gfxResetFences(
 }
 #[inline]
 pub extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
-    match unsafe { gpu.device.get_fence_status(&*fence) } {
-        Ok(true) => VkResult::VK_SUCCESS,
-        Ok(false) => VkResult::VK_NOT_READY,
-        Err(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
+    if fence.is_fake {
+        VkResult::VK_SUCCESS
+    } else {
+        match unsafe { gpu.device.get_fence_status(&fence.raw) } {
+            Ok(true) => VkResult::VK_SUCCESS,
+            Ok(false) => VkResult::VK_NOT_READY,
+            Err(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
+        }
     }
 }
 #[inline]
@@ -1527,10 +1534,18 @@ pub extern "C" fn gfxWaitForFences(
 ) -> VkResult {
     let result = match fenceCount {
         0 => Ok(true),
-        1 => unsafe { gpu.device.wait_for_fence(&**pFences, timeout) },
+        1 if !unsafe { (*pFences) }.is_fake => {
+            unsafe { gpu.device.wait_for_fence(&(*pFences).raw, timeout) }
+        }
         _ => {
             let fence_slice = unsafe { slice::from_raw_parts(pFences, fenceCount as _) };
-            let fences = fence_slice.into_iter().map(|fence| &**fence);
+            if fence_slice.iter().all(|fence| fence.is_fake) {
+                return VkResult::VK_SUCCESS
+            }
+            let fences = fence_slice
+                .iter()
+                .filter(|fence| !fence.is_fake)
+                .map(|fence| &fence.raw);
             let wait_for = match waitAll {
                 VK_FALSE => WaitFor::Any,
                 _ => WaitFor::All,
@@ -4801,15 +4816,15 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
 }
 #[inline]
 pub extern "C" fn gfxAcquireNextImageKHR(
-    gpu: VkDevice,
+    _gpu: VkDevice,
     mut swapchain: VkSwapchainKHR,
     timeout: u64,
     semaphore: VkSemaphore,
     fence: VkFence,
     pImageIndex: *mut u32,
 ) -> VkResult {
-    if let Some(fence) = fence.as_ref() {
-        let _ = unsafe { gpu.device.reset_fences(std::iter::once(&*fence)) };
+    if let Some(fence) = fence.as_mut() {
+        fence.is_fake = true;
     }
     if let Some(sem) = semaphore.as_mut() {
         sem.is_fake = true;
