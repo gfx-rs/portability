@@ -20,16 +20,10 @@ metal-capture = ["gfx-backend-metal/auto-capture"]
 
 [dependencies]
 copyless = "0.1.1"
+env_logger = { version = "0.5", optional = true }
 lazy_static = "1"
 log = { version = "0.4", features = ["release_max_level_error"] }
-
-[dependencies.env_logger]
-version = "0.5"
-optional = true
-
-[dependencies.renderdoc]
-version = "0.3"
-optional = true
+renderdoc = { version = "0.3", optional = true }
 
 [dependencies.hal]
 package = "gfx-hal"
@@ -68,5 +62,5 @@ optional = true
 
 [dependencies.gfx-auxil]
 git = "https://github.com/gfx-rs/gfx"
-# path = "../../gfx/src/auxil/auxil"
+#path = "../../gfx/src/auxil/auxil"
 optional = true
