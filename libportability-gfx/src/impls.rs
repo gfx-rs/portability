@@ -14,13 +14,11 @@ use hal::{
 use std::{
     borrow::Cow,
     ffi::{CStr, CString},
-    os::raw::c_int,
+    os::raw::{c_int, c_void},
     mem, ptr, str,
 };
 #[cfg(feature = "gfx-backend-metal")]
 use std::env;
-#[cfg(feature = "renderdoc")]
-use std::os::raw::c_void;
 
 use super::*;
 
@@ -64,6 +62,16 @@ pub extern "C" fn gfxCreateInstance(
     #[cfg(feature = "env_logger")]
     {
         let _ = env_logger::try_init();
+        let backend = if cfg!(feature = "gfx-backend-vulkan") {
+            "Vulkan"
+        } else if cfg!(feature = "gfx-backend-dx12") {
+            "DX12"
+        } else if cfg!(feature = "gfx-backend-metal") {
+            "Metal"
+        } else {
+            "Other"
+        };
+        println!("gfx-portability backend: {}", backend);
     }
 
     #[allow(unused_mut)]
@@ -275,7 +283,7 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 unsafe {
-                    (ptr as *const VkPhysicalDeviceFeatures2KHR)
+                    (ptr as *const VkBaseStruct)
                         .as_ref()
                         .unwrap()
                 }
@@ -385,7 +393,7 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 unsafe {
-                    (ptr as *const VkPhysicalDeviceImageFormatInfo2KHR)
+                    (ptr as *const VkBaseStruct)
                         .as_ref()
                         .unwrap()
                 }
@@ -470,7 +478,7 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties2KHR(
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 unsafe {
-                    (ptr as *const VkPhysicalDeviceProperties2KHR).as_ref().unwrap()
+                    (ptr as *const VkBaseStruct).as_ref().unwrap()
                 }.pNext
             }
         } as *const VkStructureType;
@@ -544,7 +552,9 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 
         vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR => gfxGetPhysicalDeviceSurfaceSupportKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
+        vkGetPhysicalDeviceSurfaceCapabilities2KHR, PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR => gfxGetPhysicalDeviceSurfaceCapabilities2KHR,
         vkGetPhysicalDeviceSurfaceFormatsKHR, PFN_vkGetPhysicalDeviceSurfaceFormatsKHR => gfxGetPhysicalDeviceSurfaceFormatsKHR,
+        vkGetPhysicalDeviceSurfaceFormats2KHR, PFN_vkGetPhysicalDeviceSurfaceFormats2KHR => gfxGetPhysicalDeviceSurfaceFormats2KHR,
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
         vkGetPhysicalDeviceWin32PresentationSupportKHR, PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR => gfxGetPhysicalDeviceWin32PresentationSupportKHR,
 
@@ -961,6 +971,7 @@ lazy_static! {
             #[cfg(target_os="macos")]
             VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
             VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+            VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
         ]
     };
 
@@ -1272,7 +1283,7 @@ pub extern "C" fn gfxMapMemory(
     offset: VkDeviceSize,
     size: VkDeviceSize,
     _flags: VkMemoryMapFlags,
-    ppData: *mut *mut ::std::os::raw::c_void,
+    ppData: *mut *mut c_void,
 ) -> VkResult {
     let range = hal::memory::Segment {
         offset,
@@ -1422,7 +1433,7 @@ pub extern "C" fn gfxGetImageMemoryRequirements2KHR(
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 unsafe {
-                    (ptr as *const VkMemoryRequirements2KHR).as_ref().unwrap()
+                    (ptr as *const VkBaseStruct).as_ref().unwrap()
                 }.pNext
             }
         } as *const VkStructureType;
@@ -1691,7 +1702,7 @@ pub extern "C" fn gfxGetQueryPoolResults(
     firstQuery: u32,
     queryCount: u32,
     dataSize: usize,
-    pData: *mut ::std::os::raw::c_void,
+    pData: *mut c_void,
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) -> VkResult {
@@ -1988,7 +1999,7 @@ pub extern "C" fn gfxGetPipelineCacheData(
     _gpu: VkDevice,
     _pipelineCache: VkPipelineCache,
     pDataSize: *mut usize,
-    _pData: *mut ::std::os::raw::c_void,
+    _pData: *mut c_void,
 ) -> VkResult {
     //TODO: save
     unsafe {
@@ -2982,11 +2993,22 @@ impl<'a> Iterator for DescriptorIter<'a> {
             pso::DescriptorType::Image {
                 ty: pso::ImageDescriptorType::Sampled { with_sampler: true },
             } => self.image_infos.next().map(|image| {
-                pso::Descriptor::CombinedImageSampler(
-                    image.imageView.to_native().unwrap(),
-                    conv::map_image_layout(image.imageLayout),
-                    &*image.sampler,
-                )
+                // It is valid for the sampler to be NULL in case the descriptor is
+                // actually associated with an immutable sampler.
+                // It's still bad to try to derefence it, even theough the implementation
+                // will not try to use the value. (TODO: make this nicer)
+                if image.sampler != Handle::null() {
+                    pso::Descriptor::CombinedImageSampler(
+                        image.imageView.to_native().unwrap(),
+                        conv::map_image_layout(image.imageLayout),
+                        &*image.sampler,
+                    )
+                } else {
+                    pso::Descriptor::Image(
+                        image.imageView.to_native().unwrap(),
+                        conv::map_image_layout(image.imageLayout),
+                    )
+                }
             }),
 
             pso::DescriptorType::InputAttachment | pso::DescriptorType::Image { .. } => {
@@ -3805,8 +3827,20 @@ pub extern "C" fn gfxCmdBlitImage(
     pRegions: *const VkImageBlit,
     filter: VkFilter,
 ) {
-    let src = srcImage.to_native().unwrap();
-    let dst = dstImage.to_native().unwrap();
+    let src = match srcImage.to_native() {
+        Ok(img) => img,
+        Err(_) => {
+            warn!("Unable to copy from a swapchain image!");
+            return;
+        }
+    };
+    let dst = match dstImage.to_native() {
+        Ok(img) => img,
+        Err(_) => {
+            warn!("Unable to copy into a swapchain image!");
+            return;
+        }
+    };
 
     let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
         .iter()
@@ -3896,7 +3930,7 @@ pub extern "C" fn gfxCmdUpdateBuffer(
     dstBuffer: VkBuffer,
     dstOffset: VkDeviceSize,
     dataSize: VkDeviceSize,
-    pData: *const ::std::os::raw::c_void,
+    pData: *const c_void,
 ) {
     unsafe {
         commandBuffer.update_buffer(
@@ -4277,7 +4311,7 @@ pub extern "C" fn gfxCmdPushConstants(
     stageFlags: VkShaderStageFlags,
     offset: u32,
     size: u32,
-    pValues: *const ::std::os::raw::c_void,
+    pValues: *const c_void,
 ) {
     assert_eq!(size % 4, 0);
     unsafe {
@@ -4416,6 +4450,35 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
 }
 
 #[inline]
+pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2KHR(
+    adapter: VkPhysicalDevice,
+    pSurfaceInfo: *const VkPhysicalDeviceSurfaceInfo2KHR,
+    pSurfaceCapabilities: *mut VkSurfaceCapabilities2KHR,
+) -> VkResult {
+    let surface = unsafe { (*pSurfaceInfo).surface };
+    let mut ptr = pSurfaceCapabilities as *const VkStructureType;
+    while !ptr.is_null() {
+        ptr = match unsafe { *ptr } {
+            VkStructureType::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR => {
+                let data = unsafe { (ptr as *mut VkSurfaceCapabilities2KHR).as_mut().unwrap() };
+                gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(adapter, surface, &mut data.surfaceCapabilities);
+                data.pNext
+            }
+            other => {
+                warn!("Unrecognized {:?}, skipping", other);
+                unsafe {
+                    (ptr as *const VkBaseStruct)
+                        .as_ref()
+                        .unwrap()
+                }
+                .pNext
+            }
+        } as *const VkStructureType;
+    }
+    VkResult::VK_SUCCESS
+}
+
+#[inline]
 pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
@@ -4438,6 +4501,38 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
         }
         for (out, format) in output.iter_mut().zip(formats) {
             *out = VkSurfaceFormatKHR {
+                format,
+                colorSpace: VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, //TODO
+            };
+        }
+    }
+
+    VkResult::VK_SUCCESS
+}
+
+#[inline]
+pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormats2KHR(
+    adapter: VkPhysicalDevice,
+    pSurfaceInfo: *const VkPhysicalDeviceSurfaceInfo2KHR,
+    pSurfaceFormatCount: *mut u32,
+    pSurfaceFormats: *mut VkSurfaceFormat2KHR,
+) -> VkResult {
+    let formats = unsafe { (*pSurfaceInfo).surface }
+        .supported_formats(&adapter.physical_device)
+        .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
+        .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
+
+    if pSurfaceFormats.is_null() {
+        // Return only the number of formats
+        unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+    } else {
+        let output =
+            unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
+        if output.len() > formats.len() {
+            unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+        }
+        for (out, format) in output.iter_mut().zip(formats) {
+            out.surfaceFormat = VkSurfaceFormatKHR {
                 format,
                 colorSpace: VkColorSpaceKHR::VK_COLOR_SPACE_SRGB_NONLINEAR_KHR, //TODO
             };
