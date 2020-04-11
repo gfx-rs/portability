@@ -404,6 +404,10 @@ pub const VK_KHR_get_physical_device_properties2: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME: &'static [u8; 39usize] =
     b"VK_KHR_get_physical_device_properties2\x00";
+pub const VK_KHR_get_surface_capabilities2: ::std::os::raw::c_uint = 1;
+pub const VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION: ::std::os::raw::c_uint = 1;
+pub const VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME: &'static [u8; 33usize] =
+    b"VK_KHR_get_surface_capabilities2\x00";
 pub const VK_KHR_shader_draw_parameters: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SHADER_DRAW_PARAMETERS_SPEC_VERSION: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SHADER_DRAW_PARAMETERS_EXTENSION_NAME: &'static [u8; 30usize] =
@@ -866,7 +870,7 @@ pub enum VkStructureType {
     VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_LIMITS_NVX = 1000086004,
     VK_STRUCTURE_TYPE_DEVICE_GENERATED_COMMANDS_FEATURES_NVX = 1000086005,
     VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_W_SCALING_STATE_CREATE_INFO_NV = 1000087000,
-    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES2_EXT = 1000090000,
+    VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR = 1000090000,
     VK_STRUCTURE_TYPE_DISPLAY_POWER_INFO_EXT = 1000091000,
     VK_STRUCTURE_TYPE_DEVICE_EVENT_INFO_EXT = 1000091001,
     VK_STRUCTURE_TYPE_DISPLAY_EVENT_INFO_EXT = 1000091002,
@@ -1972,6 +1976,12 @@ pub type PFN_vkInternalFreeNotification = ::std::option::Option<
     ),
 >;
 pub type PFN_vkVoidFunction = ::std::option::Option<unsafe extern "C" fn()>;
+#[repr(C)]
+#[derive(Debug)]
+pub struct VkBaseStruct {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+}
 #[repr(C)]
 #[derive(Debug, Copy)]
 pub struct VkApplicationInfo {
@@ -4745,11 +4755,47 @@ impl Clone for VkSurfaceCapabilitiesKHR {
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
+pub struct VkSurfaceCapabilities2KHR {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub surfaceCapabilities: VkSurfaceCapabilitiesKHR,
+}
+impl Clone for VkSurfaceCapabilities2KHR {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
 pub struct VkSurfaceFormatKHR {
     pub format: VkFormat,
     pub colorSpace: VkColorSpaceKHR,
 }
 impl Clone for VkSurfaceFormatKHR {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkSurfaceFormat2KHR {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub surfaceFormat: VkSurfaceFormatKHR,
+}
+impl Clone for VkSurfaceFormat2KHR {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkPhysicalDeviceSurfaceInfo2KHR {
+    pub sType: VkStructureType,
+    pub pNext: *const ::std::os::raw::c_void,
+    pub surface: VkSurfaceKHR,
+}
+impl Clone for VkPhysicalDeviceSurfaceInfo2KHR {
     fn clone(&self) -> Self {
         *self
     }
@@ -4776,12 +4822,27 @@ pub type PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR = ::std::option::Option<
         pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
     ) -> VkResult,
 >;
+pub type PFN_vkGetPhysicalDeviceSurfaceCapabilities2KHR = ::std::option::Option<
+    unsafe extern "C" fn(
+        physicalDevice: VkPhysicalDevice,
+        pSurfaceInfo: *const VkPhysicalDeviceSurfaceInfo2KHR,
+        pSurfaceCapabilities: *mut VkSurfaceCapabilities2KHR,
+    ) -> VkResult,
+>;
 pub type PFN_vkGetPhysicalDeviceSurfaceFormatsKHR = ::std::option::Option<
     unsafe extern "C" fn(
         physicalDevice: VkPhysicalDevice,
         surface: VkSurfaceKHR,
         pSurfaceFormatCount: *mut u32,
         pSurfaceFormats: *mut VkSurfaceFormatKHR,
+    ) -> VkResult,
+>;
+pub type PFN_vkGetPhysicalDeviceSurfaceFormats2KHR = ::std::option::Option<
+    unsafe extern "C" fn(
+        physicalDevice: VkPhysicalDevice,
+        pSurfaceInfo: *const VkPhysicalDeviceSurfaceInfo2KHR,
+        pSurfaceFormatCount: *mut u32,
+        pSurfaceFormats: *mut VkSurfaceFormat2KHR,
     ) -> VkResult,
 >;
 pub type PFN_vkGetPhysicalDeviceSurfacePresentModesKHR = ::std::option::Option<

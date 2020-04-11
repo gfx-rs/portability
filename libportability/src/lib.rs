@@ -1500,3 +1500,10 @@ pub extern "C" fn vkEnumerateInstanceExtensionProperties(
 ) -> VkResult {
     gfxEnumerateInstanceExtensionProperties(pLayerName, pPropertyCount, pProperties)
 }
+
+//TODO: remove this once Dota2 stops asking for it
+#[no_mangle]
+pub extern "C" fn vkGetPhysicalDeviceMetalFeaturesMVK(
+    _adapter: VkPhysicalDevice,
+    _metal_features: *mut ::std::os::raw::c_void,
+) {}
