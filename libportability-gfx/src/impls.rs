@@ -1000,6 +1000,10 @@ lazy_static! {
                 extensionName: [0; 256], // VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
                 specVersion: VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION,
             },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME
+                specVersion: VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION,
+            },
         ];
 
         for (&name, extension) in INSTANCE_EXTENSION_NAMES.iter().zip(&mut extensions) {

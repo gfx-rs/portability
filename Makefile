@@ -60,9 +60,11 @@ FULL_LIBRARY_PATH=$(CURDIR)/target/debug
 LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
 LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
 
-.PHONY: all rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl package memcpy-report
+.PHONY: all dummy rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl package memcpy-report
 
 all: $(NATIVE_TARGET)
+
+dummy:
 
 rebuild:
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
@@ -117,12 +119,12 @@ binding: $(BINDING)
 $(BINDING): $(VULKAN_DIR)/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
 
-$(LIBRARY): libportability*/src/*.rs libportability*/Cargo.toml Cargo.lock
+$(LIBRARY): dummy
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
-	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
+	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND),portability-gfx/env_logger
 	mkdir -p target/native
 
-$(LIBRARY_FAST):  libportability*/src/*.rs libportability*/Cargo.toml Cargo.lock
+$(LIBRARY_FAST): dummy
 	cargo build --release --manifest-path libportability/Cargo.toml --features $(BACKEND)
 	cargo build --release --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
 
