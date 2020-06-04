@@ -10,7 +10,7 @@ authors = [
 
 [lib]
 name = "portability"
-crate-type = ["cdylib"]
+crate-type = ["staticlib", "cdylib"]
 
 [features]
 default = []
