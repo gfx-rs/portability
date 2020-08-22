@@ -68,7 +68,7 @@ pub type VkBuffer = Handle<<B as hal::Backend>::Buffer>;
 pub type VkSemaphore = Handle<Semaphore<B>>;
 pub type VkEvent = Handle<<B as hal::Backend>::Event>;
 pub type VkFence = Handle<Fence<B>>;
-pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
+pub type VkRenderPass = Handle<RenderPass<B>>;
 pub type VkFramebuffer = Handle<Framebuffer>;
 pub type VkPipeline = Handle<Pipeline<B>>;
 pub type VkPipelineCache = Handle<<B as hal::Backend>::PipelineCache>;
@@ -96,6 +96,11 @@ pub struct DescriptorPool<B: hal::Backend> {
     raw: B::DescriptorPool,
     temp_sets: Vec<B::DescriptorSet>,
     set_handles: Option<Vec<VkDescriptorSet>>,
+}
+
+pub struct RenderPass<B: hal::Backend> {
+    raw: B::RenderPass,
+    clear_attachment_mask: u64,
 }
 
 pub enum Pipeline<B: hal::Backend> {
@@ -187,7 +192,7 @@ impl Framebuffer {
                 sc.lazy_framebuffers.push(unsafe {
                     use hal::device::Device;
                     gpu.device
-                        .create_framebuffer(&*render_pass, attachments, extent)
+                        .create_framebuffer(&render_pass.raw, attachments, extent)
                         .unwrap()
                 });
                 sc.lazy_framebuffers.last().unwrap()
