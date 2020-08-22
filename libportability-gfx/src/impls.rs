@@ -7,18 +7,19 @@ use hal::{
     pso::DescriptorPool,
     queue::{CommandQueue as _, QueueFamily},
     window::{PresentMode, PresentationSurface as _, Surface as _},
-    {command as com, memory, pass, pso, queue},
-    {Features, Instance},
+    {command as com, memory, pass, pso, queue}, {Features, Instance},
 };
 
+#[cfg(feature = "gfx-backend-metal")]
+use std::env;
 use std::{
     borrow::Cow,
     ffi::{CStr, CString},
+    mem,
     os::raw::{c_int, c_void},
-    mem, ptr, str,
+    ptr, str,
 };
-#[cfg(feature = "gfx-backend-metal")]
-use std::env;
+use typed_arena::Arena;
 
 use super::*;
 
@@ -282,12 +283,7 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe {
-                    (ptr as *const VkBaseStruct)
-                        .as_ref()
-                        .unwrap()
-                }
-                .pNext
+                unsafe { (ptr as *const VkBaseStruct).as_ref().unwrap() }.pNext
             }
         } as *const VkStructureType;
     }
@@ -392,12 +388,7 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe {
-                    (ptr as *const VkBaseStruct)
-                        .as_ref()
-                        .unwrap()
-                }
-                .pNext
+                unsafe { (ptr as *const VkBaseStruct).as_ref().unwrap() }.pNext
             }
         } as *const VkStructureType;
     }
@@ -1231,7 +1222,10 @@ pub extern "C" fn gfxQueueSubmit(
         };
         type RawSemaphore = <B as hal::Backend>::Semaphore;
         unsafe {
-            queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(submission, fence.as_ref().map(|f| &f.raw))
+            queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(
+                submission,
+                fence.as_ref().map(|f| &f.raw),
+            )
         };
     }
 
@@ -1291,7 +1285,11 @@ pub extern "C" fn gfxMapMemory(
 ) -> VkResult {
     let range = hal::memory::Segment {
         offset,
-        size: if size == VK_WHOLE_SIZE as VkDeviceSize { None } else { Some(size) },
+        size: if size == VK_WHOLE_SIZE as VkDeviceSize {
+            None
+        } else {
+            Some(size)
+        },
     };
     unsafe {
         *ppData = gpu.device.map_memory(&memory, range).unwrap() as *mut _; // TODO
@@ -1316,7 +1314,11 @@ pub extern "C" fn gfxFlushMappedMemoryRanges(
         .map(|r| {
             let range = hal::memory::Segment {
                 offset: r.offset,
-                size: if r.size == VK_WHOLE_SIZE as VkDeviceSize { None } else { Some(r.size) }
+                size: if r.size == VK_WHOLE_SIZE as VkDeviceSize {
+                    None
+                } else {
+                    Some(r.size)
+                },
             };
             (&*r.memory, range)
         });
@@ -1337,7 +1339,11 @@ pub extern "C" fn gfxInvalidateMappedMemoryRanges(
         .map(|r| {
             let range = hal::memory::Segment {
                 offset: r.offset,
-                size: if r.size == VK_WHOLE_SIZE as VkDeviceSize { None } else { Some(r.size) }
+                size: if r.size == VK_WHOLE_SIZE as VkDeviceSize {
+                    None
+                } else {
+                    Some(r.size)
+                },
             };
             (&*r.memory, range)
         });
@@ -1398,7 +1404,7 @@ pub extern "C" fn gfxGetBufferMemoryRequirements(
     *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
         size: req.size,
         alignment: req.alignment,
-        memoryTypeBits: req.type_mask as _,
+        memoryTypeBits: req.type_mask,
     };
 }
 #[inline]
@@ -1407,13 +1413,13 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let raw = image.to_native().unwrap().raw;
+    let raw = image.as_native().unwrap();
     let req = unsafe { gpu.device.get_image_requirements(raw) };
 
     *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
         size: req.size,
         alignment: req.alignment,
-        memoryTypeBits: req.type_mask as _,
+        memoryTypeBits: req.type_mask,
     };
 }
 /*
@@ -1488,7 +1494,10 @@ pub extern "C" fn gfxCreateFence(
     let signalled = flags & VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT as u32 != 0;
 
     let fence = match gpu.device.create_fence(signalled) {
-        Ok(raw) => Fence { raw, is_fake: false },
+        Ok(raw) => Fence {
+            raw,
+            is_fake: false,
+        },
         Err(oom) => return map_oom(oom),
     };
 
@@ -1549,18 +1558,19 @@ pub extern "C" fn gfxWaitForFences(
 ) -> VkResult {
     let result = match fenceCount {
         0 => Ok(true),
-        1 if !unsafe { (*pFences) }.is_fake => {
-            unsafe { gpu.device.wait_for_fence(&(*pFences).raw, timeout) }
-        }
+        1 if !unsafe { *pFences }.is_fake => unsafe {
+            gpu.device.wait_for_fence(&(*pFences).raw, timeout)
+        },
         _ => {
             let fence_slice = unsafe { slice::from_raw_parts(pFences, fenceCount as _) };
             if fence_slice.iter().all(|fence| fence.is_fake) {
-                return VkResult::VK_SUCCESS
+                return VkResult::VK_SUCCESS;
             }
             let fences = fence_slice
                 .iter()
                 .filter(|fence| !fence.is_fake)
-                .map(|fence| &fence.raw);
+                .map(|fence| &fence.raw)
+                .collect::<Vec<_>>();
             let wait_for = match waitAll {
                 VK_FALSE => WaitFor::Any,
                 _ => WaitFor::All,
@@ -1586,7 +1596,10 @@ pub extern "C" fn gfxCreateSemaphore(
     pSemaphore: *mut VkSemaphore,
 ) -> VkResult {
     let semaphore = match gpu.device.create_semaphore() {
-        Ok(raw) => Semaphore { raw, is_fake: false },
+        Ok(raw) => Semaphore {
+            raw,
+            is_fake: false,
+        },
         Err(oom) => return map_oom(oom),
     };
 
@@ -1771,7 +1784,11 @@ pub extern "C" fn gfxCreateBufferView(
             conv::map_format(info.format),
             hal::buffer::SubRange {
                 offset: info.offset,
-                size: if info.range as i32 == VK_WHOLE_SIZE { None } else { Some(info.range) },
+                size: if info.range as i32 == VK_WHOLE_SIZE {
+                    None
+                } else {
+                    Some(info.range)
+                },
             },
         )
     };
@@ -1834,11 +1851,7 @@ pub extern "C" fn gfxCreateImage(
             )
             .expect("Error on creating image");
 
-        *pImage = Handle::new(Image::Native {
-            raw: image,
-            mip_levels: info.mipLevels,
-            array_layers: info.arrayLayers,
-        });
+        *pImage = Handle::new(Image::Native { raw: image });
     }
 
     VkResult::VK_SUCCESS
@@ -1862,10 +1875,10 @@ pub extern "C" fn gfxGetImageSubresourceLayout(
     pSubresource: *const VkImageSubresource,
     pLayout: *mut VkSubresourceLayout,
 ) {
-    let img = image.to_native().unwrap();
+    let raw = image.as_native().unwrap();
     let footprint = unsafe {
         gpu.device
-            .get_image_subresource_footprint(img.raw, img.map_subresource(*pSubresource))
+            .get_image_subresource_footprint(raw, conv::map_subresource(*pSubresource))
     };
 
     let sub_layout = VkSubresourceLayout {
@@ -1890,22 +1903,19 @@ pub extern "C" fn gfxCreateImageView(
     let info = unsafe { &*pCreateInfo };
     if let Image::SwapchainFrame { swapchain, frame } = *info.image {
         unsafe {
-            *pView = Handle::new(ImageView::SwapchainFrame {
-                swapchain,
-                frame,
-            });
+            *pView = Handle::new(ImageView::SwapchainFrame { swapchain, frame });
         }
         return VkResult::VK_SUCCESS;
     }
 
-    let img = info.image.to_native().unwrap();
+    let raw = info.image.as_native().unwrap();
     let view = unsafe {
         gpu.device.create_image_view(
-            img.raw,
+            raw,
             conv::map_view_kind(info.viewType),
             conv::map_format(info.format).unwrap(),
             conv::map_swizzle(info.components),
-            img.map_subresource_range(info.subresourceRange),
+            conv::map_subresource_range(info.subresourceRange),
         )
     };
 
@@ -1968,12 +1978,7 @@ pub extern "C" fn gfxCreatePipelineCache(
 ) -> VkResult {
     let info = unsafe { &*pCreateInfo };
     let data = if info.initialDataSize != 0 {
-        Some(unsafe {
-            slice::from_raw_parts(
-                info.pInitialData as *const u8,
-                info.initialDataSize,
-            )
-        })
+        Some(unsafe { slice::from_raw_parts(info.pInitialData as *const u8, info.initialDataSize) })
     } else {
         None
     };
@@ -2029,7 +2034,7 @@ pub extern "C" fn gfxMergePipelineCaches(
 }
 
 #[inline]
-pub extern "C" fn gfxCreateGraphicsPipelines(
+pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
     gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     createInfoCount: u32,
@@ -2037,7 +2042,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    let infos = unsafe { slice::from_raw_parts(pCreateInfos, createInfoCount as _) };
+    let infos = slice::from_raw_parts(pCreateInfos, createInfoCount as _);
 
     let mut spec_constants = Vec::new();
     let mut spec_data = Vec::new();
@@ -2045,12 +2050,11 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
     for info in infos {
-        let stages = unsafe { slice::from_raw_parts(info.pStages, info.stageCount as _) };
+        let stages = slice::from_raw_parts(info.pStages, info.stageCount as _);
         for stage in stages {
-            if let Some(spec_info) = unsafe { stage.pSpecializationInfo.as_ref() } {
-                let entries = unsafe {
-                    slice::from_raw_parts(spec_info.pMapEntries, spec_info.mapEntryCount as _)
-                };
+            if let Some(spec_info) = stage.pSpecializationInfo.as_ref() {
+                let entries =
+                    slice::from_raw_parts(spec_info.pMapEntries, spec_info.mapEntryCount as _);
                 for entry in entries {
                     let base = spec_data.len() as u16 + entry.offset as u16;
                     spec_constants.push(pso::SpecializationConstant {
@@ -2058,29 +2062,172 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                         range: base..base + (entry.size as u16),
                     });
                 }
-                spec_data.extend_from_slice(unsafe {
-                    slice::from_raw_parts(spec_info.pData as *const u8, spec_info.dataSize)
-                });
+                spec_data.extend_from_slice(slice::from_raw_parts(
+                    spec_info.pData as *const u8,
+                    spec_info.dataSize,
+                ));
             }
         }
     }
 
     let mut cur_specialization = 0;
+    let vertex_arena = Arena::with_capacity(createInfoCount as _);
 
     let descs = infos.into_iter().map(|info| {
-        let rasterizer_discard =
-            unsafe { &*info.pRasterizationState }.rasterizerDiscardEnable == VK_TRUE;
+        let rasterizer_discard = (*info.pRasterizationState).rasterizerDiscardEnable == VK_TRUE;
 
         let empty_dyn_states = [];
-        let dyn_states = match unsafe { info.pDynamicState.as_ref() } {
-            Some(state) if !rasterizer_discard => unsafe {
+        let dyn_states = match info.pDynamicState.as_ref() {
+            Some(state) if !rasterizer_discard => {
                 slice::from_raw_parts(state.pDynamicStates, state.dynamicStateCount as _)
-            },
+            }
             _ => &empty_dyn_states,
         };
 
+        let &mut (ref buffers, ref attributes) = {
+            let input_state = &*info.pVertexInputState;
+
+            let bindings = slice::from_raw_parts(
+                input_state.pVertexBindingDescriptions,
+                input_state.vertexBindingDescriptionCount as _,
+            );
+
+            let attributes = slice::from_raw_parts(
+                input_state.pVertexAttributeDescriptions,
+                input_state.vertexAttributeDescriptionCount as _,
+            );
+
+            let bindings = bindings
+                .iter()
+                .map(|binding| {
+                    let rate = match binding.inputRate {
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => {
+                            pso::VertexInputRate::Vertex
+                        }
+                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => {
+                            pso::VertexInputRate::Instance(1)
+                        }
+                        rate => panic!("Unexpected input rate: {:?}", rate),
+                    };
+
+                    pso::VertexBufferDesc {
+                        binding: binding.binding,
+                        stride: binding.stride,
+                        rate,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            let attributes = attributes
+                .into_iter()
+                .map(|attrib| {
+                    pso::AttributeDesc {
+                        location: attrib.location,
+                        binding: attrib.binding,
+                        element: pso::Element {
+                            format: conv::map_format(attrib.format).unwrap(), // TODO: undefined allowed?
+                            offset: attrib.offset,
+                        },
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            vertex_arena.alloc((bindings, attributes))
+        };
+
+        let mut fragment = None;
+        let primitive_assembler = {
+            let mut vertex = mem::MaybeUninit::uninit();
+            let mut hull = None;
+            let mut domain = None;
+            let mut geometry = None;
+
+            let stages = slice::from_raw_parts(info.pStages, info.stageCount as _);
+
+            for stage in stages {
+                use super::VkShaderStageFlagBits::*;
+
+                let name = CStr::from_ptr(stage.pName);
+                let spec_count = stage
+                    .pSpecializationInfo
+                    .as_ref()
+                    .map(|spec_info| spec_info.mapEntryCount as usize)
+                    .unwrap_or(0);
+                let entry_point = pso::EntryPoint {
+                    entry: name.to_str().unwrap(),
+                    module: &*stage.module,
+                    specialization: pso::Specialization {
+                        constants: Cow::from(
+                            &spec_constants[cur_specialization..cur_specialization + spec_count],
+                        ),
+                        data: Cow::from(&spec_data),
+                    },
+                };
+                cur_specialization += spec_count;
+
+                match stage.stage {
+                    VK_SHADER_STAGE_VERTEX_BIT => {
+                        vertex = mem::MaybeUninit::new(entry_point);
+                    }
+                    VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => {
+                        hull = Some(entry_point);
+                    }
+                    VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => {
+                        domain = Some(entry_point);
+                    }
+                    VK_SHADER_STAGE_GEOMETRY_BIT => {
+                        geometry = Some(entry_point);
+                    }
+                    VK_SHADER_STAGE_FRAGMENT_BIT if !rasterizer_discard => {
+                        fragment = Some(entry_point);
+                    }
+                    stage => panic!("Unexpected shader stage: {:?}", stage),
+                }
+            }
+
+            let input_assembler = {
+                let input_state = &*info.pInputAssemblyState;
+                let tessellation_state = hull.as_ref().map(|_| &*info.pTessellationState);
+
+                if input_state.primitiveRestartEnable != VK_FALSE {
+                    warn!("Primitive restart may not work as expected!");
+                }
+
+                let (primitive, with_adjacency) = match conv::map_primitive_topology(
+                    input_state.topology,
+                    tessellation_state
+                        .map(|state| state.patchControlPoints as _)
+                        .unwrap_or(0),
+                ) {
+                    Some(mapped) => mapped,
+                    None => {
+                        error!(
+                            "Primitive topology {:?} is not supported",
+                            input_state.topology
+                        );
+                        (hal::pso::Primitive::PointList, false)
+                    }
+                };
+
+                pso::InputAssemblerDesc {
+                    primitive,
+                    with_adjacency,
+                    restart_index: None, // TODO
+                }
+            };
+
+            pso::PrimitiveAssemblerDesc::Vertex {
+                buffers,
+                attributes,
+                input_assembler,
+                vertex: vertex.assume_init(),
+                tessellation: hull.and_then(|h| domain.map(|d| (h, d))),
+                geometry,
+            }
+        };
+
         let rasterizer = {
-            let state = unsafe { &*info.pRasterizationState };
+            let state = &*info.pRasterizationState;
             pso::Rasterizer {
                 polygon_mode: match state.polygonMode {
                     VkPolygonMode::VK_POLYGON_MODE_FILL => pso::PolygonMode::Fill,
@@ -2121,169 +2268,18 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             }
         };
 
-        let shaders = {
-            let mut vertex = mem::MaybeUninit::uninit();
-            let mut hull = None;
-            let mut domain = None;
-            let mut geometry = None;
-            let mut fragment = None;
-
-            let stages = unsafe { slice::from_raw_parts(info.pStages, info.stageCount as _) };
-
-            for stage in stages {
-                use super::VkShaderStageFlagBits::*;
-
-                let name = unsafe { CStr::from_ptr(stage.pName) };
-                let spec_count = unsafe {
-                    stage
-                        .pSpecializationInfo
-                        .as_ref()
-                        .map(|spec_info| spec_info.mapEntryCount as usize)
-                        .unwrap_or(0)
-                };
-                let entry_point = pso::EntryPoint {
-                    entry: name.to_str().unwrap(),
-                    module: &*stage.module,
-                    specialization: pso::Specialization {
-                        constants: Cow::from(
-                            &spec_constants[cur_specialization..cur_specialization + spec_count],
-                        ),
-                        data: Cow::from(&spec_data),
-                    },
-                };
-                cur_specialization += spec_count;
-
-                match stage.stage {
-                    VK_SHADER_STAGE_VERTEX_BIT => {
-                        vertex = mem::MaybeUninit::new(entry_point);
-                    }
-                    VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT => {
-                        hull = Some(entry_point);
-                    }
-                    VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT => {
-                        domain = Some(entry_point);
-                    }
-                    VK_SHADER_STAGE_GEOMETRY_BIT => {
-                        geometry = Some(entry_point);
-                    }
-                    VK_SHADER_STAGE_FRAGMENT_BIT if !rasterizer_discard => {
-                        fragment = Some(entry_point);
-                    }
-                    stage => panic!("Unexpected shader stage: {:?}", stage),
-                }
-            }
-
-            pso::GraphicsShaderSet {
-                vertex: unsafe { vertex.assume_init() },
-                hull,
-                domain,
-                geometry,
-                fragment,
-            }
-        };
-
-        let (vertex_buffers, attributes) = {
-            let input_state = unsafe { &*info.pVertexInputState };
-
-            let bindings = unsafe {
-                slice::from_raw_parts(
-                    input_state.pVertexBindingDescriptions,
-                    input_state.vertexBindingDescriptionCount as _,
-                )
-            };
-
-            let attributes = unsafe {
-                slice::from_raw_parts(
-                    input_state.pVertexAttributeDescriptions,
-                    input_state.vertexAttributeDescriptionCount as _,
-                )
-            };
-
-            let bindings = bindings
-                .iter()
-                .map(|binding| {
-                    let rate = match binding.inputRate {
-                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => {
-                            pso::VertexInputRate::Vertex
-                        }
-                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => {
-                            pso::VertexInputRate::Instance(1)
-                        }
-                        rate => panic!("Unexpected input rate: {:?}", rate),
-                    };
-
-                    pso::VertexBufferDesc {
-                        binding: binding.binding,
-                        stride: binding.stride,
-                        rate,
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let attributes = attributes
-                .into_iter()
-                .map(|attrib| {
-                    pso::AttributeDesc {
-                        location: attrib.location,
-                        binding: attrib.binding,
-                        element: pso::Element {
-                            format: conv::map_format(attrib.format).unwrap(), // TODO: undefined allowed?
-                            offset: attrib.offset,
-                        },
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            (bindings, attributes)
-        };
-
-        let input_assembler = {
-            let input_state = unsafe { &*info.pInputAssemblyState };
-            let tessellation_state = shaders
-                .hull
-                .as_ref()
-                .map(|_| unsafe { &*info.pTessellationState });
-
-            if input_state.primitiveRestartEnable != VK_FALSE {
-                warn!("Primitive restart may not work as expected!");
-            }
-
-            let (primitive, with_adjacency) = match conv::map_primitive_topology(
-                input_state.topology,
-                tessellation_state
-                    .map(|state| state.patchControlPoints as _)
-                    .unwrap_or(0),
-            ) {
-                Some(mapped) => mapped,
-                None => {
-                    error!(
-                        "Primitive topology {:?} is not supported",
-                        input_state.topology
-                    );
-                    (hal::pso::Primitive::PointList, false)
-                }
-            };
-
-            pso::InputAssemblerDesc {
-                primitive,
-                with_adjacency,
-                restart_index: None, // TODO
-            }
-        };
-
         // TODO: `pColorBlendState` could contain garbage, but implementations
         //        can ignore it in some circumstances. How to handle it?
         let blender = {
             let mut blend_desc = pso::BlendDesc::default();
 
-            if let Some(state) = unsafe { info.pColorBlendState.as_ref() } {
+            if let Some(state) = info.pColorBlendState.as_ref() {
                 if state.logicOpEnable == VK_TRUE {
                     blend_desc.logic_op = Some(conv::map_logic_op(state.logicOp));
                 }
 
-                let attachments = unsafe {
-                    slice::from_raw_parts(state.pAttachments, state.attachmentCount as _)
-                };
+                let attachments =
+                    slice::from_raw_parts(state.pAttachments, state.attachmentCount as _);
                 blend_desc.targets = attachments
                     .into_iter()
                     .map(|attachment| {
@@ -2315,7 +2311,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         };
 
         let multisampling = if !rasterizer_discard && !info.pMultisampleState.is_null() {
-            let multisampling = unsafe { *info.pMultisampleState };
+            let multisampling = *info.pMultisampleState;
 
             Some(pso::Multisampling {
                 rasterization_samples: multisampling.rasterizationSamples as _,
@@ -2335,85 +2331,84 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         // TODO: `pDepthStencilState` could contain garbage, but implementations
         //        can ignore it in some circumstances. How to handle it?
         let depth_stencil = if !rasterizer_discard {
-            unsafe {
-                info.pDepthStencilState
-                    .as_ref()
-                    .map(|state| {
-                        let depth_test = if state.depthTestEnable == VK_TRUE {
-                            Some(pso::DepthTest {
-                                fun: conv::map_compare_op(state.depthCompareOp),
-                                write: state.depthWriteEnable == VK_TRUE,
-                            })
-                        } else {
-                            None
-                        };
+            info.pDepthStencilState
+                .as_ref()
+                .map(|state| {
+                    let depth_test = if state.depthTestEnable == VK_TRUE {
+                        Some(pso::DepthTest {
+                            fun: conv::map_compare_op(state.depthCompareOp),
+                            write: state.depthWriteEnable == VK_TRUE,
+                        })
+                    } else {
+                        None
+                    };
 
-                        fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
-                            pso::StencilFace {
-                                fun: conv::map_compare_op(state.compareOp),
-                                op_fail: conv::map_stencil_op(state.failOp),
-                                op_depth_fail: conv::map_stencil_op(state.depthFailOp),
-                                op_pass: conv::map_stencil_op(state.passOp),
-                            }
+                    fn map_stencil_state(state: VkStencilOpState) -> pso::StencilFace {
+                        pso::StencilFace {
+                            fun: conv::map_compare_op(state.compareOp),
+                            op_fail: conv::map_stencil_op(state.failOp),
+                            op_depth_fail: conv::map_stencil_op(state.depthFailOp),
+                            op_pass: conv::map_stencil_op(state.passOp),
                         }
+                    }
 
-                        let stencil_test = if state.stencilTestEnable == VK_TRUE {
-                            Some(pso::StencilTest {
-                                faces: pso::Sided {
-                                    front: map_stencil_state(state.front),
-                                    back: map_stencil_state(state.back),
-                                },
-                                read_masks: if dyn_states.iter().any(|&ds| {
-                                    ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
-                                }) {
-                                    pso::State::Dynamic
-                                } else {
-                                    pso::State::Static(pso::Sided {
-                                        front: state.front.compareMask,
-                                        back: state.back.compareMask,
-                                    })
-                                },
-                                write_masks: if dyn_states.iter().any(|&ds| {
-                                    ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
-                                }) {
-                                    pso::State::Dynamic
-                                } else {
-                                    pso::State::Static(pso::Sided {
-                                        front: state.front.writeMask,
-                                        back: state.back.writeMask,
-                                    })
-                                },
-                                reference_values: if dyn_states.iter().any(|&ds| {
-                                    ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_REFERENCE
-                                }) {
-                                    pso::State::Dynamic
-                                } else {
-                                    pso::State::Static(pso::Sided {
-                                        front: state.front.reference,
-                                        back: state.back.reference,
-                                    })
-                                },
-                            })
-                        } else {
-                            None
-                        };
+                    let stencil_test = if state.stencilTestEnable == VK_TRUE {
+                        Some(pso::StencilTest {
+                            faces: pso::Sided {
+                                front: map_stencil_state(state.front),
+                                back: map_stencil_state(state.back),
+                            },
+                            read_masks: if dyn_states.iter().any(|&ds| {
+                                ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK
+                            }) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(pso::Sided {
+                                    front: state.front.compareMask,
+                                    back: state.back.compareMask,
+                                })
+                            },
+                            write_masks: if dyn_states.iter().any(|&ds| {
+                                ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_WRITE_MASK
+                            }) {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(pso::Sided {
+                                    front: state.front.writeMask,
+                                    back: state.back.writeMask,
+                                })
+                            },
+                            reference_values: if dyn_states
+                                .iter()
+                                .any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_STENCIL_REFERENCE)
+                            {
+                                pso::State::Dynamic
+                            } else {
+                                pso::State::Static(pso::Sided {
+                                    front: state.front.reference,
+                                    back: state.back.reference,
+                                })
+                            },
+                        })
+                    } else {
+                        None
+                    };
 
-                        // TODO: depth bounds
+                    // TODO: depth bounds
 
-                        pso::DepthStencilDesc {
-                            depth: depth_test,
-                            depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
-                            stencil: stencil_test,
-                        }
-                    })
-                    .unwrap_or_default()
-            }
+                    pso::DepthStencilDesc {
+                        depth: depth_test,
+                        depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
+                        stencil: stencil_test,
+                    }
+                })
+                .unwrap_or_default()
         } else {
             pso::DepthStencilDesc::default()
         };
 
         let vp_state = if !rasterizer_discard {
-            unsafe { info.pViewportState.as_ref() }
+            info.pViewportState.as_ref()
         } else {
             None
         };
@@ -2425,7 +2420,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 None
             } else {
                 vp_state
-                    .and_then(|vp| unsafe { vp.pViewports.as_ref() })
+                    .and_then(|vp| vp.pViewports.as_ref())
                     .map(conv::map_viewport)
             },
             scissor: if dyn_states
@@ -2435,7 +2430,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
                 None
             } else {
                 vp_state
-                    .and_then(|vp| unsafe { vp.pScissors.as_ref() })
+                    .and_then(|vp| vp.pScissors.as_ref())
                     .map(conv::map_rect)
             },
             blend_color: if dyn_states
@@ -2444,7 +2439,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             {
                 None
             } else {
-                unsafe { info.pColorBlendState.as_ref() }.map(|cbs| cbs.blendConstants)
+                info.pColorBlendState.as_ref().map(|cbs| cbs.blendConstants)
             },
             depth_bounds: if dyn_states
                 .iter()
@@ -2452,7 +2447,8 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
             {
                 None
             } else {
-                unsafe { info.pDepthStencilState.as_ref() }
+                info.pDepthStencilState
+                    .as_ref()
                     .map(|db| db.minDepthBounds..db.maxDepthBounds)
             },
         };
@@ -2502,11 +2498,9 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         };
 
         pso::GraphicsPipelineDesc {
-            shaders,
+            primitive_assembler,
             rasterizer,
-            vertex_buffers,
-            attributes,
-            input_assembler,
+            fragment,
             blender,
             depth_stencil,
             multisampling,
@@ -2518,11 +2512,10 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
         }
     });
 
-    let pipelines = unsafe {
-        gpu.device
-            .create_graphics_pipelines(descs, pipelineCache.as_ref())
-    };
-    let out_pipelines = unsafe { slice::from_raw_parts_mut(pPipelines, infos.len()) };
+    let pipelines = gpu
+        .device
+        .create_graphics_pipelines(descs, pipelineCache.as_ref());
+    let out_pipelines = slice::from_raw_parts_mut(pPipelines, infos.len());
 
     if pipelines.iter().any(|p| p.is_err()) {
         for pipeline in pipelines {
@@ -2542,7 +2535,7 @@ pub extern "C" fn gfxCreateGraphicsPipelines(
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateComputePipelines(
+pub unsafe extern "C" fn gfxCreateComputePipelines(
     gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     createInfoCount: u32,
@@ -2550,7 +2543,7 @@ pub extern "C" fn gfxCreateComputePipelines(
     _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    let infos = unsafe { slice::from_raw_parts(pCreateInfos, createInfoCount as _) };
+    let infos = slice::from_raw_parts(pCreateInfos, createInfoCount as _);
 
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
@@ -2560,10 +2553,9 @@ pub extern "C" fn gfxCreateComputePipelines(
     // Collect all information which we will borrow later. Need to work around
     // the borrow checker here.
     for info in infos {
-        if let Some(spec_info) = unsafe { info.stage.pSpecializationInfo.as_ref() } {
-            let entries = unsafe {
-                slice::from_raw_parts(spec_info.pMapEntries, spec_info.mapEntryCount as _)
-            };
+        if let Some(spec_info) = info.stage.pSpecializationInfo.as_ref() {
+            let entries =
+                slice::from_raw_parts(spec_info.pMapEntries, spec_info.mapEntryCount as _);
             for entry in entries {
                 let base = spec_data.len() as u16 + entry.offset as u16;
                 spec_constants.push(pso::SpecializationConstant {
@@ -2571,22 +2563,22 @@ pub extern "C" fn gfxCreateComputePipelines(
                     range: base..base + (entry.size as u16),
                 });
             }
-            spec_data.extend_from_slice(unsafe {
-                slice::from_raw_parts(spec_info.pData as *const u8, spec_info.dataSize)
-            });
+            spec_data.extend_from_slice(slice::from_raw_parts(
+                spec_info.pData as *const u8,
+                spec_info.dataSize,
+            ));
         }
     }
 
     let mut cur_specialization = 0;
     let descs = infos.iter().map(|info| {
-        let name = unsafe { CStr::from_ptr(info.stage.pName) };
-        let spec_count = unsafe {
-            info.stage
-                .pSpecializationInfo
-                .as_ref()
-                .map(|spec_info| spec_info.mapEntryCount as usize)
-                .unwrap_or(0)
-        };
+        let name = CStr::from_ptr(info.stage.pName);
+        let spec_count = info
+            .stage
+            .pSpecializationInfo
+            .as_ref()
+            .map(|spec_info| spec_info.mapEntryCount as usize)
+            .unwrap_or(0);
         let shader = pso::EntryPoint {
             entry: name.to_str().unwrap(),
             module: &*info.stage.module,
@@ -2646,11 +2638,10 @@ pub extern "C" fn gfxCreateComputePipelines(
         }
     });
 
-    let pipelines = unsafe {
-        gpu.device
-            .create_compute_pipelines(descs, pipelineCache.as_ref())
-    };
-    let out_pipelines = unsafe { slice::from_raw_parts_mut(pPipelines, infos.len()) };
+    let pipelines = gpu
+        .device
+        .create_compute_pipelines(descs, pipelineCache.as_ref());
+    let out_pipelines = slice::from_raw_parts_mut(pPipelines, infos.len());
 
     if pipelines.iter().any(|p| p.is_err()) {
         for pipeline in pipelines {
@@ -2781,25 +2772,27 @@ pub extern "C" fn gfxDestroySampler(
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateDescriptorSetLayout(
+pub unsafe extern "C" fn gfxCreateDescriptorSetLayout(
     gpu: VkDevice,
     pCreateInfo: *const VkDescriptorSetLayoutCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pSetLayout: *mut VkDescriptorSetLayout,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
-    let layout_bindings = unsafe { slice::from_raw_parts(info.pBindings, info.bindingCount as _) };
+    let info = &*pCreateInfo;
+    let layout_bindings = slice::from_raw_parts(info.pBindings, info.bindingCount as _);
 
-    let sampler_iter = layout_bindings.iter().flat_map(|binding| {
-        if binding.pImmutableSamplers.is_null() {
-            (&[]).into_iter().cloned()
-        } else {
-            let slice = unsafe {
-                slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _)
-            };
-            slice.iter().cloned()
-        }
-    });
+    let sampler_iter = layout_bindings
+        .iter()
+        .flat_map(|binding| {
+            if binding.pImmutableSamplers.is_null() {
+                (&[]).into_iter().cloned()
+            } else {
+                let slice =
+                    slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _);
+                slice.iter().cloned()
+            }
+        })
+        .collect::<Vec<_>>();
 
     let bindings = layout_bindings
         .iter()
@@ -2811,17 +2804,15 @@ pub extern "C" fn gfxCreateDescriptorSetLayout(
             immutable_samplers: !binding.pImmutableSamplers.is_null(),
         });
 
-    let set_layout = match unsafe {
-        gpu.device
-            .create_descriptor_set_layout(bindings, sampler_iter)
-    } {
+    let set_layout = match gpu
+        .device
+        .create_descriptor_set_layout(bindings, sampler_iter)
+    {
         Ok(sl) => sl,
         Err(oom) => return map_oom(oom),
     };
 
-    unsafe {
-        *pSetLayout = Handle::new(set_layout);
-    }
+    *pSetLayout = Handle::new(set_layout);
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -2837,16 +2828,16 @@ pub extern "C" fn gfxDestroyDescriptorSetLayout(
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateDescriptorPool(
+pub unsafe extern "C" fn gfxCreateDescriptorPool(
     gpu: VkDevice,
     pCreateInfo: *const VkDescriptorPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pDescriptorPool: *mut VkDescriptorPool,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     let max_sets = info.maxSets as usize;
 
-    let pool_sizes = unsafe { slice::from_raw_parts(info.pPoolSizes, info.poolSizeCount as _) };
+    let pool_sizes = slice::from_raw_parts(info.pPoolSizes, info.poolSizeCount as _);
 
     let ranges = pool_sizes.iter().map(|pool| pso::DescriptorRangeDesc {
         ty: conv::map_descriptor_type(pool.type_),
@@ -2854,13 +2845,11 @@ pub extern "C" fn gfxCreateDescriptorPool(
     });
 
     let pool = super::DescriptorPool {
-        raw: match unsafe {
-            gpu.device.create_descriptor_pool(
-                max_sets,
-                ranges,
-                pso::DescriptorPoolCreateFlags::from_bits_truncate(info.flags),
-            )
-        } {
+        raw: match gpu.device.create_descriptor_pool(
+            max_sets,
+            ranges,
+            pso::DescriptorPoolCreateFlags::from_bits_truncate(info.flags),
+        ) {
             Ok(pool) => pool,
             Err(oom) => return map_oom(oom),
         },
@@ -2876,9 +2865,7 @@ pub extern "C" fn gfxCreateDescriptorPool(
         },
     };
 
-    unsafe {
-        *pDescriptorPool = Handle::new(pool);
-    }
+    *pDescriptorPool = Handle::new(pool);
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -3003,13 +2990,13 @@ impl<'a> Iterator for DescriptorIter<'a> {
                 // will not try to use the value. (TODO: make this nicer)
                 if image.sampler != Handle::null() {
                     pso::Descriptor::CombinedImageSampler(
-                        image.imageView.to_native().unwrap(),
+                        image.imageView.as_native().unwrap(),
                         conv::map_image_layout(image.imageLayout),
                         &*image.sampler,
                     )
                 } else {
                     pso::Descriptor::Image(
-                        image.imageView.to_native().unwrap(),
+                        image.imageView.as_native().unwrap(),
                         conv::map_image_layout(image.imageLayout),
                     )
                 }
@@ -3018,7 +3005,7 @@ impl<'a> Iterator for DescriptorIter<'a> {
             pso::DescriptorType::InputAttachment | pso::DescriptorType::Image { .. } => {
                 self.image_infos.next().map(|image| {
                     pso::Descriptor::Image(
-                        image.imageView.to_native().unwrap(),
+                        image.imageView.as_native().unwrap(),
                         conv::map_image_layout(image.imageLayout),
                     )
                 })
@@ -3026,16 +3013,19 @@ impl<'a> Iterator for DescriptorIter<'a> {
 
             pso::DescriptorType::Buffer { format, .. } => {
                 match format {
-                    pso::BufferDescriptorFormat::Texel => {
-                        self.texel_buffer_views
-                            .next()
-                            .map(|view| pso::Descriptor::TexelBuffer(&**view))
-                    }
+                    pso::BufferDescriptorFormat::Texel => self
+                        .texel_buffer_views
+                        .next()
+                        .map(|view| pso::Descriptor::TexelBuffer(&**view)),
                     pso::BufferDescriptorFormat::Structured { .. } => {
                         self.buffer_infos.next().map(|buffer| {
                             let range = hal::buffer::SubRange {
                                 offset: buffer.offset,
-                                size: if buffer.range as i32 == VK_WHOLE_SIZE { None } else { Some(buffer.range) },
+                                size: if buffer.range as i32 == VK_WHOLE_SIZE {
+                                    None
+                                } else {
+                                    Some(buffer.range)
+                                },
                             };
                             // Non-sparse buffer need to be bound to device memory.
                             pso::Descriptor::Buffer(&*buffer.buffer, range)
@@ -3114,10 +3104,12 @@ pub extern "C" fn gfxCreateFramebuffer(
 
     let attachments_slice =
         unsafe { slice::from_raw_parts(info.pAttachments, info.attachmentCount as _) };
-    let framebuffer = if attachments_slice.iter().any(|attachment| match **attachment {
-        ImageView::Native(_) => false,
-        ImageView::SwapchainFrame { .. } => true,
-    }) {
+    let framebuffer = if attachments_slice
+        .iter()
+        .any(|attachment| match **attachment {
+            ImageView::Native(_) => false,
+            ImageView::SwapchainFrame { .. } => true,
+        }) {
         Framebuffer::Lazy {
             extent,
             views: attachments_slice.to_vec(),
@@ -3125,18 +3117,15 @@ pub extern "C" fn gfxCreateFramebuffer(
     } else {
         let attachments = attachments_slice
             .iter()
-            .map(|attachment| attachment.to_native().unwrap());
+            .map(|attachment| attachment.as_native().unwrap());
         Framebuffer::Native(unsafe {
-            gpu
-                .device
+            gpu.device
                 .create_framebuffer(&*info.renderPass, attachments, extent)
                 .unwrap()
         })
     };
 
-    unsafe {
-        *pFramebuffer = Handle::new(framebuffer)
-    };
+    unsafe { *pFramebuffer = Handle::new(framebuffer) };
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -3460,7 +3449,10 @@ pub extern "C" fn gfxBeginCommandBuffer(
                 main_pass: &*rp,
                 index: ii.subpass as _,
             }),
-            framebuffer: ii.framebuffer.as_ref().map(|fbo| fbo.resolve(ii.renderPass)),
+            framebuffer: ii
+                .framebuffer
+                .as_ref()
+                .map(|fbo| fbo.resolve(ii.renderPass)),
             occlusion_query_enable: ii.occlusionQueryEnable != VK_FALSE,
             occlusion_query_flags: conv::map_query_control(ii.queryFlags),
             pipeline_statistics: conv::map_pipeline_statistics(ii.pipelineStatistics),
@@ -3756,14 +3748,14 @@ pub extern "C" fn gfxCmdDispatchIndirect(
     }
 }
 #[inline]
-pub extern "C" fn gfxCmdCopyBuffer(
+pub unsafe extern "C" fn gfxCmdCopyBuffer(
     mut commandBuffer: VkCommandBuffer,
     srcBuffer: VkBuffer,
     dstBuffer: VkBuffer,
     regionCount: u32,
     pRegions: *const VkBufferCopy,
 ) {
-    let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
+    let regions = slice::from_raw_parts(pRegions, regionCount as _)
         .iter()
         .map(|r| com::BufferCopy {
             src: r.srcOffset,
@@ -3771,12 +3763,10 @@ pub extern "C" fn gfxCmdCopyBuffer(
             size: r.size,
         });
 
-    unsafe {
-        commandBuffer.copy_buffer(&*srcBuffer, &*dstBuffer, regions);
-    }
+    commandBuffer.copy_buffer(&*srcBuffer, &*dstBuffer, regions);
 }
 #[inline]
-pub extern "C" fn gfxCmdCopyImage(
+pub unsafe extern "C" fn gfxCmdCopyImage(
     mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
@@ -3785,14 +3775,14 @@ pub extern "C" fn gfxCmdCopyImage(
     regionCount: u32,
     pRegions: *const VkImageCopy,
 ) {
-    let src = match srcImage.to_native() {
+    let src = match srcImage.as_native() {
         Ok(img) => img,
         Err(_) => {
             warn!("Unable to copy from a swapchain image!");
             return;
         }
     };
-    let dst = match dstImage.to_native() {
+    let dst = match dstImage.as_native() {
         Ok(img) => img,
         Err(_) => {
             warn!("Unable to copy into a swapchain image!");
@@ -3800,28 +3790,26 @@ pub extern "C" fn gfxCmdCopyImage(
         }
     };
 
-    let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
+    let regions = slice::from_raw_parts(pRegions, regionCount as _)
         .iter()
         .map(|r| com::ImageCopy {
-            src_subresource: src.map_subresource_layers(r.srcSubresource),
+            src_subresource: conv::map_subresource_layers(r.srcSubresource),
             src_offset: conv::map_offset(r.srcOffset),
-            dst_subresource: dst.map_subresource_layers(r.dstSubresource),
+            dst_subresource: conv::map_subresource_layers(r.dstSubresource),
             dst_offset: conv::map_offset(r.dstOffset),
             extent: conv::map_extent(r.extent),
         });
 
-    unsafe {
-        commandBuffer.copy_image(
-            src.raw,
-            conv::map_image_layout(srcImageLayout),
-            dst.raw,
-            conv::map_image_layout(dstImageLayout),
-            regions,
-        );
-    }
+    commandBuffer.copy_image(
+        src,
+        conv::map_image_layout(srcImageLayout),
+        dst,
+        conv::map_image_layout(dstImageLayout),
+        regions,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdBlitImage(
+pub unsafe extern "C" fn gfxCmdBlitImage(
     mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
@@ -3831,14 +3819,14 @@ pub extern "C" fn gfxCmdBlitImage(
     pRegions: *const VkImageBlit,
     filter: VkFilter,
 ) {
-    let src = match srcImage.to_native() {
+    let src = match srcImage.as_native() {
         Ok(img) => img,
         Err(_) => {
             warn!("Unable to copy from a swapchain image!");
             return;
         }
     };
-    let dst = match dstImage.to_native() {
+    let dst = match dstImage.as_native() {
         Ok(img) => img,
         Err(_) => {
             warn!("Unable to copy into a swapchain image!");
@@ -3846,28 +3834,26 @@ pub extern "C" fn gfxCmdBlitImage(
         }
     };
 
-    let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
+    let regions = slice::from_raw_parts(pRegions, regionCount as _)
         .iter()
         .map(|r| com::ImageBlit {
-            src_subresource: src.map_subresource_layers(r.srcSubresource),
+            src_subresource: conv::map_subresource_layers(r.srcSubresource),
             src_bounds: conv::map_offset(r.srcOffsets[0])..conv::map_offset(r.srcOffsets[1]),
-            dst_subresource: dst.map_subresource_layers(r.dstSubresource),
+            dst_subresource: conv::map_subresource_layers(r.dstSubresource),
             dst_bounds: conv::map_offset(r.dstOffsets[0])..conv::map_offset(r.dstOffsets[1]),
         });
 
-    unsafe {
-        commandBuffer.blit_image(
-            src.raw,
-            conv::map_image_layout(srcImageLayout),
-            dst.raw,
-            conv::map_image_layout(dstImageLayout),
-            conv::map_filter(filter),
-            regions,
-        );
-    }
+    commandBuffer.blit_image(
+        src,
+        conv::map_image_layout(srcImageLayout),
+        dst,
+        conv::map_image_layout(dstImageLayout),
+        conv::map_filter(filter),
+        regions,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdCopyBufferToImage(
+pub unsafe extern "C" fn gfxCmdCopyBufferToImage(
     mut commandBuffer: VkCommandBuffer,
     srcBuffer: VkBuffer,
     dstImage: VkImage,
@@ -3875,30 +3861,28 @@ pub extern "C" fn gfxCmdCopyBufferToImage(
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
-    let dst = dstImage.to_native().unwrap();
+    let dst = dstImage.as_native().unwrap();
 
-    let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
+    let regions = slice::from_raw_parts(pRegions, regionCount as _)
         .iter()
         .map(|r| com::BufferImageCopy {
             buffer_offset: r.bufferOffset,
             buffer_width: r.bufferRowLength,
             buffer_height: r.bufferImageHeight,
-            image_layers: dst.map_subresource_layers(r.imageSubresource),
+            image_layers: conv::map_subresource_layers(r.imageSubresource),
             image_offset: conv::map_offset(r.imageOffset),
             image_extent: conv::map_extent(r.imageExtent),
         });
 
-    unsafe {
-        commandBuffer.copy_buffer_to_image(
-            &*srcBuffer,
-            dst.raw,
-            conv::map_image_layout(dstImageLayout),
-            regions,
-        );
-    }
+    commandBuffer.copy_buffer_to_image(
+        &*srcBuffer,
+        dst,
+        conv::map_image_layout(dstImageLayout),
+        regions,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdCopyImageToBuffer(
+pub unsafe extern "C" fn gfxCmdCopyImageToBuffer(
     mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
@@ -3906,46 +3890,42 @@ pub extern "C" fn gfxCmdCopyImageToBuffer(
     regionCount: u32,
     pRegions: *const VkBufferImageCopy,
 ) {
-    let src = srcImage.to_native().unwrap();
+    let src = srcImage.as_native().unwrap();
 
-    let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
+    let regions = slice::from_raw_parts(pRegions, regionCount as _)
         .iter()
         .map(|r| com::BufferImageCopy {
             buffer_offset: r.bufferOffset,
             buffer_width: r.bufferRowLength,
             buffer_height: r.bufferImageHeight,
-            image_layers: src.map_subresource_layers(r.imageSubresource),
+            image_layers: conv::map_subresource_layers(r.imageSubresource),
             image_offset: conv::map_offset(r.imageOffset),
             image_extent: conv::map_extent(r.imageExtent),
         });
 
-    unsafe {
-        commandBuffer.copy_image_to_buffer(
-            src.raw,
-            conv::map_image_layout(srcImageLayout),
-            &*dstBuffer,
-            regions,
-        );
-    }
+    commandBuffer.copy_image_to_buffer(
+        src,
+        conv::map_image_layout(srcImageLayout),
+        &*dstBuffer,
+        regions,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdUpdateBuffer(
+pub unsafe extern "C" fn gfxCmdUpdateBuffer(
     mut commandBuffer: VkCommandBuffer,
     dstBuffer: VkBuffer,
     dstOffset: VkDeviceSize,
     dataSize: VkDeviceSize,
     pData: *const c_void,
 ) {
-    unsafe {
-        commandBuffer.update_buffer(
-            &*dstBuffer,
-            dstOffset,
-            slice::from_raw_parts(pData as _, dataSize as _),
-        );
-    }
+    commandBuffer.update_buffer(
+        &*dstBuffer,
+        dstOffset,
+        slice::from_raw_parts(pData as _, dataSize as _),
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdFillBuffer(
+pub unsafe extern "C" fn gfxCmdFillBuffer(
     mut commandBuffer: VkCommandBuffer,
     dstBuffer: VkBuffer,
     dstOffset: VkDeviceSize,
@@ -3954,14 +3934,16 @@ pub extern "C" fn gfxCmdFillBuffer(
 ) {
     let range = hal::buffer::SubRange {
         offset: dstOffset,
-        size: if size == VK_WHOLE_SIZE as VkDeviceSize { None } else { Some(size) },
+        size: if size == VK_WHOLE_SIZE as VkDeviceSize {
+            None
+        } else {
+            Some(size)
+        },
     };
-    unsafe {
-        commandBuffer.fill_buffer(&*dstBuffer, range, data);
-    }
+    commandBuffer.fill_buffer(&*dstBuffer, range, data);
 }
 #[inline]
-pub extern "C" fn gfxCmdClearColorImage(
+pub unsafe extern "C" fn gfxCmdClearColorImage(
     mut commandBuffer: VkCommandBuffer,
     image: VkImage,
     imageLayout: VkImageLayout,
@@ -3969,31 +3951,28 @@ pub extern "C" fn gfxCmdClearColorImage(
     rangeCount: u32,
     pRanges: *const VkImageSubresourceRange,
 ) {
-    let img = match image.to_native() {
+    let img = match image.as_native() {
         Ok(img) => img,
         Err(_) => {
             warn!("Unable to clear a swapchain image!");
             return;
         }
     };
-    let subresource_ranges = unsafe { slice::from_raw_parts(pRanges, rangeCount as _) }
-
+    let subresource_ranges = slice::from_raw_parts(pRanges, rangeCount as _)
         .iter()
-        .map(|&range| img.map_subresource_range(range));
+        .map(|&range| conv::map_subresource_range(range));
 
-    unsafe {
-        commandBuffer.clear_image(
-            img.raw,
-            conv::map_image_layout(imageLayout),
-            com::ClearValue {
-                color: mem::transmute(*pColor),
-            },
-            subresource_ranges,
-        );
-    }
+    commandBuffer.clear_image(
+        img,
+        conv::map_image_layout(imageLayout),
+        com::ClearValue {
+            color: mem::transmute(*pColor),
+        },
+        subresource_ranges,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdClearDepthStencilImage(
+pub unsafe extern "C" fn gfxCmdClearDepthStencilImage(
     mut commandBuffer: VkCommandBuffer,
     image: VkImage,
     imageLayout: VkImageLayout,
@@ -4001,31 +3980,29 @@ pub extern "C" fn gfxCmdClearDepthStencilImage(
     rangeCount: u32,
     pRanges: *const VkImageSubresourceRange,
 ) {
-    let img = image.to_native().unwrap();
-    let subresource_ranges = unsafe { slice::from_raw_parts(pRanges, rangeCount as _) }
+    let img = image.as_native().unwrap();
+    let subresource_ranges = slice::from_raw_parts(pRanges, rangeCount as _)
         .iter()
-        .map(|&range| img.map_subresource_range(range));
+        .map(|&range| conv::map_subresource_range(range));
 
-    unsafe {
-        commandBuffer.clear_image(
-            img.raw,
-            conv::map_image_layout(imageLayout),
-            com::ClearValue {
-                depth_stencil: mem::transmute(*pDepthStencil),
-            },
-            subresource_ranges,
-        );
-    }
+    commandBuffer.clear_image(
+        img,
+        conv::map_image_layout(imageLayout),
+        com::ClearValue {
+            depth_stencil: mem::transmute(*pDepthStencil),
+        },
+        subresource_ranges,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdClearAttachments(
+pub unsafe extern "C" fn gfxCmdClearAttachments(
     mut commandBuffer: VkCommandBuffer,
     attachmentCount: u32,
     pAttachments: *const VkClearAttachment,
     rectCount: u32,
     pRects: *const VkClearRect,
 ) {
-    let attachments = unsafe { slice::from_raw_parts(pAttachments, attachmentCount as _) }
+    let attachments = slice::from_raw_parts(pAttachments, attachmentCount as _)
         .iter()
         .map(|at| {
             use crate::VkImageAspectFlagBits::*;
@@ -4033,18 +4010,18 @@ pub extern "C" fn gfxCmdClearAttachments(
                 com::AttachmentClear::Color {
                     index: at.colorAttachment as _,
                     value: com::ClearColor {
-                        float32: unsafe { at.clearValue.color.float32 },
+                        float32: at.clearValue.color.float32,
                     }, //TODO?
                 }
             } else {
                 com::AttachmentClear::DepthStencil {
                     depth: if at.aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT as u32 != 0 {
-                        Some(unsafe { at.clearValue.depthStencil.depth })
+                        Some(at.clearValue.depthStencil.depth)
                     } else {
                         None
                     },
                     stencil: if at.aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT as u32 != 0 {
-                        Some(unsafe { at.clearValue.depthStencil.stencil })
+                        Some(at.clearValue.depthStencil.stencil)
                     } else {
                         None
                     },
@@ -4052,16 +4029,14 @@ pub extern "C" fn gfxCmdClearAttachments(
             }
         });
 
-    let rects = unsafe { slice::from_raw_parts(pRects, rectCount as _) }
+    let rects = slice::from_raw_parts(pRects, rectCount as _)
         .iter()
         .map(conv::map_clear_rect);
 
-    unsafe {
-        commandBuffer.clear_attachments(attachments, rects);
-    }
+    commandBuffer.clear_attachments(attachments, rects);
 }
 #[inline]
-pub extern "C" fn gfxCmdResolveImage(
+pub unsafe extern "C" fn gfxCmdResolveImage(
     mut commandBuffer: VkCommandBuffer,
     srcImage: VkImage,
     srcImageLayout: VkImageLayout,
@@ -4070,29 +4045,27 @@ pub extern "C" fn gfxCmdResolveImage(
     regionCount: u32,
     pRegions: *const VkImageResolve,
 ) {
-    let src = srcImage.to_native().unwrap();
-    let dst = dstImage.to_native().unwrap();
+    let src = srcImage.as_native().unwrap();
+    let dst = dstImage.as_native().unwrap();
 
-    let regions = unsafe { slice::from_raw_parts(pRegions, regionCount as _) }
+    let regions = slice::from_raw_parts(pRegions, regionCount as _)
         .iter()
         .cloned()
         .map(|resolve| com::ImageResolve {
-            src_subresource: src.map_subresource_layers(resolve.srcSubresource),
+            src_subresource: conv::map_subresource_layers(resolve.srcSubresource),
             src_offset: conv::map_offset(resolve.srcOffset),
-            dst_subresource: dst.map_subresource_layers(resolve.dstSubresource),
+            dst_subresource: conv::map_subresource_layers(resolve.dstSubresource),
             dst_offset: conv::map_offset(resolve.dstOffset),
             extent: conv::map_extent(resolve.extent),
         });
 
-    unsafe {
-        commandBuffer.resolve_image(
-            src.raw,
-            conv::map_image_layout(srcImageLayout),
-            dst.raw,
-            conv::map_image_layout(dstImageLayout),
-            regions,
-        );
-    }
+    commandBuffer.resolve_image(
+        src,
+        conv::map_image_layout(srcImageLayout),
+        dst,
+        conv::map_image_layout(dstImageLayout),
+        regions,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdSetEvent(
@@ -4119,7 +4092,7 @@ fn make_barriers<'a>(
     raw_globals: &'a [VkMemoryBarrier],
     raw_buffers: &'a [VkBufferMemoryBarrier],
     raw_images: &'a [VkImageMemoryBarrier],
-) -> impl Iterator<Item = memory::Barrier<'a, back::Backend>> {
+) -> Vec<memory::Barrier<'a, back::Backend>> {
     let globals = raw_globals.iter().flat_map(|b| {
         let buf =
             conv::map_buffer_access(b.srcAccessMask)..conv::map_buffer_access(b.dstAccessMask);
@@ -4143,11 +4116,15 @@ fn make_barriers<'a>(
         families: None,
         range: hal::buffer::SubRange {
             offset: b.offset,
-            size: if b.size as i32 == VK_WHOLE_SIZE { None } else { Some(b.size) },
+            size: if b.size as i32 == VK_WHOLE_SIZE {
+                None
+            } else {
+                Some(b.size)
+            },
         },
     });
     let images = raw_images.iter().map(|b| {
-        let img = b.image.to_native().unwrap();
+        let target = b.image.as_native().unwrap();
         let from = (
             conv::map_image_access(b.srcAccessMask),
             conv::map_image_layout(b.oldLayout),
@@ -4157,18 +4134,18 @@ fn make_barriers<'a>(
             conv::map_image_layout(b.newLayout),
         );
         memory::Barrier::Image {
-            states: from .. to,
-            target: img.raw,
-            range: img.map_subresource_range(b.subresourceRange),
+            states: from..to,
+            target,
+            range: conv::map_subresource_range(b.subresourceRange),
             families: None,
         }
     });
 
-    globals.chain(buffers).chain(images)
+    globals.chain(buffers).chain(images).collect()
 }
 
 #[inline]
-pub extern "C" fn gfxCmdWaitEvents(
+pub unsafe extern "C" fn gfxCmdWaitEvents(
     mut commandBuffer: VkCommandBuffer,
     eventCount: u32,
     pEvents: *const VkEvent,
@@ -4181,27 +4158,22 @@ pub extern "C" fn gfxCmdWaitEvents(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    let raw_globals = unsafe { slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _) };
-    let raw_buffers =
-        unsafe { slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _) };
-    let raw_images =
-        unsafe { slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _) };
+    let raw_globals = slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _);
+    let raw_buffers = slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _);
+    let raw_images = slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _);
 
     let barriers = make_barriers(raw_globals, raw_buffers, raw_images);
 
-    unsafe {
-        commandBuffer.wait_events(
-            slice::from_raw_parts(pEvents, eventCount as usize)
-                .iter()
-                .map(|ev| &**ev),
-            conv::map_pipeline_stage_flags(srcStageMask)
-                ..conv::map_pipeline_stage_flags(dstStageMask),
-            barriers,
-        );
-    }
+    commandBuffer.wait_events(
+        slice::from_raw_parts(pEvents, eventCount as usize)
+            .iter()
+            .map(|ev| &**ev),
+        conv::map_pipeline_stage_flags(srcStageMask)..conv::map_pipeline_stage_flags(dstStageMask),
+        barriers,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdPipelineBarrier(
+pub unsafe extern "C" fn gfxCmdPipelineBarrier(
     mut commandBuffer: VkCommandBuffer,
     srcStageMask: VkPipelineStageFlags,
     dstStageMask: VkPipelineStageFlags,
@@ -4213,23 +4185,17 @@ pub extern "C" fn gfxCmdPipelineBarrier(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    let raw_globals = unsafe { slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _) };
-    let raw_buffers =
-        unsafe { slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _) };
-    let raw_images =
-        unsafe { slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _) };
+    let raw_globals = slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _);
+    let raw_buffers = slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _);
+    let raw_images = slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _);
 
     let barriers = make_barriers(raw_globals, raw_buffers, raw_images);
 
-    unsafe {
-        commandBuffer.pipeline_barrier(
-            conv::map_pipeline_stage_flags(srcStageMask)
-                ..conv::map_pipeline_stage_flags(dstStageMask),
-            memory::Dependencies::from_bits(dependencyFlags)
-                .unwrap_or(memory::Dependencies::empty()),
-            barriers,
-        );
-    }
+    commandBuffer.pipeline_barrier(
+        conv::map_pipeline_stage_flags(srcStageMask)..conv::map_pipeline_stage_flags(dstStageMask),
+        memory::Dependencies::from_bits(dependencyFlags).unwrap_or(memory::Dependencies::empty()),
+        barriers,
+    );
 }
 #[inline]
 pub extern "C" fn gfxCmdBeginQuery(
@@ -4400,11 +4366,13 @@ pub extern "C" fn gfxCmdExecuteCommands(
 
 #[inline]
 pub extern "C" fn gfxDestroySurfaceKHR(
-    _instance: VkInstance,
+    instance: VkInstance,
     surface: VkSurfaceKHR,
     _: *const VkAllocationCallbacks,
 ) {
-    let _ = surface.unbox(); //TODO
+    if let Some(surface) = surface.unbox() {
+        unsafe { instance.backend.destroy_surface(surface) };
+    }
 }
 
 #[inline]
@@ -4465,17 +4433,16 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2KHR(
         ptr = match unsafe { *ptr } {
             VkStructureType::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR => {
                 let data = unsafe { (ptr as *mut VkSurfaceCapabilities2KHR).as_mut().unwrap() };
-                gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(adapter, surface, &mut data.surfaceCapabilities);
+                gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
+                    adapter,
+                    surface,
+                    &mut data.surfaceCapabilities,
+                );
                 data.pNext
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe {
-                    (ptr as *const VkBaseStruct)
-                        .as_ref()
-                        .unwrap()
-                }
-                .pNext
+                unsafe { (ptr as *const VkBaseStruct).as_ref().unwrap() }.pNext
             }
         } as *const VkStructureType;
     }
@@ -4643,12 +4610,11 @@ pub extern "C" fn gfxCreateSwapchainKHR(
             use hal::window::CreationError as Ce;
             match err {
                 Ce::OutOfMemory(oom) => map_oom(oom),
-                Ce::DeviceLost(hal::device::DeviceLost) =>
-                    VkResult::VK_ERROR_DEVICE_LOST,
-                Ce::SurfaceLost(hal::device::SurfaceLost) =>
-                    VkResult::VK_ERROR_SURFACE_LOST_KHR,
-                Ce::WindowInUse(hal::device::WindowInUse) =>
-                    VkResult::VK_ERROR_NATIVE_WINDOW_IN_USE_KHR,
+                Ce::DeviceLost(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
+                Ce::SurfaceLost(hal::device::SurfaceLost) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
+                Ce::WindowInUse(hal::device::WindowInUse) => {
+                    VkResult::VK_ERROR_NATIVE_WINDOW_IN_USE_KHR
+                }
             }
         }
     }
@@ -4660,9 +4626,7 @@ pub extern "C" fn gfxDestroySwapchainKHR(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(mut sc) = swapchain.unbox() {
-        unsafe {
-            sc.surface.unconfigure_swapchain(&gpu.device)
-        };
+        unsafe { sc.surface.unconfigure_swapchain(&gpu.device) };
     }
 }
 #[inline]
@@ -4683,12 +4647,10 @@ pub extern "C" fn gfxGetSwapchainImagesKHR(
     } else {
         *swapchain_image_count = available_images.min(*swapchain_image_count);
 
-        for frame in 0 .. *swapchain_image_count as u8 {
+        for frame in 0..*swapchain_image_count as u8 {
             unsafe {
-                *pSwapchainImages.offset(frame as isize) = Handle::new(Image::SwapchainFrame {
-                    swapchain,
-                    frame,
-                });
+                *pSwapchainImages.offset(frame as isize) =
+                    Handle::new(Image::SwapchainFrame { swapchain, frame });
             };
         }
 
@@ -4902,7 +4864,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
             *pSurface = Handle::new(
                 instance
                     .backend
-                    .create_surface_from_xcb(info.connection as _, info.window),
+                    .create_surface_from_xcb(info.connection, info.window),
             );
             VkResult::VK_SUCCESS
         }
@@ -4930,7 +4892,10 @@ pub extern "C" fn gfxAcquireNextImageKHR(
     }
 
     if let Some(_old_frame) = swapchain.active.take() {
-        warn!("Swapchain frame {} was not presented!", swapchain.current_index);
+        warn!(
+            "Swapchain frame {} was not presented!",
+            swapchain.current_index
+        );
     }
     match unsafe { swapchain.surface.acquire_image(timeout) } {
         Ok((frame, suboptimal)) => {
@@ -4953,21 +4918,20 @@ pub extern "C" fn gfxAcquireNextImageKHR(
     }
 }
 #[inline]
-pub extern "C" fn gfxQueuePresentKHR(
+pub unsafe extern "C" fn gfxQueuePresentKHR(
     mut queue: VkQueue,
     pPresentInfo: *const VkPresentInfoKHR,
 ) -> VkResult {
-    let info = unsafe { &*pPresentInfo };
+    let info = &*pPresentInfo;
 
-    let swapchain_slice =
-        unsafe { slice::from_raw_parts(info.pSwapchains, info.swapchainCount as _) };
-    let index_slice =
-        unsafe { slice::from_raw_parts(info.pImageIndices, info.swapchainCount as _) };
-    let wait_semaphores = unsafe {
-        slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _)
-    };
+    let swapchain_slice = slice::from_raw_parts(info.pSwapchains, info.swapchainCount as _);
+    let index_slice = slice::from_raw_parts(info.pImageIndices, info.swapchainCount as _);
+    let wait_semaphores = slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _);
     if wait_semaphores.len() > 1 {
-        warn!("Only one semaphore is supported for present, {} are given", wait_semaphores.len());
+        warn!(
+            "Only one semaphore is supported for present, {} are given",
+            wait_semaphores.len()
+        );
     }
 
     for (swapchain, index) in swapchain_slice.iter().zip(index_slice) {
@@ -4975,18 +4939,14 @@ pub extern "C" fn gfxQueuePresentKHR(
         let frame = sc.active.take().expect("Frame was not acquired properly!");
         if sc.current_index == *index as u8 {
             let sem = wait_semaphores.first().map(|s| &s.raw);
-            if let Err(_) = unsafe {
-                queue.present_surface(&mut *sc.surface, frame, sem)
-            } {
+            if let Err(_) = queue.present(&mut *sc.surface, frame, sem) {
                 return VkResult::VK_ERROR_SURFACE_LOST_KHR;
             }
         } else {
             warn!("Swapchain frame {} is stale, can't be presented.", *index);
         }
         for framebuffer in sc.lazy_framebuffers.drain(..) {
-            unsafe {
-                sc.gpu.device.destroy_framebuffer(framebuffer)
-            };
+            sc.gpu.device.destroy_framebuffer(framebuffer)
         }
     }
 
@@ -5004,15 +4964,11 @@ pub extern "C" fn gfxCreateMetalSurfaceEXT(
     let info = unsafe { &*pCreateInfo };
     #[cfg(feature = "gfx-backend-metal")]
     unsafe {
-        let enable_signposts = env::var("GFX_METAL_SIGNPOSTS").is_ok();
-        if enable_signposts {
-            println!("GFX: enabled signposts");
-        }
         assert_eq!(info.flags, 0);
         *pSurface = Handle::new(
             instance
                 .backend
-                .create_surface_from_layer(info.pLayer as *mut _, enable_signposts),
+                .create_surface_from_layer(mem::transmute(info.pLayer)),
         );
         VkResult::VK_SUCCESS
     }
@@ -5034,16 +4990,8 @@ pub extern "C" fn gfxCreateMacOSSurfaceMVK(
     let info = unsafe { &*pCreateInfo };
     #[cfg(all(target_os = "macos", feature = "gfx-backend-metal"))]
     unsafe {
-        let enable_signposts = env::var("GFX_METAL_SIGNPOSTS").is_ok();
-        if enable_signposts {
-            println!("GFX: enabled signposts");
-        }
         assert_eq!(info.flags, 0);
-        *pSurface = Handle::new(
-            instance
-                .backend
-                .create_surface_from_nsview(info.pView, enable_signposts),
-        );
+        *pSurface = Handle::new(instance.backend.create_surface_from_nsview(info.pView));
         VkResult::VK_SUCCESS
     }
     #[cfg(not(all(target_os = "macos", feature = "gfx-backend-metal")))]
