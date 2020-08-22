@@ -523,10 +523,10 @@ pub const VK_EXT_discard_rectangles: ::std::os::raw::c_uint = 1;
 pub const VK_EXT_DISCARD_RECTANGLES_SPEC_VERSION: ::std::os::raw::c_uint = 1;
 pub const VK_EXT_DISCARD_RECTANGLES_EXTENSION_NAME: &'static [u8; 26usize] =
     b"VK_EXT_discard_rectangles\x00";
-pub const VK_EXTX_portability_subset: ::std::os::raw::c_uint = 1;
-pub const VK_EXTX_PORTABILITY_SUBSET_SPEC_VERSION: ::std::os::raw::c_uint = 1;
-pub const VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME: &'static [u8; 27usize] =
-    b"VK_EXTX_portability_subset\x00";
+pub const VK_KHR_portability_subset: ::std::os::raw::c_uint = 1;
+pub const VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION: ::std::os::raw::c_uint = 1;
+pub const VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME: &'static [u8; 26usize] =
+    b"VK_KHR_portability_subset\x00";
 
 pub type wchar_t = ::std::os::raw::c_int;
 #[repr(C)]
@@ -832,8 +832,8 @@ pub enum VkStructureType {
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK = 1000122000,
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
     VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000248000,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX = 1000163000,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX = 1000163001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR = 1000164000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR = 1000164001,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX = 100163002,
     VK_STRUCTURE_TYPE_MAX_ENUM = 2147483647,
 }
@@ -7536,28 +7536,38 @@ pub type PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR = ::std::option::Opt
 
 #[repr(C)]
 #[derive(Debug, Copy)]
-pub struct VkPhysicalDevicePortabilitySubsetFeaturesEXTX {
+pub struct VkPhysicalDevicePortabilitySubsetFeaturesKHR {
     pub sType: VkStructureType,
     pub pNext: *const ::std::os::raw::c_void,
-    pub triangleFans: VkBool32,
-    pub separateStencilMaskRef: VkBool32,
+    pub constantAlphaColorBlendFactors: VkBool32,
     pub events: VkBool32,
-    pub standardImageViews: VkBool32,
+    pub imageViewFormatReinterpretation: VkBool32,
+    pub imageViewFormatSwizzle: VkBool32,
+    pub imageView2DOn3DImage: VkBool32,
+    pub multisampleArrayImage: VkBool32,
+    pub mutableComparisonSamplers: VkBool32,
+    pub pointPolygons: VkBool32,
     pub samplerMipLodBias: VkBool32,
+    pub separateStencilMaskRef: VkBool32,
+    pub shaderSampleRateInterpolationFunctions: VkBool32,
+    pub tessellationIsolines: VkBool32,
+    pub tessellationPointMode: VkBool32,
+    pub triangleFans: VkBool32,
+    pub vertexAttributeAccessBeyondStride: VkBool32,
 }
-impl Clone for VkPhysicalDevicePortabilitySubsetFeaturesEXTX {
+impl Clone for VkPhysicalDevicePortabilitySubsetFeaturesKHR {
     fn clone(&self) -> Self {
         *self
     }
 }
 #[repr(C)]
 #[derive(Debug, Copy)]
-pub struct VkPhysicalDevicePortabilitySubsetPropertiesEXTX {
+pub struct VkPhysicalDevicePortabilitySubsetPropertiesKHR {
     pub sType: VkStructureType,
     pub pNext: *const ::std::os::raw::c_void,
     pub minVertexInputBindingStrideAlignment: u32,
 }
-impl Clone for VkPhysicalDevicePortabilitySubsetPropertiesEXTX {
+impl Clone for VkPhysicalDevicePortabilitySubsetPropertiesKHR {
     fn clone(&self) -> Self {
         *self
     }
