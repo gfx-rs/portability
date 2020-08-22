@@ -250,10 +250,11 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 data.features = conv::features_from_hal(features);
                 data.pNext
             }
-            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX => {
-                let data = (ptr as *mut VkPhysicalDevicePortabilitySubsetFeaturesEXTX)
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR => {
+                let data = (ptr as *mut VkPhysicalDevicePortabilitySubsetFeaturesKHR)
                     .as_mut()
                     .unwrap();
+                data.events = VK_TRUE;
                 if features.contains(hal::Features::TRIANGLE_FAN) {
                     data.triangleFans = VK_TRUE;
                 }
@@ -263,9 +264,13 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 if features.contains(hal::Features::SAMPLER_MIP_LOD_BIAS) {
                     data.samplerMipLodBias = VK_TRUE;
                 }
-                //TODO: turn this into a feature flag
-                if !cfg!(feature = "gfx-backend-metal") {
-                    data.standardImageViews = VK_TRUE;
+                //TODO: turn these into a feature flags
+                if cfg!(feature = "gfx-backend-metal") {
+                    data.constantAlphaColorBlendFactors = VK_TRUE;
+                    data.imageViewFormatReinterpretation = VK_TRUE;
+                }
+                if cfg!(feature = "gfx-backend-dx12") {
+                    data.vertexAttributeAccessBeyondStride = VK_TRUE;
                 }
                 data.pNext
             }
@@ -353,21 +358,6 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
                 properties = get_physical_device_image_format_properties(adapter, data);
                 data.pNext
             }
-            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX => {
-                let data = (ptr as *const VkPhysicalDeviceImageViewSupportEXTX)
-                    .as_ref()
-                    .unwrap();
-                #[cfg(feature = "gfx-backend-metal")]
-                {
-                    if !adapter.physical_device.supports_swizzle(
-                        conv::map_format(data.format).unwrap(),
-                        conv::map_swizzle(data.components),
-                    ) {
-                        return VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED;
-                    }
-                }
-                data.pNext
-            }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
@@ -438,9 +428,9 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceProperties2KHR(
                 gfxGetPhysicalDeviceProperties(adapter, &mut data.properties);
                 data.pNext
             }
-            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR => {
                 let data =
-                    (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesEXTX).as_mut().unwrap()
+                    (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesKHR).as_mut().unwrap()
                 ;
                 let limits = adapter.physical_device.limits();
                 data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
@@ -988,7 +978,7 @@ lazy_static! {
         vec![
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-            VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME,
+            VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
         ]
     };
 
@@ -1003,8 +993,8 @@ lazy_static! {
                 specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
             },
             VkExtensionProperties {
-                extensionName: [0; 256], // VK_EXTX_PORTABILITY_SUBSET_EXTENSION_NAME
-                specVersion: VK_EXTX_PORTABILITY_SUBSET_SPEC_VERSION,
+                extensionName: [0; 256], // VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+                specVersion: VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION,
             },
         ];
 
