@@ -8,7 +8,7 @@ use std::mem;
 const ICD_VERSION: u32 = 5;
 
 #[no_mangle]
-pub extern "C" fn vk_icdGetInstanceProcAddr(
+pub unsafe extern "C" fn vk_icdGetInstanceProcAddr(
     instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
@@ -16,10 +16,10 @@ pub extern "C" fn vk_icdGetInstanceProcAddr(
 }
 
 #[no_mangle]
-pub extern "C" fn vk_icdNegotiateLoaderICDInterfaceVersion(
+pub unsafe extern "C" fn vk_icdNegotiateLoaderICDInterfaceVersion(
     pSupportedVersion: *mut ::std::os::raw::c_uint,
 ) -> VkResult {
-    let supported_version = unsafe { &mut *pSupportedVersion };
+    let supported_version = &mut *pSupportedVersion;
     if *supported_version > ICD_VERSION {
         *supported_version = ICD_VERSION;
     }
@@ -28,11 +28,11 @@ pub extern "C" fn vk_icdNegotiateLoaderICDInterfaceVersion(
 }
 
 #[no_mangle]
-pub extern "C" fn vk_icdGetPhysicalDeviceProcAddr(
+pub unsafe extern "C" fn vk_icdGetPhysicalDeviceProcAddr(
     _instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    let name = unsafe { CStr::from_ptr(pName) };
+    let name = CStr::from_ptr(pName);
     let name = match name.to_str() {
         Ok(name) => name,
         Err(_) => return None,

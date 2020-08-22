@@ -45,9 +45,7 @@ macro_rules! proc_addr {
     ($name:expr, $($vk:ident, $pfn_vk:ident => $gfx:expr,)*) => (
         match $name {
             $(
-                stringify!($vk) => unsafe {
-                    mem::transmute::<$pfn_vk, _>(Some(*&$gfx))
-                },
+                stringify!($vk) => mem::transmute::<$pfn_vk, _>(Some(*&$gfx)),
             )*
             _ => None
         }
@@ -55,7 +53,7 @@ macro_rules! proc_addr {
 }
 
 #[inline]
-pub extern "C" fn gfxCreateInstance(
+pub unsafe extern "C" fn gfxCreateInstance(
     pCreateInfo: *const VkInstanceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pInstance: *mut VkInstance,
@@ -101,8 +99,8 @@ pub extern "C" fn gfxCreateInstance(
         .map(Handle::new)
         .collect();
 
-    let create_info = unsafe { &*pCreateInfo };
-    let application_info = unsafe { create_info.pApplicationInfo.as_ref() };
+    let create_info = &*pCreateInfo;
+    let application_info = create_info.pApplicationInfo.as_ref();
 
     if let Some(ai) = application_info {
         // Compare major and minor parts of version only - patch is ignored
@@ -117,13 +115,11 @@ pub extern "C" fn gfxCreateInstance(
 
     let mut enabled_extensions = Vec::new();
     if create_info.enabledExtensionCount != 0 {
-        for raw in unsafe {
-            slice::from_raw_parts(
-                create_info.ppEnabledExtensionNames,
-                create_info.enabledExtensionCount as _,
-            )
-        } {
-            let cstr = unsafe { CStr::from_ptr(*raw) };
+        for raw in slice::from_raw_parts(
+            create_info.ppEnabledExtensionNames,
+            create_info.enabledExtensionCount as _,
+        ) {
+            let cstr = CStr::from_ptr(*raw);
             if !INSTANCE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
                 return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
             }
@@ -132,19 +128,17 @@ pub extern "C" fn gfxCreateInstance(
         }
     }
 
-    unsafe {
-        *pInstance = Handle::new(RawInstance {
-            backend,
-            adapters,
-            enabled_extensions,
-        });
-    }
+    *pInstance = Handle::new(RawInstance {
+        backend,
+        adapters,
+        enabled_extensions,
+    });
 
     VkResult::VK_SUCCESS
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyInstance(
+pub unsafe extern "C" fn gfxDestroyInstance(
     instance: VkInstance,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
@@ -160,7 +154,7 @@ pub extern "C" fn gfxDestroyInstance(
 }
 
 #[inline]
-pub extern "C" fn gfxEnumeratePhysicalDevices(
+pub unsafe extern "C" fn gfxEnumeratePhysicalDevices(
     instance: VkInstance,
     pPhysicalDeviceCount: *mut u32,
     pPhysicalDevices: *mut VkPhysicalDevice,
@@ -169,11 +163,11 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
 
     // If NULL, number of devices is returned.
     if pPhysicalDevices.is_null() {
-        unsafe { *pPhysicalDeviceCount = num_adapters as _ };
+        *pPhysicalDeviceCount = num_adapters as _;
         return VkResult::VK_SUCCESS;
     }
 
-    let output = unsafe { slice::from_raw_parts_mut(pPhysicalDevices, *pPhysicalDeviceCount as _) };
+    let output = slice::from_raw_parts_mut(pPhysicalDevices, *pPhysicalDeviceCount as _);
     let num_output = output.len();
     let (code, count) = if num_output < num_adapters {
         (VkResult::VK_INCOMPLETE, num_output)
@@ -182,13 +176,13 @@ pub extern "C" fn gfxEnumeratePhysicalDevices(
     };
 
     output[..count].copy_from_slice(&instance.adapters[..count]);
-    unsafe { *pPhysicalDeviceCount = count as _ };
+    *pPhysicalDeviceCount = count as _;
 
     code
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
     adapter: VkPhysicalDevice,
     pQueueFamilyPropertyCount: *mut u32,
     pQueueFamilyProperties: *mut VkQueueFamilyProperties,
@@ -197,15 +191,13 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
 
     // If NULL, number of queue families is returned.
     if pQueueFamilyProperties.is_null() {
-        unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
+        *pQueueFamilyPropertyCount = families.len() as _;
         return;
     }
 
-    let output = unsafe {
-        slice::from_raw_parts_mut(pQueueFamilyProperties, *pQueueFamilyPropertyCount as _)
-    };
+    let output = slice::from_raw_parts_mut(pQueueFamilyProperties, *pQueueFamilyPropertyCount as _);
     if output.len() > families.len() {
-        unsafe { *pQueueFamilyPropertyCount = families.len() as _ };
+        *pQueueFamilyPropertyCount = families.len() as _;
     }
     for (ref mut out, ref family) in output.iter_mut().zip(families.iter()) {
         **out = VkQueueFamilyProperties {
@@ -237,35 +229,31 @@ pub extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceFeatures(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures(
     adapter: VkPhysicalDevice,
     pFeatures: *mut VkPhysicalDeviceFeatures,
 ) {
     let features = adapter.physical_device.features();
-    unsafe {
-        *pFeatures = conv::features_from_hal(features);
-    }
+    *pFeatures = conv::features_from_hal(features);
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
     adapter: VkPhysicalDevice,
     pFeatures: *mut VkPhysicalDeviceFeatures2KHR,
 ) {
     let features = adapter.physical_device.features();
     let mut ptr = pFeatures as *const VkStructureType;
     while !ptr.is_null() {
-        ptr = match unsafe { *ptr } {
+        ptr = match *ptr {
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR => {
-                let data = unsafe { (ptr as *mut VkPhysicalDeviceFeatures2KHR).as_mut().unwrap() };
+                let data = (ptr as *mut VkPhysicalDeviceFeatures2KHR).as_mut().unwrap();
                 data.features = conv::features_from_hal(features);
                 data.pNext
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_EXTX => {
-                let data = unsafe {
-                    (ptr as *mut VkPhysicalDevicePortabilitySubsetFeaturesEXTX)
-                        .as_mut()
-                        .unwrap()
-                };
+                let data = (ptr as *mut VkPhysicalDevicePortabilitySubsetFeaturesEXTX)
+                    .as_mut()
+                    .unwrap();
                 if features.contains(hal::Features::TRIANGLE_FAN) {
                     data.triangleFans = VK_TRUE;
                 }
@@ -283,13 +271,13 @@ pub extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe { (ptr as *const VkBaseStruct).as_ref().unwrap() }.pNext
+                (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
             }
         } as *const VkStructureType;
     }
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceFormatProperties(
     adapter: VkPhysicalDevice,
     format: VkFormat,
     pFormatProperties: *mut VkFormatProperties,
@@ -297,9 +285,7 @@ pub extern "C" fn gfxGetPhysicalDeviceFormatProperties(
     let properties = adapter
         .physical_device
         .format_properties(conv::map_format(format));
-    unsafe {
-        *pFormatProperties = conv::format_properties_from_hal(properties);
-    }
+    *pFormatProperties = conv::format_properties_from_hal(properties);
 }
 
 fn get_physical_device_image_format_properties(
@@ -323,7 +309,7 @@ fn get_physical_device_image_format_properties(
         .map(conv::image_format_properties_from_hal)
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
     adapter: VkPhysicalDevice,
     format: VkFormat,
     type_: VkImageType,
@@ -342,15 +328,15 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties(
         flags,
     };
     match get_physical_device_image_format_properties(adapter, &info) {
-        Some(props) => unsafe {
+        Some(props) => {
             *pImageFormatProperties = props;
             VkResult::VK_SUCCESS
-        },
+        }
         None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED,
     }
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
     adapter: VkPhysicalDevice,
     pImageFormatInfo: *const VkPhysicalDeviceImageFormatInfo2KHR,
     pImageFormatProperties: *mut VkImageFormatProperties2KHR,
@@ -359,22 +345,18 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
 
     let mut ptr = pImageFormatInfo as *const VkStructureType;
     while !ptr.is_null() {
-        ptr = match unsafe { *ptr } {
+        ptr = match *ptr {
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2_KHR => {
-                let data = unsafe {
-                    (ptr as *const VkPhysicalDeviceImageFormatInfo2KHR)
-                        .as_ref()
-                        .unwrap()
-                };
+                let data = (ptr as *const VkPhysicalDeviceImageFormatInfo2KHR)
+                    .as_ref()
+                    .unwrap();
                 properties = get_physical_device_image_format_properties(adapter, data);
                 data.pNext
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX => {
-                let data = unsafe {
-                    (ptr as *const VkPhysicalDeviceImageViewSupportEXTX)
-                        .as_ref()
-                        .unwrap()
-                };
+                let data = (ptr as *const VkPhysicalDeviceImageViewSupportEXTX)
+                    .as_ref()
+                    .unwrap();
                 #[cfg(feature = "gfx-backend-metal")]
                 {
                     if !adapter.physical_device.supports_swizzle(
@@ -388,27 +370,27 @@ pub extern "C" fn gfxGetPhysicalDeviceImageFormatProperties2KHR(
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe { (ptr as *const VkBaseStruct).as_ref().unwrap() }.pNext
+                (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
             }
         } as *const VkStructureType;
     }
 
     match properties {
-        Some(props) => unsafe {
+        Some(props) => {
             (*pImageFormatProperties).imageFormatProperties = props;
             VkResult::VK_SUCCESS
-        },
+        }
         None => VkResult::VK_ERROR_FORMAT_NOT_SUPPORTED,
     }
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceProperties(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceProperties(
     adapter: VkPhysicalDevice,
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
     let adapter_info = &adapter.info;
     let limits = conv::limits_from_hal(adapter.physical_device.limits());
-    let sparse_properties = unsafe { mem::zeroed() }; // TODO
+    let sparse_properties = mem::zeroed(); // TODO
     let (major, minor, patch) = VERSION;
 
     let device_name = {
@@ -417,7 +399,7 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
         let mut name = [0; VK_MAX_PHYSICAL_DEVICE_NAME_SIZE as _];
         let len = name.len().min(c_str.len()) - 1;
         name[..len].copy_from_slice(&c_str[..len]);
-        unsafe { mem::transmute(name) }
+        mem::transmute(name)
     };
 
     use hal::adapter::DeviceType;
@@ -429,59 +411,56 @@ pub extern "C" fn gfxGetPhysicalDeviceProperties(
         DeviceType::Cpu => VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_CPU,
     };
 
-    unsafe {
-        *pProperties = VkPhysicalDeviceProperties {
-            apiVersion: (major << 22) | (minor << 12) | patch,
-            driverVersion: DRIVER_VERSION,
-            vendorID: adapter_info.vendor as _,
-            deviceID: adapter_info.device as _,
-            deviceType: device_type,
-            deviceName: device_name,
-            pipelineCacheUUID: [0; 16usize],
-            limits,
-            sparseProperties: sparse_properties,
-        };
-    }
+    *pProperties = VkPhysicalDeviceProperties {
+        apiVersion: (major << 22) | (minor << 12) | patch,
+        driverVersion: DRIVER_VERSION,
+        vendorID: adapter_info.vendor as _,
+        deviceID: adapter_info.device as _,
+        deviceType: device_type,
+        deviceName: device_name,
+        pipelineCacheUUID: [0; 16usize],
+        limits,
+        sparseProperties: sparse_properties,
+    };
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceProperties2KHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceProperties2KHR(
     adapter: VkPhysicalDevice,
     pProperties: *mut VkPhysicalDeviceProperties2KHR,
 ) {
     let mut ptr = pProperties as *const VkStructureType;
     while !ptr.is_null() {
-        ptr = match unsafe { *ptr } {
+        ptr = match *ptr {
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR => {
-                let data = unsafe {
+                let data =
                     (ptr as *mut VkPhysicalDeviceProperties2KHR).as_mut().unwrap()
-                };
+                ;
                 gfxGetPhysicalDeviceProperties(adapter, &mut data.properties);
                 data.pNext
             }
             VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_EXTX => {
-                let data = unsafe {
+                let data =
                     (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesEXTX).as_mut().unwrap()
-                };
+                ;
                 let limits = adapter.physical_device.limits();
                 data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
                 data.pNext
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe {
                     (ptr as *const VkBaseStruct).as_ref().unwrap()
-                }.pNext
+               .pNext
             }
         } as *const VkStructureType;
     }
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
     adapter: VkPhysicalDevice,
     pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties,
 ) {
     let properties = adapter.physical_device.memory_properties();
-    let memory_properties = unsafe { &mut *pMemoryProperties };
+    let memory_properties = &mut *pMemoryProperties;
 
     let num_types = properties.memory_types.len();
     memory_properties.memoryTypeCount = num_types as _;
@@ -503,11 +482,11 @@ pub extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
     }
 }
 #[inline]
-pub extern "C" fn gfxGetInstanceProcAddr(
+pub unsafe extern "C" fn gfxGetInstanceProcAddr(
     _instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    let name = unsafe { CStr::from_ptr(pName) };
+    let name = CStr::from_ptr(pName);
     let name = match name.to_str() {
         Ok(name) => name,
         Err(_) => return None,
@@ -558,11 +537,11 @@ pub extern "C" fn gfxGetInstanceProcAddr(
 }
 
 #[inline]
-pub extern "C" fn gfxGetDeviceProcAddr(
+pub unsafe extern "C" fn gfxGetDeviceProcAddr(
     device: VkDevice,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
-    let name = unsafe { CStr::from_ptr(pName) };
+    let name = CStr::from_ptr(pName);
     let name = match name.to_str() {
         Ok(name) => name,
         Err(_) => return None,
@@ -740,19 +719,17 @@ pub extern "C" fn gfxGetDeviceProcAddr(
 }
 
 #[inline]
-pub extern "C" fn gfxCreateDevice(
+pub unsafe extern "C" fn gfxCreateDevice(
     adapter: VkPhysicalDevice,
     pCreateInfo: *const VkDeviceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pDevice: *mut VkDevice,
 ) -> VkResult {
-    let dev_info = unsafe { &*pCreateInfo };
-    let queue_infos = unsafe {
-        slice::from_raw_parts(
-            dev_info.pQueueCreateInfos,
-            dev_info.queueCreateInfoCount as _,
-        )
-    };
+    let dev_info = &*pCreateInfo;
+    let queue_infos = slice::from_raw_parts(
+        dev_info.pQueueCreateInfos,
+        dev_info.queueCreateInfoCount as _,
+    );
     let max_queue_count = queue_infos
         .iter()
         .map(|info| info.queueCount as usize)
@@ -767,7 +744,7 @@ pub extern "C" fn gfxCreateDevice(
         })
         .collect::<Vec<_>>();
 
-    let enabled = if let Some(ef) = unsafe { dev_info.pEnabledFeatures.as_ref() } {
+    let enabled = if let Some(ef) = dev_info.pEnabledFeatures.as_ref() {
         fn feat(on: u32, flag: Features) -> Features {
             if on != 0 {
                 flag
@@ -846,7 +823,7 @@ pub extern "C" fn gfxCreateDevice(
         RenderDoc::new().expect("Failed to init renderdoc")
     };
 
-    let gpu = unsafe { adapter.physical_device.open(&request_infos, enabled) };
+    let gpu = adapter.physical_device.open(&request_infos, enabled);
 
     match gpu {
         Ok(mut gpu) => {
@@ -886,20 +863,18 @@ pub extern "C" fn gfxCreateDevice(
             let rd_device = {
                 use renderdoc::api::RenderDocV100;
 
-                let rd_device = unsafe { gpu.device.as_raw() };
+                let rd_device = gpu.device.as_raw();
                 renderdoc.start_frame_capture(rd_device, ::std::ptr::null());
                 rd_device
             };
 
             let mut enabled_extensions = Vec::new();
             if dev_info.enabledExtensionCount != 0 {
-                for raw in unsafe {
-                    slice::from_raw_parts(
-                        dev_info.ppEnabledExtensionNames,
-                        dev_info.enabledExtensionCount as _,
-                    )
-                } {
-                    let cstr = unsafe { CStr::from_ptr(*raw) };
+                for raw in slice::from_raw_parts(
+                    dev_info.ppEnabledExtensionNames,
+                    dev_info.enabledExtensionCount as _,
+                ) {
+                    let cstr = CStr::from_ptr(*raw);
                     if !DEVICE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
                         return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
                     }
@@ -918,9 +893,7 @@ pub extern "C" fn gfxCreateDevice(
                 capturing: rd_device as *mut _,
             };
 
-            unsafe {
-                *pDevice = DispatchHandle::new(gpu);
-            }
+            *pDevice = DispatchHandle::new(gpu);
 
             VkResult::VK_SUCCESS
         }
@@ -932,7 +905,10 @@ pub extern "C" fn gfxCreateDevice(
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyDevice(gpu: VkDevice, _pAllocator: *const VkAllocationCallbacks) {
+pub unsafe extern "C" fn gfxDestroyDevice(
+    gpu: VkDevice,
+    _pAllocator: *const VkAllocationCallbacks,
+) {
     // release all the owned command queues
     if let Some(mut d) = gpu.unbox() {
         #[cfg(feature = "renderdoc")]
@@ -1043,12 +1019,12 @@ lazy_static! {
 }
 
 #[inline]
-pub extern "C" fn gfxEnumerateInstanceExtensionProperties(
+pub unsafe extern "C" fn gfxEnumerateInstanceExtensionProperties(
     _pLayerName: *const ::std::os::raw::c_char,
     pPropertyCount: *mut u32,
     pProperties: *mut VkExtensionProperties,
 ) -> VkResult {
-    let property_count = unsafe { &mut *pPropertyCount };
+    let property_count = &mut *pPropertyCount;
     let num_extensions = INSTANCE_EXTENSIONS.len() as u32;
 
     if pProperties.is_null() {
@@ -1057,8 +1033,7 @@ pub extern "C" fn gfxEnumerateInstanceExtensionProperties(
         if *property_count > num_extensions {
             *property_count = num_extensions;
         }
-        let properties =
-            unsafe { slice::from_raw_parts_mut(pProperties, *property_count as usize) };
+        let properties = slice::from_raw_parts_mut(pProperties, *property_count as usize);
         for i in 0..*property_count as usize {
             properties[i] = INSTANCE_EXTENSIONS[i];
         }
@@ -1072,13 +1047,13 @@ pub extern "C" fn gfxEnumerateInstanceExtensionProperties(
 }
 
 #[inline]
-pub extern "C" fn gfxEnumerateDeviceExtensionProperties(
+pub unsafe extern "C" fn gfxEnumerateDeviceExtensionProperties(
     _physicalDevice: VkPhysicalDevice,
     _pLayerName: *const ::std::os::raw::c_char,
     pPropertyCount: *mut u32,
     pProperties: *mut VkExtensionProperties,
 ) -> VkResult {
-    let property_count = unsafe { &mut *pPropertyCount };
+    let property_count = &mut *pPropertyCount;
     let num_extensions = DEVICE_EXTENSIONS.len() as u32;
 
     if pProperties.is_null() {
@@ -1087,8 +1062,7 @@ pub extern "C" fn gfxEnumerateDeviceExtensionProperties(
         if *property_count > num_extensions {
             *property_count = num_extensions;
         }
-        let properties =
-            unsafe { slice::from_raw_parts_mut(pProperties, *property_count as usize) };
+        let properties = slice::from_raw_parts_mut(pProperties, *property_count as usize);
         for i in 0..*property_count as usize {
             properties[i] = DEVICE_EXTENSIONS[i];
         }
@@ -1101,32 +1075,28 @@ pub extern "C" fn gfxEnumerateDeviceExtensionProperties(
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxEnumerateInstanceLayerProperties(
+pub unsafe extern "C" fn gfxEnumerateInstanceLayerProperties(
     pPropertyCount: *mut u32,
     _pProperties: *mut VkLayerProperties,
 ) -> VkResult {
     warn!("TODO: gfxEnumerateInstanceLayerProperties");
-    unsafe {
-        *pPropertyCount = 0;
-    }
+    *pPropertyCount = 0;
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxEnumerateDeviceLayerProperties(
+pub unsafe extern "C" fn gfxEnumerateDeviceLayerProperties(
     _physicalDevice: VkPhysicalDevice,
     pPropertyCount: *mut u32,
     _pProperties: *mut VkLayerProperties,
 ) -> VkResult {
     warn!("TODO: gfxEnumerateDeviceLayerProperties");
-    unsafe {
-        *pPropertyCount = 0;
-    }
+    *pPropertyCount = 0;
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxGetDeviceQueue(
+pub unsafe extern "C" fn gfxGetDeviceQueue(
     gpu: VkDevice,
     queueFamilyIndex: u32,
     queueIndex: u32,
@@ -1147,26 +1117,22 @@ pub extern "C" fn gfxGetDeviceQueue(
         }
     }
 
-    unsafe {
-        *pQueue = queue;
-    }
+    *pQueue = queue;
 }
 #[inline]
-pub extern "C" fn gfxQueueSubmit(
+pub unsafe extern "C" fn gfxQueueSubmit(
     mut queue: VkQueue,
     submitCount: u32,
     pSubmits: *const VkSubmitInfo,
     fence: VkFence,
 ) -> VkResult {
-    let submits = unsafe { slice::from_raw_parts(pSubmits, submitCount as usize) };
+    let submits = slice::from_raw_parts(pSubmits, submitCount as usize);
     for (i, submission) in submits.iter().enumerate() {
-        let cmd_slice = unsafe {
-            slice::from_raw_parts(
-                submission.pCommandBuffers,
-                submission.commandBufferCount as _,
-            )
-        };
-        let wait_semaphores = unsafe {
+        let cmd_slice = slice::from_raw_parts(
+            submission.pCommandBuffers,
+            submission.commandBufferCount as _,
+        );
+        let wait_semaphores = {
             let semaphores = slice::from_raw_parts(
                 submission.pWaitSemaphores,
                 submission.waitSemaphoreCount as _,
@@ -1182,17 +1148,15 @@ pub extern "C" fn gfxQueueSubmit(
                 .filter(|(_, semaphore)| !semaphore.is_fake)
                 .map(|(stage, semaphore)| (&semaphore.raw, conv::map_pipeline_stage_flags(*stage)))
         };
-        let signal_semaphores = unsafe {
-            slice::from_raw_parts(
-                submission.pSignalSemaphores,
-                submission.signalSemaphoreCount as _,
-            )
-            .into_iter()
-            .map(|semaphore| {
-                semaphore.as_mut().unwrap().is_fake = false;
-                &semaphore.raw
-            })
-        };
+        let signal_semaphores = slice::from_raw_parts(
+            submission.pSignalSemaphores,
+            submission.signalSemaphoreCount as _,
+        )
+        .into_iter()
+        .map(|semaphore| {
+            semaphore.as_mut().unwrap().is_fake = false;
+            &semaphore.raw
+        });
 
         let submission = hal::queue::Submission {
             command_buffers: cmd_slice.iter(),
@@ -1207,9 +1171,7 @@ pub extern "C" fn gfxQueueSubmit(
         } else {
             None
         };
-        unsafe {
-            queue.submit(submission, fence);
-        }
+        queue.submit(submission, fence);
     }
 
     // sometimes, all you need is a fence...
@@ -1221,61 +1183,55 @@ pub extern "C" fn gfxQueueSubmit(
             signal_semaphores: empty(),
         };
         type RawSemaphore = <B as hal::Backend>::Semaphore;
-        unsafe {
-            queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(
-                submission,
-                fence.as_ref().map(|f| &f.raw),
-            )
-        };
+        queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(
+            submission,
+            fence.as_ref().map(|f| &f.raw),
+        );
     }
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
+pub unsafe extern "C" fn gfxQueueWaitIdle(queue: VkQueue) -> VkResult {
     let _ = queue.wait_idle();
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDeviceWaitIdle(gpu: VkDevice) -> VkResult {
+pub unsafe extern "C" fn gfxDeviceWaitIdle(gpu: VkDevice) -> VkResult {
     let _ = gpu.device.wait_idle();
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxAllocateMemory(
+pub unsafe extern "C" fn gfxAllocateMemory(
     gpu: VkDevice,
     pAllocateInfo: *const VkMemoryAllocateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pMemory: *mut VkDeviceMemory,
 ) -> VkResult {
-    unsafe {
-        let info = &*pAllocateInfo;
-        let memory = gpu
-            .device
-            .allocate_memory(
-                hal::MemoryTypeId(info.memoryTypeIndex as _),
-                info.allocationSize,
-            )
-            .unwrap(); // TODO:
+    let info = &*pAllocateInfo;
+    let memory = gpu
+        .device
+        .allocate_memory(
+            hal::MemoryTypeId(info.memoryTypeIndex as _),
+            info.allocationSize,
+        )
+        .unwrap(); // TODO:
 
-        *pMemory = Handle::new(memory);
-    }
+    *pMemory = Handle::new(memory);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxFreeMemory(
+pub unsafe extern "C" fn gfxFreeMemory(
     gpu: VkDevice,
     memory: VkDeviceMemory,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(mem) = memory.unbox() {
-        unsafe {
-            gpu.device.free_memory(mem);
-        }
+        gpu.device.free_memory(mem);
     }
 }
 #[inline]
-pub extern "C" fn gfxMapMemory(
+pub unsafe extern "C" fn gfxMapMemory(
     gpu: VkDevice,
     memory: VkDeviceMemory,
     offset: VkDeviceSize,
@@ -1291,25 +1247,21 @@ pub extern "C" fn gfxMapMemory(
             Some(size)
         },
     };
-    unsafe {
-        *ppData = gpu.device.map_memory(&memory, range).unwrap() as *mut _; // TODO
-    }
+    *ppData = gpu.device.map_memory(&memory, range).unwrap() as *mut _; // TODO
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxUnmapMemory(gpu: VkDevice, memory: VkDeviceMemory) {
-    unsafe {
-        gpu.device.unmap_memory(&memory);
-    }
+pub unsafe extern "C" fn gfxUnmapMemory(gpu: VkDevice, memory: VkDeviceMemory) {
+    gpu.device.unmap_memory(&memory);
 }
 #[inline]
-pub extern "C" fn gfxFlushMappedMemoryRanges(
+pub unsafe extern "C" fn gfxFlushMappedMemoryRanges(
     gpu: VkDevice,
     memoryRangeCount: u32,
     pMemoryRanges: *const VkMappedMemoryRange,
 ) -> VkResult {
-    let ranges = unsafe { slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _) }
+    let ranges = slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
         .iter()
         .map(|r| {
             let range = hal::memory::Segment {
@@ -1323,18 +1275,18 @@ pub extern "C" fn gfxFlushMappedMemoryRanges(
             (&*r.memory, range)
         });
 
-    match unsafe { gpu.device.flush_mapped_memory_ranges(ranges) } {
+    match gpu.device.flush_mapped_memory_ranges(ranges) {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
 }
 #[inline]
-pub extern "C" fn gfxInvalidateMappedMemoryRanges(
+pub unsafe extern "C" fn gfxInvalidateMappedMemoryRanges(
     gpu: VkDevice,
     memoryRangeCount: u32,
     pMemoryRanges: *const VkMappedMemoryRange,
 ) -> VkResult {
-    let ranges = unsafe { slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _) }
+    let ranges = slice::from_raw_parts(pMemoryRanges, memoryRangeCount as _)
         .iter()
         .map(|r| {
             let range = hal::memory::Segment {
@@ -1348,13 +1300,13 @@ pub extern "C" fn gfxInvalidateMappedMemoryRanges(
             (&*r.memory, range)
         });
 
-    match unsafe { gpu.device.invalidate_mapped_memory_ranges(ranges) } {
+    match gpu.device.invalidate_mapped_memory_ranges(ranges) {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
 }
 #[inline]
-pub extern "C" fn gfxGetDeviceMemoryCommitment(
+pub unsafe extern "C" fn gfxGetDeviceMemoryCommitment(
     _device: VkDevice,
     _memory: VkDeviceMemory,
     _pCommittedMemoryInBytes: *mut VkDeviceSize,
@@ -1362,21 +1314,19 @@ pub extern "C" fn gfxGetDeviceMemoryCommitment(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxBindBufferMemory(
+pub unsafe extern "C" fn gfxBindBufferMemory(
     gpu: VkDevice,
     mut buffer: VkBuffer,
     memory: VkDeviceMemory,
     memoryOffset: VkDeviceSize,
 ) -> VkResult {
-    unsafe {
-        gpu.device
-            .bind_buffer_memory(&memory, memoryOffset, &mut *buffer)
-            .unwrap(); //TODO
-    }
+    gpu.device
+        .bind_buffer_memory(&memory, memoryOffset, &mut *buffer)
+        .unwrap(); //TODO
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxBindImageMemory(
+pub unsafe extern "C" fn gfxBindImageMemory(
     gpu: VkDevice,
     mut image: VkImage,
     memory: VkDeviceMemory,
@@ -1386,37 +1336,35 @@ pub extern "C" fn gfxBindImageMemory(
         Image::Native { ref mut raw, .. } => raw,
         Image::SwapchainFrame { .. } => panic!("Unexpected swapchain image"),
     };
-    unsafe {
-        gpu.device
-            .bind_image_memory(&memory, memoryOffset, raw)
-            .unwrap(); //TODO
-    }
+    gpu.device
+        .bind_image_memory(&memory, memoryOffset, raw)
+        .unwrap(); //TODO
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxGetBufferMemoryRequirements(
+pub unsafe extern "C" fn gfxGetBufferMemoryRequirements(
     gpu: VkDevice,
     buffer: VkBuffer,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
-    let req = unsafe { gpu.device.get_buffer_requirements(&*buffer) };
+    let req = gpu.device.get_buffer_requirements(&*buffer);
 
-    *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
+    *pMemoryRequirements = VkMemoryRequirements {
         size: req.size,
         alignment: req.alignment,
         memoryTypeBits: req.type_mask,
     };
 }
 #[inline]
-pub extern "C" fn gfxGetImageMemoryRequirements(
+pub unsafe extern "C" fn gfxGetImageMemoryRequirements(
     gpu: VkDevice,
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements,
 ) {
     let raw = image.as_native().unwrap();
-    let req = unsafe { gpu.device.get_image_requirements(raw) };
+    let req = gpu.device.get_image_requirements(raw);
 
-    *unsafe { &mut *pMemoryRequirements } = VkMemoryRequirements {
+    *pMemoryRequirements = VkMemoryRequirements {
         size: req.size,
         alignment: req.alignment,
         memoryTypeBits: req.type_mask,
@@ -1424,14 +1372,14 @@ pub extern "C" fn gfxGetImageMemoryRequirements(
 }
 /*
 #[inline]
-pub extern "C" fn gfxGetImageMemoryRequirements2KHR(
+pub unsafe extern "C" fn gfxGetImageMemoryRequirements2KHR(
     gpu: VkDevice,
     image: VkImage,
     pMemoryRequirements: *mut VkMemoryRequirements2KHR,
 ) {
     let mut ptr = pMemoryRequirements as *const VkStructureType;
     while !ptr.is_null() {
-        ptr = match unsafe { *ptr } {
+        ptr = match *ptr } {
             VkStructureType::VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR => {
                 let data = unsafe {
                     (ptr as *mut VkMemoryRequirements2KHR).as_mut().unwrap()
@@ -1444,14 +1392,14 @@ pub extern "C" fn gfxGetImageMemoryRequirements2KHR(
                 warn!("Unrecognized {:?}, skipping", other);
                 unsafe {
                     (ptr as *const VkBaseStruct).as_ref().unwrap()
-                }.pNext
+               .pNext
             }
         } as *const VkStructureType;
     }
 }*/
 
 #[inline]
-pub extern "C" fn gfxGetImageSparseMemoryRequirements(
+pub unsafe extern "C" fn gfxGetImageSparseMemoryRequirements(
     _device: VkDevice,
     _image: VkImage,
     _pSparseMemoryRequirementCount: *mut u32,
@@ -1460,7 +1408,7 @@ pub extern "C" fn gfxGetImageSparseMemoryRequirements(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties(
     _physicalDevice: VkPhysicalDevice,
     _format: VkFormat,
     _type_: VkImageType,
@@ -1470,12 +1418,10 @@ pub extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties(
     pPropertyCount: *mut u32,
     _pProperties: *mut VkSparseImageFormatProperties,
 ) {
-    unsafe {
-        *pPropertyCount = 0;
-    } //TODO
+    *pPropertyCount = 0;
 }
 #[inline]
-pub extern "C" fn gfxQueueBindSparse(
+pub unsafe extern "C" fn gfxQueueBindSparse(
     _queue: VkQueue,
     _bindInfoCount: u32,
     _pBindInfo: *const VkBindSparseInfo,
@@ -1484,13 +1430,13 @@ pub extern "C" fn gfxQueueBindSparse(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCreateFence(
+pub unsafe extern "C" fn gfxCreateFence(
     gpu: VkDevice,
     pCreateInfo: *const VkFenceCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pFence: *mut VkFence,
 ) -> VkResult {
-    let flags = unsafe { (*pCreateInfo).flags };
+    let flags = (*pCreateInfo).flags;
     let signalled = flags & VkFenceCreateFlagBits::VK_FENCE_CREATE_SIGNALED_BIT as u32 != 0;
 
     let fence = match gpu.device.create_fence(signalled) {
@@ -1501,47 +1447,43 @@ pub extern "C" fn gfxCreateFence(
         Err(oom) => return map_oom(oom),
     };
 
-    unsafe {
-        *pFence = Handle::new(fence);
-    }
+    *pFence = Handle::new(fence);
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyFence(
+pub unsafe extern "C" fn gfxDestroyFence(
     gpu: VkDevice,
     fence: VkFence,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(fence) = fence.unbox() {
-        unsafe {
-            gpu.device.destroy_fence(fence.raw);
-        }
+        gpu.device.destroy_fence(fence.raw);
     }
 }
 #[inline]
-pub extern "C" fn gfxResetFences(
+pub unsafe extern "C" fn gfxResetFences(
     gpu: VkDevice,
     fenceCount: u32,
     pFences: *const VkFence,
 ) -> VkResult {
-    let fence_slice = unsafe { slice::from_raw_parts(pFences, fenceCount as _) };
+    let fence_slice = slice::from_raw_parts(pFences, fenceCount as _);
     let fences = fence_slice.iter().map(|fence| {
         fence.as_mut().unwrap().is_fake = false;
         &fence.raw
     });
 
-    match unsafe { gpu.device.reset_fences(fences) } {
+    match gpu.device.reset_fences(fences) {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
 }
 #[inline]
-pub extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
+pub unsafe extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
     if fence.is_fake {
         VkResult::VK_SUCCESS
     } else {
-        match unsafe { gpu.device.get_fence_status(&fence.raw) } {
+        match gpu.device.get_fence_status(&fence.raw) {
             Ok(true) => VkResult::VK_SUCCESS,
             Ok(false) => VkResult::VK_NOT_READY,
             Err(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
@@ -1549,7 +1491,7 @@ pub extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
     }
 }
 #[inline]
-pub extern "C" fn gfxWaitForFences(
+pub unsafe extern "C" fn gfxWaitForFences(
     gpu: VkDevice,
     fenceCount: u32,
     pFences: *const VkFence,
@@ -1558,11 +1500,9 @@ pub extern "C" fn gfxWaitForFences(
 ) -> VkResult {
     let result = match fenceCount {
         0 => Ok(true),
-        1 if !unsafe { *pFences }.is_fake => unsafe {
-            gpu.device.wait_for_fence(&(*pFences).raw, timeout)
-        },
+        1 if !(*pFences).is_fake => gpu.device.wait_for_fence(&(*pFences).raw, timeout),
         _ => {
-            let fence_slice = unsafe { slice::from_raw_parts(pFences, fenceCount as _) };
+            let fence_slice = slice::from_raw_parts(pFences, fenceCount as _);
             if fence_slice.iter().all(|fence| fence.is_fake) {
                 return VkResult::VK_SUCCESS;
             }
@@ -1575,7 +1515,7 @@ pub extern "C" fn gfxWaitForFences(
                 VK_FALSE => WaitFor::Any,
                 _ => WaitFor::All,
             };
-            unsafe { gpu.device.wait_for_fences(fences, wait_for, timeout) }
+            gpu.device.wait_for_fences(fences, wait_for, timeout)
         }
     };
 
@@ -1589,7 +1529,7 @@ pub extern "C" fn gfxWaitForFences(
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateSemaphore(
+pub unsafe extern "C" fn gfxCreateSemaphore(
     gpu: VkDevice,
     _pCreateInfo: *const VkSemaphoreCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -1603,25 +1543,21 @@ pub extern "C" fn gfxCreateSemaphore(
         Err(oom) => return map_oom(oom),
     };
 
-    unsafe {
-        *pSemaphore = Handle::new(semaphore);
-    }
+    *pSemaphore = Handle::new(semaphore);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroySemaphore(
+pub unsafe extern "C" fn gfxDestroySemaphore(
     gpu: VkDevice,
     semaphore: VkSemaphore,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(sem) = semaphore.unbox() {
-        unsafe {
-            gpu.device.destroy_semaphore(sem.raw);
-        }
+        gpu.device.destroy_semaphore(sem.raw);
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateEvent(
+pub unsafe extern "C" fn gfxCreateEvent(
     gpu: VkDevice,
     _pCreateInfo: *const VkEventCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -1632,26 +1568,22 @@ pub extern "C" fn gfxCreateEvent(
         Err(oom) => return map_oom(oom),
     };
 
-    unsafe {
-        *pEvent = Handle::new(event);
-    }
+    *pEvent = Handle::new(event);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyEvent(
+pub unsafe extern "C" fn gfxDestroyEvent(
     gpu: VkDevice,
     event: VkEvent,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(event) = event.unbox() {
-        unsafe {
-            gpu.device.destroy_event(event);
-        }
+        gpu.device.destroy_event(event);
     }
 }
 #[inline]
-pub extern "C" fn gfxGetEventStatus(gpu: VkDevice, event: VkEvent) -> VkResult {
-    match unsafe { gpu.device.get_event_status(&event) } {
+pub unsafe extern "C" fn gfxGetEventStatus(gpu: VkDevice, event: VkEvent) -> VkResult {
+    match gpu.device.get_event_status(&event) {
         Ok(true) => VkResult::VK_EVENT_SET,
         Ok(false) => VkResult::VK_EVENT_RESET,
         Err(hal::device::OomOrDeviceLost::OutOfMemory(oom)) => map_oom(oom),
@@ -1661,59 +1593,55 @@ pub extern "C" fn gfxGetEventStatus(gpu: VkDevice, event: VkEvent) -> VkResult {
     }
 }
 #[inline]
-pub extern "C" fn gfxSetEvent(gpu: VkDevice, event: VkEvent) -> VkResult {
-    match unsafe { gpu.device.set_event(&event) } {
+pub unsafe extern "C" fn gfxSetEvent(gpu: VkDevice, event: VkEvent) -> VkResult {
+    match gpu.device.set_event(&event) {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
 }
 #[inline]
-pub extern "C" fn gfxResetEvent(gpu: VkDevice, event: VkEvent) -> VkResult {
-    match unsafe { gpu.device.reset_event(&event) } {
+pub unsafe extern "C" fn gfxResetEvent(gpu: VkDevice, event: VkEvent) -> VkResult {
+    match gpu.device.reset_event(&event) {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateQueryPool(
+pub unsafe extern "C" fn gfxCreateQueryPool(
     gpu: VkDevice,
     pCreateInfo: *const VkQueryPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pQueryPool: *mut VkQueryPool,
 ) -> VkResult {
-    let pool = unsafe {
-        let info = &*pCreateInfo;
-        gpu.device.create_query_pool(
-            conv::map_query_type(info.queryType, info.pipelineStatistics),
-            info.queryCount,
-        )
-    };
+    let info = &*pCreateInfo;
+    let pool = gpu.device.create_query_pool(
+        conv::map_query_type(info.queryType, info.pipelineStatistics),
+        info.queryCount,
+    );
 
     match pool {
         Ok(pool) => {
-            unsafe { *pQueryPool = Handle::new(pool) };
+            *pQueryPool = Handle::new(pool);
             VkResult::VK_SUCCESS
         }
         Err(_) => {
-            unsafe { *pQueryPool = Handle::null() };
+            *pQueryPool = Handle::null();
             VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY
         }
     }
 }
 #[inline]
-pub extern "C" fn gfxDestroyQueryPool(
+pub unsafe extern "C" fn gfxDestroyQueryPool(
     gpu: VkDevice,
     queryPool: VkQueryPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(pool) = queryPool.unbox() {
-        unsafe {
-            gpu.device.destroy_query_pool(pool);
-        }
+        gpu.device.destroy_query_pool(pool);
     }
 }
 #[inline]
-pub extern "C" fn gfxGetQueryPoolResults(
+pub unsafe extern "C" fn gfxGetQueryPoolResults(
     gpu: VkDevice,
     queryPool: VkQueryPool,
     firstQuery: u32,
@@ -1723,15 +1651,13 @@ pub extern "C" fn gfxGetQueryPoolResults(
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) -> VkResult {
-    let result = unsafe {
-        gpu.device.get_query_pool_results(
-            &*queryPool,
-            firstQuery..firstQuery + queryCount,
-            slice::from_raw_parts_mut(pData as *mut u8, dataSize),
-            stride,
-            conv::map_query_result(flags),
-        )
-    };
+    let result = gpu.device.get_query_pool_results(
+        &*queryPool,
+        firstQuery..firstQuery + queryCount,
+        slice::from_raw_parts_mut(pData as *mut u8, dataSize),
+        stride,
+        conv::map_query_result(flags),
+    );
     match result {
         Ok(true) => VkResult::VK_SUCCESS,
         Ok(false) => VkResult::VK_NOT_READY,
@@ -1739,65 +1665,57 @@ pub extern "C" fn gfxGetQueryPoolResults(
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateBuffer(
+pub unsafe extern "C" fn gfxCreateBuffer(
     gpu: VkDevice,
     pCreateInfo: *const VkBufferCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pBuffer: *mut VkBuffer,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
     assert_eq!(info.flags, 0); // TODO
 
-    unsafe {
-        let buffer = gpu
-            .device
-            .create_buffer(info.size, conv::map_buffer_usage(info.usage))
-            .expect("Error on creating buffer");
-        *pBuffer = Handle::new(buffer);
-    };
+    let buffer = gpu
+        .device
+        .create_buffer(info.size, conv::map_buffer_usage(info.usage))
+        .expect("Error on creating buffer");
+    *pBuffer = Handle::new(buffer);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyBuffer(
+pub unsafe extern "C" fn gfxDestroyBuffer(
     gpu: VkDevice,
     buffer: VkBuffer,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(buffer) = buffer.unbox() {
-        unsafe {
-            gpu.device.destroy_buffer(buffer);
-        }
+        gpu.device.destroy_buffer(buffer);
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateBufferView(
+pub unsafe extern "C" fn gfxCreateBufferView(
     gpu: VkDevice,
     pCreateInfo: *const VkBufferViewCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pView: *mut VkBufferView,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
-    let view_result = unsafe {
-        gpu.device.create_buffer_view(
-            &info.buffer,
-            conv::map_format(info.format),
-            hal::buffer::SubRange {
-                offset: info.offset,
-                size: if info.range as i32 == VK_WHOLE_SIZE {
-                    None
-                } else {
-                    Some(info.range)
-                },
+    let info = &*pCreateInfo;
+    let view_result = gpu.device.create_buffer_view(
+        &info.buffer,
+        conv::map_format(info.format),
+        hal::buffer::SubRange {
+            offset: info.offset,
+            size: if info.range as i32 == VK_WHOLE_SIZE {
+                None
+            } else {
+                Some(info.range)
             },
-        )
-    };
+        },
+    );
 
     match view_result {
         Ok(view) => {
-            unsafe {
-                *pView = Handle::new(view);
-            }
+            *pView = Handle::new(view);
             VkResult::VK_SUCCESS
         }
         Err(e) => {
@@ -1807,25 +1725,23 @@ pub extern "C" fn gfxCreateBufferView(
     }
 }
 #[inline]
-pub extern "C" fn gfxDestroyBufferView(
+pub unsafe extern "C" fn gfxDestroyBufferView(
     gpu: VkDevice,
     view: VkBufferView,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(v) = view.unbox() {
-        unsafe {
-            gpu.device.destroy_buffer_view(v);
-        }
+        gpu.device.destroy_buffer_view(v);
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateImage(
+pub unsafe extern "C" fn gfxCreateImage(
     gpu: VkDevice,
     pCreateInfo: *const VkImageCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pImage: *mut VkImage,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
     if info.initialLayout != VkImageLayout::VK_IMAGE_LAYOUT_UNDEFINED {
         warn!("unexpected initial layout: {:?}", info.initialLayout);
@@ -1837,49 +1753,44 @@ pub extern "C" fn gfxCreateImage(
         info.arrayLayers as _,
         info.samples,
     );
-    unsafe {
-        let image = gpu
-            .device
-            .create_image(
-                kind,
-                info.mipLevels as _,
-                conv::map_format(info.format)
-                    .expect(&format!("Unsupported image format: {:?}", info.format)),
-                conv::map_tiling(info.tiling),
-                conv::map_image_usage(info.usage),
-                conv::map_image_create_flags(info.flags),
-            )
-            .expect("Error on creating image");
+    let image = gpu
+        .device
+        .create_image(
+            kind,
+            info.mipLevels as _,
+            conv::map_format(info.format)
+                .expect(&format!("Unsupported image format: {:?}", info.format)),
+            conv::map_tiling(info.tiling),
+            conv::map_image_usage(info.usage),
+            conv::map_image_create_flags(info.flags),
+        )
+        .expect("Error on creating image");
 
-        *pImage = Handle::new(Image::Native { raw: image });
-    }
+    *pImage = Handle::new(Image::Native { raw: image });
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyImage(
+pub unsafe extern "C" fn gfxDestroyImage(
     gpu: VkDevice,
     image: VkImage,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(Image::Native { raw, .. }) = image.unbox() {
-        unsafe {
-            gpu.device.destroy_image(raw);
-        }
+        gpu.device.destroy_image(raw);
     }
 }
 #[inline]
-pub extern "C" fn gfxGetImageSubresourceLayout(
+pub unsafe extern "C" fn gfxGetImageSubresourceLayout(
     gpu: VkDevice,
     image: VkImage,
     pSubresource: *const VkImageSubresource,
     pLayout: *mut VkSubresourceLayout,
 ) {
     let raw = image.as_native().unwrap();
-    let footprint = unsafe {
-        gpu.device
-            .get_image_subresource_footprint(raw, conv::map_subresource(*pSubresource))
-    };
+    let footprint = gpu
+        .device
+        .get_image_subresource_footprint(raw, conv::map_subresource(*pSubresource));
 
     let sub_layout = VkSubresourceLayout {
         offset: footprint.slice.start,
@@ -1889,145 +1800,132 @@ pub extern "C" fn gfxGetImageSubresourceLayout(
         arrayPitch: footprint.array_pitch,
     };
 
-    unsafe {
-        *pLayout = sub_layout;
-    }
+    *pLayout = sub_layout;
 }
 #[inline]
-pub extern "C" fn gfxCreateImageView(
+pub unsafe extern "C" fn gfxCreateImageView(
     gpu: VkDevice,
     pCreateInfo: *const VkImageViewCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pView: *mut VkImageView,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     if let Image::SwapchainFrame { swapchain, frame } = *info.image {
-        unsafe {
-            *pView = Handle::new(ImageView::SwapchainFrame { swapchain, frame });
-        }
+        *pView = Handle::new(ImageView::SwapchainFrame { swapchain, frame });
         return VkResult::VK_SUCCESS;
     }
 
     let raw = info.image.as_native().unwrap();
-    let view = unsafe {
-        gpu.device.create_image_view(
-            raw,
-            conv::map_view_kind(info.viewType),
-            conv::map_format(info.format).unwrap(),
-            conv::map_swizzle(info.components),
-            conv::map_subresource_range(info.subresourceRange),
-        )
-    };
+    let view = gpu.device.create_image_view(
+        raw,
+        conv::map_view_kind(info.viewType),
+        conv::map_format(info.format).unwrap(),
+        conv::map_swizzle(info.components),
+        conv::map_subresource_range(info.subresourceRange),
+    );
 
     match view {
         Ok(view) => {
-            unsafe { *pView = Handle::new(ImageView::Native(view)) };
+            *pView = Handle::new(ImageView::Native(view));
             VkResult::VK_SUCCESS
         }
         Err(err) => panic!("Unexpected image view creation error: {:?}", err),
     }
 }
 #[inline]
-pub extern "C" fn gfxDestroyImageView(
+pub unsafe extern "C" fn gfxDestroyImageView(
     gpu: VkDevice,
     imageView: VkImageView,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(ImageView::Native(view)) = imageView.unbox() {
-        unsafe {
-            gpu.device.destroy_image_view(view);
-        }
+        gpu.device.destroy_image_view(view);
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateShaderModule(
+pub unsafe extern "C" fn gfxCreateShaderModule(
     gpu: VkDevice,
     pCreateInfo: *const VkShaderModuleCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pShaderModule: *mut VkShaderModule,
 ) -> VkResult {
-    unsafe {
-        let info = &*pCreateInfo;
-        let code = slice::from_raw_parts(info.pCode, info.codeSize / 4);
-        let shader_module = gpu
-            .device
-            .create_shader_module(code)
-            .expect("Error creating shader module"); // TODO
-        *pShaderModule = Handle::new(shader_module);
-    }
+    let info = &*pCreateInfo;
+    let code = slice::from_raw_parts(info.pCode, info.codeSize / 4);
+    let shader_module = gpu
+        .device
+        .create_shader_module(code)
+        .expect("Error creating shader module"); // TODO
+    *pShaderModule = Handle::new(shader_module);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyShaderModule(
+pub unsafe extern "C" fn gfxDestroyShaderModule(
     gpu: VkDevice,
     shaderModule: VkShaderModule,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(module) = shaderModule.unbox() {
-        unsafe {
-            gpu.device.destroy_shader_module(module);
-        }
+        gpu.device.destroy_shader_module(module);
     }
 }
 #[inline]
-pub extern "C" fn gfxCreatePipelineCache(
+pub unsafe extern "C" fn gfxCreatePipelineCache(
     gpu: VkDevice,
     pCreateInfo: *const VkPipelineCacheCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelineCache: *mut VkPipelineCache,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     let data = if info.initialDataSize != 0 {
-        Some(unsafe { slice::from_raw_parts(info.pInitialData as *const u8, info.initialDataSize) })
+        Some(slice::from_raw_parts(
+            info.pInitialData as *const u8,
+            info.initialDataSize,
+        ))
     } else {
         None
     };
 
-    let cache = match unsafe { gpu.device.create_pipeline_cache(data) } {
+    let cache = match gpu.device.create_pipeline_cache(data) {
         Ok(cache) => cache,
         Err(oom) => return map_oom(oom),
     };
-    unsafe { *pPipelineCache = Handle::new(cache) };
+    *pPipelineCache = Handle::new(cache);
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyPipelineCache(
+pub unsafe extern "C" fn gfxDestroyPipelineCache(
     gpu: VkDevice,
     pipelineCache: VkPipelineCache,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(cache) = pipelineCache.unbox() {
-        unsafe {
-            gpu.device.destroy_pipeline_cache(cache);
-        }
+        gpu.device.destroy_pipeline_cache(cache);
     }
 }
 #[inline]
-pub extern "C" fn gfxGetPipelineCacheData(
+pub unsafe extern "C" fn gfxGetPipelineCacheData(
     _gpu: VkDevice,
     _pipelineCache: VkPipelineCache,
     pDataSize: *mut usize,
     _pData: *mut c_void,
 ) -> VkResult {
     //TODO: save
-    unsafe {
-        *pDataSize = 0;
-    }
+    *pDataSize = 0;
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxMergePipelineCaches(
+pub unsafe extern "C" fn gfxMergePipelineCaches(
     gpu: VkDevice,
     dstCache: VkPipelineCache,
     srcCacheCount: u32,
     pSrcCaches: *const VkPipelineCache,
 ) -> VkResult {
-    match unsafe {
-        let caches = slice::from_raw_parts(pSrcCaches, srcCacheCount as usize);
-        gpu.device
-            .merge_pipeline_caches(&*dstCache, caches.iter().map(|h| &**h))
-    } {
+    let caches = slice::from_raw_parts(pSrcCaches, srcCacheCount as usize);
+    match gpu
+        .device
+        .merge_pipeline_caches(&*dstCache, caches.iter().map(|h| &**h))
+    {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
     }
@@ -2661,33 +2559,28 @@ pub unsafe extern "C" fn gfxCreateComputePipelines(
     }
 }
 #[inline]
-pub extern "C" fn gfxDestroyPipeline(
+pub unsafe extern "C" fn gfxDestroyPipeline(
     gpu: VkDevice,
     pipeline: VkPipeline,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     match pipeline.unbox() {
-        Some(Pipeline::Graphics(pipeline)) => unsafe {
-            gpu.device.destroy_graphics_pipeline(pipeline)
-        },
-        Some(Pipeline::Compute(pipeline)) => unsafe {
-            gpu.device.destroy_compute_pipeline(pipeline)
-        },
-        None => {}
+        Some(Pipeline::Graphics(pipeline)) => gpu.device.destroy_graphics_pipeline(pipeline),
+        Some(Pipeline::Compute(pipeline)) => gpu.device.destroy_compute_pipeline(pipeline),
+        None => (),
     }
 }
 #[inline]
-pub extern "C" fn gfxCreatePipelineLayout(
+pub unsafe extern "C" fn gfxCreatePipelineLayout(
     gpu: VkDevice,
     pCreateInfo: *const VkPipelineLayoutCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pPipelineLayout: *mut VkPipelineLayout,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
-    let set_layouts = unsafe { slice::from_raw_parts(info.pSetLayouts, info.setLayoutCount as _) };
-    let push_constants = unsafe {
-        slice::from_raw_parts(info.pPushConstantRanges, info.pushConstantRangeCount as _)
-    };
+    let info = &*pCreateInfo;
+    let set_layouts = slice::from_raw_parts(info.pSetLayouts, info.setLayoutCount as _);
+    let push_constants =
+        slice::from_raw_parts(info.pPushConstantRanges, info.pushConstantRangeCount as _);
 
     let layouts = set_layouts.iter().map(|layout| &**layout);
 
@@ -2696,36 +2589,32 @@ pub extern "C" fn gfxCreatePipelineLayout(
         (stages, constant.offset..constant.offset + constant.size)
     });
 
-    let pipeline_layout = match unsafe { gpu.device.create_pipeline_layout(layouts, ranges) } {
+    let pipeline_layout = match gpu.device.create_pipeline_layout(layouts, ranges) {
         Ok(pipeline) => pipeline,
         Err(oom) => return map_oom(oom),
     };
 
-    unsafe {
-        *pPipelineLayout = Handle::new(pipeline_layout);
-    }
+    *pPipelineLayout = Handle::new(pipeline_layout);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyPipelineLayout(
+pub unsafe extern "C" fn gfxDestroyPipelineLayout(
     gpu: VkDevice,
     pipelineLayout: VkPipelineLayout,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(layout) = pipelineLayout.unbox() {
-        unsafe {
-            gpu.device.destroy_pipeline_layout(layout);
-        }
+        gpu.device.destroy_pipeline_layout(layout);
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateSampler(
+pub unsafe extern "C" fn gfxCreateSampler(
     gpu: VkDevice,
     pCreateInfo: *const VkSamplerCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pSampler: *mut VkSampler,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     let gfx_info = hal::image::SamplerDesc {
         min_filter: conv::map_filter(info.minFilter),
         mag_filter: conv::map_filter(info.magFilter),
@@ -2750,25 +2639,21 @@ pub extern "C" fn gfxCreateSampler(
             None
         },
     };
-    let sampler = match unsafe { gpu.device.create_sampler(&gfx_info) } {
+    let sampler = match gpu.device.create_sampler(&gfx_info) {
         Ok(s) => s,
         Err(alloc) => return map_alloc_error(alloc),
     };
-    unsafe {
-        *pSampler = Handle::new(sampler);
-    }
+    *pSampler = Handle::new(sampler);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroySampler(
+pub unsafe extern "C" fn gfxDestroySampler(
     gpu: VkDevice,
     sampler: VkSampler,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(sam) = sampler.unbox() {
-        unsafe {
-            gpu.device.destroy_sampler(sam);
-        }
+        gpu.device.destroy_sampler(sam);
     }
 }
 #[inline]
@@ -2816,15 +2701,13 @@ pub unsafe extern "C" fn gfxCreateDescriptorSetLayout(
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyDescriptorSetLayout(
+pub unsafe extern "C" fn gfxDestroyDescriptorSetLayout(
     gpu: VkDevice,
     descriptorSetLayout: VkDescriptorSetLayout,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(layout) = descriptorSetLayout.unbox() {
-        unsafe {
-            gpu.device.destroy_descriptor_set_layout(layout);
-        }
+        gpu.device.destroy_descriptor_set_layout(layout);
     }
 }
 #[inline]
@@ -2869,15 +2752,13 @@ pub unsafe extern "C" fn gfxCreateDescriptorPool(
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyDescriptorPool(
+pub unsafe extern "C" fn gfxDestroyDescriptorPool(
     gpu: VkDevice,
     descriptorPool: VkDescriptorPool,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(pool) = descriptorPool.unbox() {
-        unsafe {
-            gpu.device.destroy_descriptor_pool(pool.raw);
-        }
+        gpu.device.destroy_descriptor_pool(pool.raw);
         if let Some(sets) = pool.set_handles {
             for set in sets {
                 let _ = set.unbox();
@@ -2886,14 +2767,12 @@ pub extern "C" fn gfxDestroyDescriptorPool(
     }
 }
 #[inline]
-pub extern "C" fn gfxResetDescriptorPool(
+pub unsafe extern "C" fn gfxResetDescriptorPool(
     _gpu: VkDevice,
     mut descriptorPool: VkDescriptorPool,
     _flags: VkDescriptorPoolResetFlags,
 ) -> VkResult {
-    unsafe {
-        descriptorPool.raw.reset();
-    }
+    descriptorPool.raw.reset();
     if let Some(ref mut sets) = descriptorPool.set_handles {
         for set in sets.drain(..) {
             let _ = set.unbox();
@@ -2902,25 +2781,23 @@ pub extern "C" fn gfxResetDescriptorPool(
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxAllocateDescriptorSets(
+pub unsafe extern "C" fn gfxAllocateDescriptorSets(
     _gpu: VkDevice,
     pAllocateInfo: *const VkDescriptorSetAllocateInfo,
     pDescriptorSets: *mut VkDescriptorSet,
 ) -> VkResult {
-    let info = unsafe { &mut *(pAllocateInfo as *mut VkDescriptorSetAllocateInfo) };
+    let info = &mut *(pAllocateInfo as *mut VkDescriptorSetAllocateInfo);
     let super::DescriptorPool {
         ref mut raw,
         ref mut temp_sets,
         ref mut set_handles,
     } = *info.descriptorPool;
 
-    let out_sets =
-        unsafe { slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _) };
-    let set_layouts =
-        unsafe { slice::from_raw_parts(info.pSetLayouts, info.descriptorSetCount as _) };
+    let out_sets = slice::from_raw_parts_mut(pDescriptorSets, info.descriptorSetCount as _);
+    let set_layouts = slice::from_raw_parts(info.pSetLayouts, info.descriptorSetCount as _);
     let layouts = set_layouts.iter().map(|layout| &**layout);
 
-    match unsafe { raw.allocate(layouts, temp_sets) } {
+    match raw.allocate(layouts, temp_sets) {
         Ok(()) => {
             assert_eq!(temp_sets.len(), info.descriptorSetCount as usize);
             for (set, raw_set) in out_sets.iter_mut().zip(temp_sets.drain(..)) {
@@ -2947,21 +2824,18 @@ pub extern "C" fn gfxAllocateDescriptorSets(
     }
 }
 #[inline]
-pub extern "C" fn gfxFreeDescriptorSets(
+pub unsafe extern "C" fn gfxFreeDescriptorSets(
     _device: VkDevice,
     mut descriptorPool: VkDescriptorPool,
     descriptorSetCount: u32,
     pDescriptorSets: *const VkDescriptorSet,
 ) -> VkResult {
-    let descriptor_sets =
-        unsafe { slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _) };
+    let descriptor_sets = slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _);
     assert!(descriptorPool.set_handles.is_none());
 
     let sets = descriptor_sets.into_iter().filter_map(|set| set.unbox());
 
-    unsafe {
-        descriptorPool.raw.free(sets);
-    }
+    descriptorPool.raw.free(sets);
 
     VkResult::VK_SUCCESS
 }
@@ -3038,29 +2912,24 @@ impl<'a> Iterator for DescriptorIter<'a> {
 }
 
 #[inline]
-pub extern "C" fn gfxUpdateDescriptorSets(
+pub unsafe extern "C" fn gfxUpdateDescriptorSets(
     gpu: VkDevice,
     descriptorWriteCount: u32,
     pDescriptorWrites: *const VkWriteDescriptorSet,
     descriptorCopyCount: u32,
     pDescriptorCopies: *const VkCopyDescriptorSet,
 ) {
-    let write_infos =
-        unsafe { slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _) };
+    let write_infos = slice::from_raw_parts(pDescriptorWrites, descriptorWriteCount as _);
     let writes = write_infos.iter().map(|write| {
         let descriptors = DescriptorIter {
             ty: conv::map_descriptor_type(write.descriptorType),
-            image_infos: unsafe {
-                slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _)
-            }
-            .iter(),
-            buffer_infos: unsafe {
-                slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
-            }
-            .iter(),
-            texel_buffer_views: unsafe {
-                slice::from_raw_parts(write.pTexelBufferView, write.descriptorCount as _)
-            }
+            image_infos: slice::from_raw_parts(write.pImageInfo, write.descriptorCount as _).iter(),
+            buffer_infos: slice::from_raw_parts(write.pBufferInfo, write.descriptorCount as _)
+                .iter(),
+            texel_buffer_views: slice::from_raw_parts(
+                write.pTexelBufferView,
+                write.descriptorCount as _,
+            )
             .iter(),
         };
         pso::DescriptorSetWrite {
@@ -3071,7 +2940,7 @@ pub extern "C" fn gfxUpdateDescriptorSets(
         }
     });
 
-    let copies = unsafe { slice::from_raw_parts(pDescriptorCopies, descriptorCopyCount as _) }
+    let copies = slice::from_raw_parts(pDescriptorCopies, descriptorCopyCount as _)
         .iter()
         .map(|copy| pso::DescriptorSetCopy {
             src_set: &*copy.srcSet,
@@ -3083,27 +2952,24 @@ pub extern "C" fn gfxUpdateDescriptorSets(
             count: copy.descriptorCount as _,
         });
 
-    unsafe {
-        gpu.device.write_descriptor_sets(writes);
-        gpu.device.copy_descriptor_sets(copies);
-    }
+    gpu.device.write_descriptor_sets(writes);
+    gpu.device.copy_descriptor_sets(copies);
 }
 #[inline]
-pub extern "C" fn gfxCreateFramebuffer(
+pub unsafe extern "C" fn gfxCreateFramebuffer(
     gpu: VkDevice,
     pCreateInfo: *const VkFramebufferCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pFramebuffer: *mut VkFramebuffer,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     let extent = hal::image::Extent {
         width: info.width,
         height: info.height,
         depth: info.layers,
     };
 
-    let attachments_slice =
-        unsafe { slice::from_raw_parts(info.pAttachments, info.attachmentCount as _) };
+    let attachments_slice = slice::from_raw_parts(info.pAttachments, info.attachmentCount as _);
     let framebuffer = if attachments_slice
         .iter()
         .any(|attachment| match **attachment {
@@ -3118,43 +2984,40 @@ pub extern "C" fn gfxCreateFramebuffer(
         let attachments = attachments_slice
             .iter()
             .map(|attachment| attachment.as_native().unwrap());
-        Framebuffer::Native(unsafe {
+        Framebuffer::Native(
             gpu.device
                 .create_framebuffer(&*info.renderPass, attachments, extent)
-                .unwrap()
-        })
+                .unwrap(),
+        )
     };
 
-    unsafe { *pFramebuffer = Handle::new(framebuffer) };
+    *pFramebuffer = Handle::new(framebuffer);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyFramebuffer(
+pub unsafe extern "C" fn gfxDestroyFramebuffer(
     gpu: VkDevice,
     framebuffer: VkFramebuffer,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(fbo) = framebuffer.unbox() {
         match fbo {
-            Framebuffer::Native(raw) => unsafe {
-                gpu.device.destroy_framebuffer(raw);
-            },
-            Framebuffer::Lazy { .. } => {}
+            Framebuffer::Native(raw) => gpu.device.destroy_framebuffer(raw),
+            Framebuffer::Lazy { .. } => (),
         }
     }
 }
 #[inline]
-pub extern "C" fn gfxCreateRenderPass(
+pub unsafe extern "C" fn gfxCreateRenderPass(
     gpu: VkDevice,
     pCreateInfo: *const VkRenderPassCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
     pRenderPass: *mut VkRenderPass,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
 
     // Attachment descriptions
-    let raw_attachments =
-        unsafe { slice::from_raw_parts(info.pAttachments, info.attachmentCount as _) };
+    let raw_attachments = slice::from_raw_parts(info.pAttachments, info.attachmentCount as _);
     let attachments = raw_attachments.into_iter().map(|attachment| {
         assert_eq!(attachment.flags, 0); // TODO
 
@@ -3177,7 +3040,7 @@ pub extern "C" fn gfxCreateRenderPass(
     });
 
     // Subpass descriptions
-    let subpasses_raw = unsafe { slice::from_raw_parts(info.pSubpasses, info.subpassCount as _) };
+    let subpasses_raw = slice::from_raw_parts(info.pSubpasses, info.subpassCount as _);
 
     // Store all attachment references, referenced by the subpasses.
     let mut attachment_refs = Vec::with_capacity(subpasses_raw.len());
@@ -3197,48 +3060,40 @@ pub extern "C" fn gfxCreateRenderPass(
     }
 
     for subpass in subpasses_raw {
-        let input = unsafe {
+        let input =
             slice::from_raw_parts(subpass.pInputAttachments, subpass.inputAttachmentCount as _)
                 .into_iter()
                 .map(map_attachment_ref)
-                .collect()
-        };
-        let color = unsafe {
+                .collect();
+        let color =
             slice::from_raw_parts(subpass.pColorAttachments, subpass.colorAttachmentCount as _)
                 .into_iter()
                 .map(map_attachment_ref)
-                .collect()
-        };
+                .collect();
         let resolve = if subpass.pResolveAttachments.is_null() {
             Vec::new()
         } else {
-            unsafe {
-                slice::from_raw_parts(
-                    subpass.pResolveAttachments,
-                    subpass.colorAttachmentCount as _,
-                )
-                .into_iter()
-                .map(map_attachment_ref)
-                .collect()
-            }
-        };
-        let depth_stencil = unsafe {
-            subpass
-                .pDepthStencilAttachment
-                .as_ref()
-                .map(map_attachment_ref)
-                .filter(|ds| ds.0 as c_int != VK_ATTACHMENT_UNUSED)
-        };
-
-        let preserve = unsafe {
             slice::from_raw_parts(
-                subpass.pPreserveAttachments,
-                subpass.preserveAttachmentCount as _,
+                subpass.pResolveAttachments,
+                subpass.colorAttachmentCount as _,
             )
             .into_iter()
-            .map(|id| *id as usize)
-            .collect::<Vec<_>>()
+            .map(map_attachment_ref)
+            .collect()
         };
+        let depth_stencil = subpass
+            .pDepthStencilAttachment
+            .as_ref()
+            .map(map_attachment_ref)
+            .filter(|ds| ds.0 as c_int != VK_ATTACHMENT_UNUSED);
+
+        let preserve = slice::from_raw_parts(
+            subpass.pPreserveAttachments,
+            subpass.preserveAttachmentCount as _,
+        )
+        .into_iter()
+        .map(|id| *id as usize)
+        .collect::<Vec<_>>();
 
         attachment_refs.push(AttachmentRefs {
             input,
@@ -3260,8 +3115,7 @@ pub extern "C" fn gfxCreateRenderPass(
         });
 
     // Subpass dependencies
-    let dependencies =
-        unsafe { slice::from_raw_parts(info.pDependencies, info.dependencyCount as _) };
+    let dependencies = slice::from_raw_parts(info.pDependencies, info.dependencyCount as _);
 
     fn map_subpass_ref(subpass: u32) -> Option<pass::SubpassId> {
         if subpass == VK_SUBPASS_EXTERNAL as u32 {
@@ -3293,34 +3147,30 @@ pub extern "C" fn gfxCreateRenderPass(
         }
     });
 
-    let render_pass = match unsafe {
-        gpu.device
-            .create_render_pass(attachments, subpasses, dependencies)
-    } {
+    let render_pass = match gpu
+        .device
+        .create_render_pass(attachments, subpasses, dependencies)
+    {
         Ok(raw) => raw,
         Err(oom) => return map_oom(oom),
     };
 
-    unsafe {
-        *pRenderPass = Handle::new(render_pass);
-    }
+    *pRenderPass = Handle::new(render_pass);
 
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxDestroyRenderPass(
+pub unsafe extern "C" fn gfxDestroyRenderPass(
     gpu: VkDevice,
     renderPass: VkRenderPass,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(rp) = renderPass.unbox() {
-        unsafe {
-            gpu.device.destroy_render_pass(rp);
-        }
+        gpu.device.destroy_render_pass(rp);
     }
 }
 #[inline]
-pub extern "C" fn gfxGetRenderAreaGranularity(
+pub unsafe extern "C" fn gfxGetRenderAreaGranularity(
     _gpu: VkDevice,
     _renderPass: VkRenderPass,
     pGranularity: *mut VkExtent2D,
@@ -3329,11 +3179,11 @@ pub extern "C" fn gfxGetRenderAreaGranularity(
         width: 1,
         height: 1,
     }; //TODO?
-    unsafe { *pGranularity = granularity };
+    *pGranularity = granularity;
 }
 
 #[inline]
-pub extern "C" fn gfxCreateCommandPool(
+pub unsafe extern "C" fn gfxCreateCommandPool(
     gpu: VkDevice,
     pCreateInfo: *const VkCommandPoolCreateInfo,
     _pAllocator: *const VkAllocationCallbacks,
@@ -3341,7 +3191,7 @@ pub extern "C" fn gfxCreateCommandPool(
 ) -> VkResult {
     use hal::pool::CommandPoolCreateFlags;
 
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     let family = queue::QueueFamilyId(info.queueFamilyIndex as _);
 
     let mut flags = CommandPoolCreateFlags::empty();
@@ -3356,18 +3206,18 @@ pub extern "C" fn gfxCreateCommandPool(
     }
 
     let pool = CommandPool {
-        pool: match unsafe { gpu.device.create_command_pool(family, flags) } {
+        pool: match gpu.device.create_command_pool(family, flags) {
             Ok(pool) => pool,
             Err(oom) => return map_oom(oom),
         },
         buffers: Vec::new(),
     };
-    unsafe { *pCommandPool = Handle::new(pool) };
+    *pCommandPool = Handle::new(pool);
     VkResult::VK_SUCCESS
 }
 
 #[inline]
-pub extern "C" fn gfxDestroyCommandPool(
+pub unsafe extern "C" fn gfxDestroyCommandPool(
     gpu: VkDevice,
     commandPool: VkCommandPool,
     _pAllocator: *const VkAllocationCallbacks,
@@ -3376,14 +3226,12 @@ pub extern "C" fn gfxDestroyCommandPool(
         for cmd_buf in cp.buffers {
             let _ = cmd_buf.unbox();
         }
-        unsafe {
-            gpu.device.destroy_command_pool(cp.pool);
-        }
+        gpu.device.destroy_command_pool(cp.pool);
     }
 }
 
 #[inline]
-pub extern "C" fn gfxResetCommandPool(
+pub unsafe extern "C" fn gfxResetCommandPool(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
     flags: VkCommandPoolResetFlags,
@@ -3391,29 +3239,26 @@ pub extern "C" fn gfxResetCommandPool(
     let release = (flags
         & VkCommandPoolResetFlagBits::VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT as u32)
         != 0;
-    unsafe {
-        commandPool.pool.reset(release);
-    }
+    commandPool.pool.reset(release);
     VkResult::VK_SUCCESS
 }
 
 #[inline]
-pub extern "C" fn gfxAllocateCommandBuffers(
+pub unsafe extern "C" fn gfxAllocateCommandBuffers(
     _gpu: VkDevice,
     pAllocateInfo: *const VkCommandBufferAllocateInfo,
     pCommandBuffers: *mut VkCommandBuffer,
 ) -> VkResult {
-    let info = unsafe { &mut *(pAllocateInfo as *mut VkCommandBufferAllocateInfo) };
+    let info = &mut *(pAllocateInfo as *mut VkCommandBufferAllocateInfo);
     let level = match info.level {
         VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_PRIMARY => com::Level::Primary,
         VkCommandBufferLevel::VK_COMMAND_BUFFER_LEVEL_SECONDARY => com::Level::Secondary,
         level => panic!("Unexpected command buffer lvel: {:?}", level),
     };
 
-    let output =
-        unsafe { slice::from_raw_parts_mut(pCommandBuffers, info.commandBufferCount as usize) };
+    let output = slice::from_raw_parts_mut(pCommandBuffers, info.commandBufferCount as usize);
     for out in output.iter_mut() {
-        let cmd_buf = unsafe { info.commandPool.pool.allocate_one(level) };
+        let cmd_buf = info.commandPool.pool.allocate_one(level);
         *out = DispatchHandle::new(cmd_buf);
     }
     info.commandPool.buffers.extend_from_slice(output);
@@ -3422,28 +3267,26 @@ pub extern "C" fn gfxAllocateCommandBuffers(
 }
 
 #[inline]
-pub extern "C" fn gfxFreeCommandBuffers(
+pub unsafe extern "C" fn gfxFreeCommandBuffers(
     _gpu: VkDevice,
     mut commandPool: VkCommandPool,
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    let slice = unsafe { slice::from_raw_parts(pCommandBuffers, commandBufferCount as _) };
+    let slice = slice::from_raw_parts(pCommandBuffers, commandBufferCount as _);
     commandPool.buffers.retain(|buf| !slice.contains(buf));
 
     let buffers = slice.iter().filter_map(|buffer| buffer.unbox());
-    unsafe {
-        commandPool.pool.free(buffers);
-    }
+    commandPool.pool.free(buffers);
 }
 
 #[inline]
-pub extern "C" fn gfxBeginCommandBuffer(
+pub unsafe extern "C" fn gfxBeginCommandBuffer(
     mut commandBuffer: VkCommandBuffer,
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
-    let info = unsafe { &*pBeginInfo };
-    let inheritance = match unsafe { info.pInheritanceInfo.as_ref() } {
+    let info = &*pBeginInfo;
+    let inheritance = match info.pInheritanceInfo.as_ref() {
         Some(ii) => com::CommandBufferInheritanceInfo {
             subpass: ii.renderPass.as_ref().map(|rp| pass::Subpass {
                 main_pass: &*rp,
@@ -3459,145 +3302,119 @@ pub extern "C" fn gfxBeginCommandBuffer(
         },
         None => com::CommandBufferInheritanceInfo::default(),
     };
-    unsafe {
-        commandBuffer.begin(conv::map_cmd_buffer_usage(info.flags), inheritance);
-    }
+    commandBuffer.begin(conv::map_cmd_buffer_usage(info.flags), inheritance);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxEndCommandBuffer(mut commandBuffer: VkCommandBuffer) -> VkResult {
-    unsafe {
-        commandBuffer.finish();
-    }
+pub unsafe extern "C" fn gfxEndCommandBuffer(mut commandBuffer: VkCommandBuffer) -> VkResult {
+    commandBuffer.finish();
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxResetCommandBuffer(
+pub unsafe extern "C" fn gfxResetCommandBuffer(
     mut commandBuffer: VkCommandBuffer,
     flags: VkCommandBufferResetFlags,
 ) -> VkResult {
     let release_resources = flags
         & VkCommandBufferResetFlagBits::VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT as u32
         != 0;
-    unsafe {
-        commandBuffer.reset(release_resources);
-    }
+    commandBuffer.reset(release_resources);
     VkResult::VK_SUCCESS
 }
 #[inline]
-pub extern "C" fn gfxCmdBindPipeline(
+pub unsafe extern "C" fn gfxCmdBindPipeline(
     mut commandBuffer: VkCommandBuffer,
     _pipelineBindPoint: VkPipelineBindPoint, // ignore, needs to match by spec
     pipeline: VkPipeline,
 ) {
     match *pipeline {
-        Pipeline::Graphics(ref pipeline) => unsafe {
-            commandBuffer.bind_graphics_pipeline(pipeline)
-        },
-        Pipeline::Compute(ref pipeline) => unsafe { commandBuffer.bind_compute_pipeline(pipeline) },
+        Pipeline::Graphics(ref pipeline) => commandBuffer.bind_graphics_pipeline(pipeline),
+        Pipeline::Compute(ref pipeline) => commandBuffer.bind_compute_pipeline(pipeline),
     }
 }
 #[inline]
-pub extern "C" fn gfxCmdSetViewport(
+pub unsafe extern "C" fn gfxCmdSetViewport(
     mut commandBuffer: VkCommandBuffer,
     firstViewport: u32,
     viewportCount: u32,
     pViewports: *const VkViewport,
 ) {
-    unsafe {
-        let viewports = slice::from_raw_parts(pViewports, viewportCount as _)
-            .into_iter()
-            .map(conv::map_viewport);
-        commandBuffer.set_viewports(firstViewport, viewports);
-    }
+    let viewports = slice::from_raw_parts(pViewports, viewportCount as _)
+        .into_iter()
+        .map(conv::map_viewport);
+    commandBuffer.set_viewports(firstViewport, viewports);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetScissor(
+pub unsafe extern "C" fn gfxCmdSetScissor(
     mut commandBuffer: VkCommandBuffer,
     firstScissor: u32,
     scissorCount: u32,
     pScissors: *const VkRect2D,
 ) {
-    unsafe {
-        let scissors = slice::from_raw_parts(pScissors, scissorCount as _)
-            .into_iter()
-            .map(conv::map_rect);
-        commandBuffer.set_scissors(firstScissor, scissors);
-    }
+    let scissors = slice::from_raw_parts(pScissors, scissorCount as _)
+        .into_iter()
+        .map(conv::map_rect);
+    commandBuffer.set_scissors(firstScissor, scissors);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetLineWidth(mut commandBuffer: VkCommandBuffer, lineWidth: f32) {
-    unsafe {
-        commandBuffer.set_line_width(lineWidth);
-    }
+pub unsafe extern "C" fn gfxCmdSetLineWidth(mut commandBuffer: VkCommandBuffer, lineWidth: f32) {
+    commandBuffer.set_line_width(lineWidth);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetDepthBias(
+pub unsafe extern "C" fn gfxCmdSetDepthBias(
     mut commandBuffer: VkCommandBuffer,
     depthBiasConstantFactor: f32,
     depthBiasClamp: f32,
     depthBiasSlopeFactor: f32,
 ) {
-    unsafe {
-        commandBuffer.set_depth_bias(pso::DepthBias {
-            const_factor: depthBiasConstantFactor,
-            clamp: depthBiasClamp,
-            slope_factor: depthBiasSlopeFactor,
-        });
-    }
+    commandBuffer.set_depth_bias(pso::DepthBias {
+        const_factor: depthBiasConstantFactor,
+        clamp: depthBiasClamp,
+        slope_factor: depthBiasSlopeFactor,
+    });
 }
 #[inline]
-pub extern "C" fn gfxCmdSetBlendConstants(
+pub unsafe extern "C" fn gfxCmdSetBlendConstants(
     mut commandBuffer: VkCommandBuffer,
     blendConstants: *const f32,
 ) {
-    unsafe {
-        let value = *(blendConstants as *const pso::ColorValue);
-        commandBuffer.set_blend_constants(value);
-    }
+    let value = *(blendConstants as *const pso::ColorValue);
+    commandBuffer.set_blend_constants(value);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetDepthBounds(
+pub unsafe extern "C" fn gfxCmdSetDepthBounds(
     mut commandBuffer: VkCommandBuffer,
     minDepthBounds: f32,
     maxDepthBounds: f32,
 ) {
-    unsafe {
-        commandBuffer.set_depth_bounds(minDepthBounds..maxDepthBounds);
-    }
+    commandBuffer.set_depth_bounds(minDepthBounds..maxDepthBounds);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetStencilCompareMask(
+pub unsafe extern "C" fn gfxCmdSetStencilCompareMask(
     mut commandBuffer: VkCommandBuffer,
     faceMask: VkStencilFaceFlags,
     compareMask: u32,
 ) {
-    unsafe {
-        commandBuffer.set_stencil_read_mask(conv::map_stencil_face(faceMask), compareMask);
-    }
+    commandBuffer.set_stencil_read_mask(conv::map_stencil_face(faceMask), compareMask);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetStencilWriteMask(
+pub unsafe extern "C" fn gfxCmdSetStencilWriteMask(
     mut commandBuffer: VkCommandBuffer,
     faceMask: VkStencilFaceFlags,
     writeMask: u32,
 ) {
-    unsafe {
-        commandBuffer.set_stencil_write_mask(conv::map_stencil_face(faceMask), writeMask);
-    }
+    commandBuffer.set_stencil_write_mask(conv::map_stencil_face(faceMask), writeMask);
 }
 #[inline]
-pub extern "C" fn gfxCmdSetStencilReference(
+pub unsafe extern "C" fn gfxCmdSetStencilReference(
     mut commandBuffer: VkCommandBuffer,
     faceMask: VkStencilFaceFlags,
     reference: u32,
 ) {
-    unsafe {
-        commandBuffer.set_stencil_reference(conv::map_stencil_face(faceMask), reference);
-    }
+    commandBuffer.set_stencil_reference(conv::map_stencil_face(faceMask), reference);
 }
 #[inline]
-pub extern "C" fn gfxCmdBindDescriptorSets(
+pub unsafe extern "C" fn gfxCmdBindDescriptorSets(
     mut commandBuffer: VkCommandBuffer,
     pipelineBindPoint: VkPipelineBindPoint,
     layout: VkPipelineLayout,
@@ -3607,86 +3424,66 @@ pub extern "C" fn gfxCmdBindDescriptorSets(
     dynamicOffsetCount: u32,
     pDynamicOffsets: *const u32,
 ) {
-    let descriptor_sets = unsafe {
-        slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
-            .into_iter()
-            .map(|set| &**set)
-    };
-    let offsets = unsafe { slice::from_raw_parts(pDynamicOffsets, dynamicOffsetCount as _) };
+    let descriptor_sets = slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
+        .into_iter()
+        .map(|set| &**set);
+    let offsets = slice::from_raw_parts(pDynamicOffsets, dynamicOffsetCount as _);
 
     match pipelineBindPoint {
-        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => unsafe {
-            commandBuffer.bind_graphics_descriptor_sets(
-                &*layout,
-                firstSet as _,
-                descriptor_sets,
-                offsets,
-            );
-        },
-        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => unsafe {
-            commandBuffer.bind_compute_descriptor_sets(
-                &*layout,
-                firstSet as _,
-                descriptor_sets,
-                offsets,
-            );
-        },
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => commandBuffer
+            .bind_graphics_descriptor_sets(&*layout, firstSet as _, descriptor_sets, offsets),
+        VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_COMPUTE => commandBuffer
+            .bind_compute_descriptor_sets(&*layout, firstSet as _, descriptor_sets, offsets),
         _ => panic!("Unexpected pipeline bind point: {:?}", pipelineBindPoint),
     }
 }
 #[inline]
-pub extern "C" fn gfxCmdBindIndexBuffer(
+pub unsafe extern "C" fn gfxCmdBindIndexBuffer(
     mut commandBuffer: VkCommandBuffer,
     buffer: VkBuffer,
     offset: VkDeviceSize,
     indexType: VkIndexType,
 ) {
-    unsafe {
-        commandBuffer.bind_index_buffer(IndexBufferView {
-            buffer: &*buffer,
-            range: hal::buffer::SubRange { offset, size: None },
-            index_type: conv::map_index_type(indexType),
-        });
-    }
+    commandBuffer.bind_index_buffer(IndexBufferView {
+        buffer: &*buffer,
+        range: hal::buffer::SubRange { offset, size: None },
+        index_type: conv::map_index_type(indexType),
+    });
 }
 
 #[inline]
-pub extern "C" fn gfxCmdBindVertexBuffers(
+pub unsafe extern "C" fn gfxCmdBindVertexBuffers(
     mut commandBuffer: VkCommandBuffer,
     firstBinding: u32,
     bindingCount: u32,
     pBuffers: *const VkBuffer,
     pOffsets: *const VkDeviceSize,
 ) {
-    let buffers = unsafe { slice::from_raw_parts(pBuffers, bindingCount as _) };
-    let offsets = unsafe { slice::from_raw_parts(pOffsets, bindingCount as _) };
+    let buffers = slice::from_raw_parts(pBuffers, bindingCount as _);
+    let offsets = slice::from_raw_parts(pOffsets, bindingCount as _);
 
     let views = buffers
         .into_iter()
         .zip(offsets)
         .map(|(buffer, &offset)| (*buffer, hal::buffer::SubRange { offset, size: None }));
 
-    unsafe {
-        commandBuffer.bind_vertex_buffers(firstBinding, views);
-    }
+    commandBuffer.bind_vertex_buffers(firstBinding, views);
 }
 #[inline]
-pub extern "C" fn gfxCmdDraw(
+pub unsafe extern "C" fn gfxCmdDraw(
     mut commandBuffer: VkCommandBuffer,
     vertexCount: u32,
     instanceCount: u32,
     firstVertex: u32,
     firstInstance: u32,
 ) {
-    unsafe {
-        commandBuffer.draw(
-            firstVertex..firstVertex + vertexCount,
-            firstInstance..firstInstance + instanceCount,
-        );
-    }
+    commandBuffer.draw(
+        firstVertex..firstVertex + vertexCount,
+        firstInstance..firstInstance + instanceCount,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdDrawIndexed(
+pub unsafe extern "C" fn gfxCmdDrawIndexed(
     mut commandBuffer: VkCommandBuffer,
     indexCount: u32,
     instanceCount: u32,
@@ -3694,58 +3491,48 @@ pub extern "C" fn gfxCmdDrawIndexed(
     vertexOffset: i32,
     firstInstance: u32,
 ) {
-    unsafe {
-        commandBuffer.draw_indexed(
-            firstIndex..firstIndex + indexCount,
-            vertexOffset,
-            firstInstance..firstInstance + instanceCount,
-        );
-    }
+    commandBuffer.draw_indexed(
+        firstIndex..firstIndex + indexCount,
+        vertexOffset,
+        firstInstance..firstInstance + instanceCount,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdDrawIndirect(
+pub unsafe extern "C" fn gfxCmdDrawIndirect(
     mut commandBuffer: VkCommandBuffer,
     buffer: VkBuffer,
     offset: VkDeviceSize,
     drawCount: u32,
     stride: u32,
 ) {
-    unsafe {
-        commandBuffer.draw_indirect(&*buffer, offset, drawCount, stride);
-    }
+    commandBuffer.draw_indirect(&*buffer, offset, drawCount, stride);
 }
 #[inline]
-pub extern "C" fn gfxCmdDrawIndexedIndirect(
+pub unsafe extern "C" fn gfxCmdDrawIndexedIndirect(
     mut commandBuffer: VkCommandBuffer,
     buffer: VkBuffer,
     offset: VkDeviceSize,
     drawCount: u32,
     stride: u32,
 ) {
-    unsafe {
-        commandBuffer.draw_indexed_indirect(&*buffer, offset, drawCount, stride);
-    }
+    commandBuffer.draw_indexed_indirect(&*buffer, offset, drawCount, stride);
 }
 #[inline]
-pub extern "C" fn gfxCmdDispatch(
+pub unsafe extern "C" fn gfxCmdDispatch(
     mut commandBuffer: VkCommandBuffer,
     groupCountX: u32,
     groupCountY: u32,
     groupCountZ: u32,
 ) {
-    unsafe {
-        commandBuffer.dispatch([groupCountX, groupCountY, groupCountZ]);
-    }
+    commandBuffer.dispatch([groupCountX, groupCountY, groupCountZ]);
 }
 #[inline]
-pub extern "C" fn gfxCmdDispatchIndirect(
+pub unsafe extern "C" fn gfxCmdDispatchIndirect(
     mut commandBuffer: VkCommandBuffer,
     buffer: VkBuffer,
     offset: VkDeviceSize,
 ) {
-    unsafe {
-        commandBuffer.dispatch_indirect(&*buffer, offset);
-    }
+    commandBuffer.dispatch_indirect(&*buffer, offset);
 }
 #[inline]
 pub unsafe extern "C" fn gfxCmdCopyBuffer(
@@ -4068,24 +3855,20 @@ pub unsafe extern "C" fn gfxCmdResolveImage(
     );
 }
 #[inline]
-pub extern "C" fn gfxCmdSetEvent(
+pub unsafe extern "C" fn gfxCmdSetEvent(
     mut commandBuffer: VkCommandBuffer,
     event: VkEvent,
     stageMask: VkPipelineStageFlags,
 ) {
-    unsafe {
-        commandBuffer.set_event(&event, conv::map_pipeline_stage_flags(stageMask));
-    }
+    commandBuffer.set_event(&event, conv::map_pipeline_stage_flags(stageMask));
 }
 #[inline]
-pub extern "C" fn gfxCmdResetEvent(
+pub unsafe extern "C" fn gfxCmdResetEvent(
     mut commandBuffer: VkCommandBuffer,
     event: VkEvent,
     stageMask: VkPipelineStageFlags,
 ) {
-    unsafe {
-        commandBuffer.reset_event(&event, conv::map_pipeline_stage_flags(stageMask));
-    }
+    commandBuffer.reset_event(&event, conv::map_pipeline_stage_flags(stageMask));
 }
 
 fn make_barriers<'a>(
@@ -4198,7 +3981,7 @@ pub unsafe extern "C" fn gfxCmdPipelineBarrier(
     );
 }
 #[inline]
-pub extern "C" fn gfxCmdBeginQuery(
+pub unsafe extern "C" fn gfxCmdBeginQuery(
     mut commandBuffer: VkCommandBuffer,
     queryPool: VkQueryPool,
     query: u32,
@@ -4208,12 +3991,10 @@ pub extern "C" fn gfxCmdBeginQuery(
         pool: &*queryPool,
         id: query,
     };
-    unsafe {
-        commandBuffer.begin_query(query, conv::map_query_control(flags));
-    }
+    commandBuffer.begin_query(query, conv::map_query_control(flags));
 }
 #[inline]
-pub extern "C" fn gfxCmdEndQuery(
+pub unsafe extern "C" fn gfxCmdEndQuery(
     mut commandBuffer: VkCommandBuffer,
     queryPool: VkQueryPool,
     query: u32,
@@ -4222,23 +4003,19 @@ pub extern "C" fn gfxCmdEndQuery(
         pool: &*queryPool,
         id: query,
     };
-    unsafe {
-        commandBuffer.end_query(query);
-    }
+    commandBuffer.end_query(query);
 }
 #[inline]
-pub extern "C" fn gfxCmdResetQueryPool(
+pub unsafe extern "C" fn gfxCmdResetQueryPool(
     mut commandBuffer: VkCommandBuffer,
     queryPool: VkQueryPool,
     firstQuery: u32,
     queryCount: u32,
 ) {
-    unsafe {
-        commandBuffer.reset_query_pool(&*queryPool, firstQuery..firstQuery + queryCount);
-    }
+    commandBuffer.reset_query_pool(&*queryPool, firstQuery..firstQuery + queryCount);
 }
 #[inline]
-pub extern "C" fn gfxCmdWriteTimestamp(
+pub unsafe extern "C" fn gfxCmdWriteTimestamp(
     mut commandBuffer: VkCommandBuffer,
     pipelineStage: VkPipelineStageFlagBits,
     queryPool: VkQueryPool,
@@ -4248,12 +4025,10 @@ pub extern "C" fn gfxCmdWriteTimestamp(
         pool: &*queryPool,
         id: query,
     };
-    unsafe {
-        commandBuffer.write_timestamp(conv::map_pipeline_stage_flags(pipelineStage as u32), query);
-    }
+    commandBuffer.write_timestamp(conv::map_pipeline_stage_flags(pipelineStage as u32), query);
 }
 #[inline]
-pub extern "C" fn gfxCmdCopyQueryPoolResults(
+pub unsafe extern "C" fn gfxCmdCopyQueryPoolResults(
     mut commandBuffer: VkCommandBuffer,
     queryPool: VkQueryPool,
     firstQuery: u32,
@@ -4263,19 +4038,17 @@ pub extern "C" fn gfxCmdCopyQueryPoolResults(
     stride: VkDeviceSize,
     flags: VkQueryResultFlags,
 ) {
-    unsafe {
-        commandBuffer.copy_query_pool_results(
-            &*queryPool,
-            firstQuery..firstQuery + queryCount,
-            &*dstBuffer,
-            dstOffset,
-            stride,
-            conv::map_query_result(flags),
-        );
-    }
+    commandBuffer.copy_query_pool_results(
+        &*queryPool,
+        firstQuery..firstQuery + queryCount,
+        &*dstBuffer,
+        dstOffset,
+        stride,
+        conv::map_query_result(flags),
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdPushConstants(
+pub unsafe extern "C" fn gfxCmdPushConstants(
     mut commandBuffer: VkCommandBuffer,
     layout: VkPipelineLayout,
     stageFlags: VkShaderStageFlags,
@@ -4284,29 +4057,27 @@ pub extern "C" fn gfxCmdPushConstants(
     pValues: *const c_void,
 ) {
     assert_eq!(size % 4, 0);
-    unsafe {
-        let values = slice::from_raw_parts(pValues as *const u32, size as usize / 4);
+    let values = slice::from_raw_parts(pValues as *const u32, size as usize / 4);
 
-        if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
-            commandBuffer.push_compute_constants(&*layout, offset, values);
-        }
-        if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
-            commandBuffer.push_graphics_constants(
-                &*layout,
-                conv::map_stage_flags(stageFlags),
-                offset,
-                values,
-            );
-        }
+    if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT as u32 != 0 {
+        commandBuffer.push_compute_constants(&*layout, offset, values);
+    }
+    if stageFlags & VkShaderStageFlagBits::VK_SHADER_STAGE_ALL_GRAPHICS as u32 != 0 {
+        commandBuffer.push_graphics_constants(
+            &*layout,
+            conv::map_stage_flags(stageFlags),
+            offset,
+            values,
+        );
     }
 }
 #[inline]
-pub extern "C" fn gfxCmdBeginRenderPass(
+pub unsafe extern "C" fn gfxCmdBeginRenderPass(
     mut commandBuffer: VkCommandBuffer,
     pRenderPassBegin: *const VkRenderPassBeginInfo,
     contents: VkSubpassContents,
 ) {
-    let info = unsafe { &*pRenderPassBegin };
+    let info = &*pRenderPassBegin;
 
     let render_area = pso::Rect {
         x: info.renderArea.offset.x as _,
@@ -4314,69 +4085,59 @@ pub extern "C" fn gfxCmdBeginRenderPass(
         w: info.renderArea.extent.width as _,
         h: info.renderArea.extent.height as _,
     };
-    let clear_values = unsafe {
-        slice::from_raw_parts(info.pClearValues, info.clearValueCount as _)
-            .into_iter()
-            .map(|cv| {
-                // HAL and Vulkan clear value union sharing same memory representation
-                mem::transmute::<_, com::ClearValue>(*cv)
-            })
-    };
+    let clear_values = slice::from_raw_parts(info.pClearValues, info.clearValueCount as _)
+        .into_iter()
+        .map(|cv| {
+            // HAL and Vulkan clear value union sharing same memory representation
+            mem::transmute::<_, com::ClearValue>(*cv)
+        });
     let contents = conv::map_subpass_contents(contents);
     let framebuffer = info.framebuffer.resolve(info.renderPass);
 
-    unsafe {
-        commandBuffer.begin_render_pass(
-            &*info.renderPass,
-            framebuffer,
-            render_area,
-            clear_values,
-            contents,
-        );
-    }
+    commandBuffer.begin_render_pass(
+        &*info.renderPass,
+        framebuffer,
+        render_area,
+        clear_values,
+        contents,
+    );
 }
 #[inline]
-pub extern "C" fn gfxCmdNextSubpass(
+pub unsafe extern "C" fn gfxCmdNextSubpass(
     mut commandBuffer: VkCommandBuffer,
     contents: VkSubpassContents,
 ) {
-    unsafe {
-        commandBuffer.next_subpass(conv::map_subpass_contents(contents));
-    }
+    commandBuffer.next_subpass(conv::map_subpass_contents(contents));
 }
 #[inline]
-pub extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
-    unsafe {
-        commandBuffer.end_render_pass();
-    }
+pub unsafe extern "C" fn gfxCmdEndRenderPass(mut commandBuffer: VkCommandBuffer) {
+    commandBuffer.end_render_pass();
 }
 #[inline]
-pub extern "C" fn gfxCmdExecuteCommands(
+pub unsafe extern "C" fn gfxCmdExecuteCommands(
     mut commandBuffer: VkCommandBuffer,
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    unsafe {
-        commandBuffer.execute_commands(slice::from_raw_parts(
-            pCommandBuffers,
-            commandBufferCount as _,
-        ));
-    }
+    commandBuffer.execute_commands(slice::from_raw_parts(
+        pCommandBuffers,
+        commandBufferCount as _,
+    ));
 }
 
 #[inline]
-pub extern "C" fn gfxDestroySurfaceKHR(
+pub unsafe extern "C" fn gfxDestroySurfaceKHR(
     instance: VkInstance,
     surface: VkSurfaceKHR,
     _: *const VkAllocationCallbacks,
 ) {
     if let Some(surface) = surface.unbox() {
-        unsafe { instance.backend.destroy_surface(surface) };
+        instance.backend.destroy_surface(surface);
     }
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceSupportKHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     adapter: VkPhysicalDevice,
     queueFamilyIndex: u32,
     surface: VkSurfaceKHR,
@@ -4384,12 +4145,12 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceSupportKHR(
 ) -> VkResult {
     let family = &adapter.queue_families[queueFamilyIndex as usize];
     let supports = surface.supports_queue_family(family);
-    unsafe { *pSupported = supports as _ };
+    *pSupported = supports as _;
     VkResult::VK_SUCCESS
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
@@ -4417,22 +4178,22 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
         supportedUsageFlags: VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as _,
     };
 
-    unsafe { *pSurfaceCapabilities = output };
+    *pSurfaceCapabilities = output;
     VkResult::VK_SUCCESS
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2KHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2KHR(
     adapter: VkPhysicalDevice,
     pSurfaceInfo: *const VkPhysicalDeviceSurfaceInfo2KHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilities2KHR,
 ) -> VkResult {
-    let surface = unsafe { (*pSurfaceInfo).surface };
+    let surface = (*pSurfaceInfo).surface;
     let mut ptr = pSurfaceCapabilities as *const VkStructureType;
     while !ptr.is_null() {
-        ptr = match unsafe { *ptr } {
+        ptr = match *ptr {
             VkStructureType::VK_STRUCTURE_TYPE_SURFACE_CAPABILITIES_2_KHR => {
-                let data = unsafe { (ptr as *mut VkSurfaceCapabilities2KHR).as_mut().unwrap() };
+                let data = (ptr as *mut VkSurfaceCapabilities2KHR).as_mut().unwrap();
                 gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
                     adapter,
                     surface,
@@ -4442,7 +4203,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2KHR(
             }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
-                unsafe { (ptr as *const VkBaseStruct).as_ref().unwrap() }.pNext
+                (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
             }
         } as *const VkStructureType;
     }
@@ -4450,7 +4211,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2KHR(
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pSurfaceFormatCount: *mut u32,
@@ -4463,12 +4224,11 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
 
     if pSurfaceFormats.is_null() {
         // Return only the number of formats
-        unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+        *pSurfaceFormatCount = formats.len() as u32;
     } else {
-        let output =
-            unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
+        let output = slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize);
         if output.len() > formats.len() {
-            unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+            *pSurfaceFormatCount = formats.len() as u32;
         }
         for (out, format) in output.iter_mut().zip(formats) {
             *out = VkSurfaceFormatKHR {
@@ -4482,25 +4242,25 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormats2KHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceFormats2KHR(
     adapter: VkPhysicalDevice,
     pSurfaceInfo: *const VkPhysicalDeviceSurfaceInfo2KHR,
     pSurfaceFormatCount: *mut u32,
     pSurfaceFormats: *mut VkSurfaceFormat2KHR,
 ) -> VkResult {
-    let formats = unsafe { (*pSurfaceInfo).surface }
+    let formats = (*pSurfaceInfo)
+        .surface
         .supported_formats(&adapter.physical_device)
         .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
         .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
 
     if pSurfaceFormats.is_null() {
         // Return only the number of formats
-        unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+        *pSurfaceFormatCount = formats.len() as u32;
     } else {
-        let output =
-            unsafe { slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize) };
+        let output = slice::from_raw_parts_mut(pSurfaceFormats, *pSurfaceFormatCount as usize);
         if output.len() > formats.len() {
-            unsafe { *pSurfaceFormatCount = formats.len() as u32 };
+            *pSurfaceFormatCount = formats.len() as u32;
         }
         for (out, format) in output.iter_mut().zip(formats) {
             out.surfaceFormat = VkSurfaceFormatKHR {
@@ -4514,7 +4274,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceFormats2KHR(
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     adapter: VkPhysicalDevice,
     surface: VkSurfaceKHR,
     pPresentModeCount: *mut u32,
@@ -4526,12 +4286,12 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
 
     // If NULL, number of present modes is returned.
     if pPresentModes.is_null() {
-        unsafe { *pPresentModeCount = num_present_modes };
+        *pPresentModeCount = num_present_modes;
         return VkResult::VK_SUCCESS;
     }
 
-    let num_output = unsafe { *pPresentModeCount };
-    let output = unsafe { slice::from_raw_parts_mut(pPresentModes, num_output as _) };
+    let num_output = *pPresentModeCount;
+    let output = slice::from_raw_parts_mut(pPresentModes, num_output as _);
     let (code, count) = if num_output < num_present_modes {
         (VkResult::VK_INCOMPLETE, num_output)
     } else {
@@ -4542,17 +4302,17 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     for i in 0..PresentMode::all().bits().count_ones() {
         let present_mode = PresentMode::from_bits_truncate(1 << i);
         if present_modes.contains(present_mode) {
-            output[out_idx] = unsafe { mem::transmute(i) };
+            output[out_idx] = mem::transmute(i);
             out_idx += 1;
         }
     }
 
-    unsafe { *pPresentModeCount = count };
+    *pPresentModeCount = count;
     code
 }
 
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceWin32PresentationSupportKHR(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceWin32PresentationSupportKHR(
     _adapter: VkPhysicalDevice,
     _queueFamilyIndex: u32,
 ) -> VkBool32 {
@@ -4560,13 +4320,13 @@ pub extern "C" fn gfxGetPhysicalDeviceWin32PresentationSupportKHR(
 }
 
 #[inline]
-pub extern "C" fn gfxCreateSwapchainKHR(
+pub unsafe extern "C" fn gfxCreateSwapchainKHR(
     gpu: VkDevice,
     pCreateInfo: *const VkSwapchainCreateInfoKHR,
     _pAllocator: *const VkAllocationCallbacks,
     pSwapchain: *mut VkSwapchainKHR,
 ) -> VkResult {
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     // TODO: more checks
     assert_eq!(info.clipped, VK_TRUE); // TODO
     assert_eq!(
@@ -4588,12 +4348,12 @@ pub extern "C" fn gfxCreateSwapchainKHR(
         image_usage: hal::image::Usage::COLOR_ATTACHMENT,
     };
 
-    match unsafe {
-        info.surface
-            .as_mut()
-            .unwrap()
-            .configure_swapchain(&gpu.device, config)
-    } {
+    match info
+        .surface
+        .as_mut()
+        .unwrap()
+        .configure_swapchain(&gpu.device, config)
+    {
         Ok(()) => {
             let swapchain = Swapchain {
                 gpu,
@@ -4603,7 +4363,7 @@ pub extern "C" fn gfxCreateSwapchainKHR(
                 active: None,
                 lazy_framebuffers: Vec::with_capacity(1),
             };
-            unsafe { *pSwapchain = Handle::new(swapchain) };
+            *pSwapchain = Handle::new(swapchain);
             VkResult::VK_SUCCESS
         }
         Err(err) => {
@@ -4620,17 +4380,17 @@ pub extern "C" fn gfxCreateSwapchainKHR(
     }
 }
 #[inline]
-pub extern "C" fn gfxDestroySwapchainKHR(
+pub unsafe extern "C" fn gfxDestroySwapchainKHR(
     gpu: VkDevice,
     swapchain: VkSwapchainKHR,
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(mut sc) = swapchain.unbox() {
-        unsafe { sc.surface.unconfigure_swapchain(&gpu.device) };
+        sc.surface.unconfigure_swapchain(&gpu.device);
     }
 }
 #[inline]
-pub extern "C" fn gfxGetSwapchainImagesKHR(
+pub unsafe extern "C" fn gfxGetSwapchainImagesKHR(
     _gpu: VkDevice,
     swapchain: VkSwapchainKHR,
     pSwapchainImageCount: *mut u32,
@@ -4638,7 +4398,7 @@ pub extern "C" fn gfxGetSwapchainImagesKHR(
 ) -> VkResult {
     debug_assert!(!pSwapchainImageCount.is_null());
 
-    let swapchain_image_count = unsafe { &mut *pSwapchainImageCount };
+    let swapchain_image_count = &mut *pSwapchainImageCount;
     let available_images = swapchain.count as u32;
 
     if pSwapchainImages.is_null() {
@@ -4648,10 +4408,8 @@ pub extern "C" fn gfxGetSwapchainImagesKHR(
         *swapchain_image_count = available_images.min(*swapchain_image_count);
 
         for frame in 0..*swapchain_image_count as u8 {
-            unsafe {
-                *pSwapchainImages.offset(frame as isize) =
-                    Handle::new(Image::SwapchainFrame { swapchain, frame });
-            };
+            *pSwapchainImages.offset(frame as isize) =
+                Handle::new(Image::SwapchainFrame { swapchain, frame });
         }
 
         if *swapchain_image_count < available_images {
@@ -4663,21 +4421,21 @@ pub extern "C" fn gfxGetSwapchainImagesKHR(
 }
 
 #[inline]
-pub extern "C" fn gfxCmdProcessCommandsNVX(
+pub unsafe extern "C" fn gfxCmdProcessCommandsNVX(
     _commandBuffer: VkCommandBuffer,
     _pProcessCommandsInfo: *const VkCmdProcessCommandsInfoNVX,
 ) {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCmdReserveSpaceForCommandsNVX(
+pub unsafe extern "C" fn gfxCmdReserveSpaceForCommandsNVX(
     _commandBuffer: VkCommandBuffer,
     _pReserveSpaceInfo: *const VkCmdReserveSpaceForCommandsInfoNVX,
 ) {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCreateIndirectCommandsLayoutNVX(
+pub unsafe extern "C" fn gfxCreateIndirectCommandsLayoutNVX(
     _gpu: VkDevice,
     _pCreateInfo: *const VkIndirectCommandsLayoutCreateInfoNVX,
     _pAllocator: *const VkAllocationCallbacks,
@@ -4686,7 +4444,7 @@ pub extern "C" fn gfxCreateIndirectCommandsLayoutNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxDestroyIndirectCommandsLayoutNVX(
+pub unsafe extern "C" fn gfxDestroyIndirectCommandsLayoutNVX(
     _gpu: VkDevice,
     _indirectCommandsLayout: VkIndirectCommandsLayoutNVX,
     _pAllocator: *const VkAllocationCallbacks,
@@ -4694,7 +4452,7 @@ pub extern "C" fn gfxDestroyIndirectCommandsLayoutNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCreateObjectTableNVX(
+pub unsafe extern "C" fn gfxCreateObjectTableNVX(
     _gpu: VkDevice,
     _pCreateInfo: *const VkObjectTableCreateInfoNVX,
     _pAllocator: *const VkAllocationCallbacks,
@@ -4703,7 +4461,7 @@ pub extern "C" fn gfxCreateObjectTableNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxDestroyObjectTableNVX(
+pub unsafe extern "C" fn gfxDestroyObjectTableNVX(
     _gpu: VkDevice,
     _objectTable: VkObjectTableNVX,
     _pAllocator: *const VkAllocationCallbacks,
@@ -4711,7 +4469,7 @@ pub extern "C" fn gfxDestroyObjectTableNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxRegisterObjectsNVX(
+pub unsafe extern "C" fn gfxRegisterObjectsNVX(
     _gpu: VkDevice,
     _objectTable: VkObjectTableNVX,
     _objectCount: u32,
@@ -4721,7 +4479,7 @@ pub extern "C" fn gfxRegisterObjectsNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxUnregisterObjectsNVX(
+pub unsafe extern "C" fn gfxUnregisterObjectsNVX(
     _gpu: VkDevice,
     _objectTable: VkObjectTableNVX,
     _objectCount: u32,
@@ -4731,7 +4489,7 @@ pub extern "C" fn gfxUnregisterObjectsNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
     _physicalDevice: VkPhysicalDevice,
     _pFeatures: *mut VkDeviceGeneratedCommandsFeaturesNVX,
     _pLimits: *mut VkDeviceGeneratedCommandsLimitsNVX,
@@ -4739,7 +4497,7 @@ pub extern "C" fn gfxGetPhysicalDeviceGeneratedCommandsPropertiesNVX(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCmdSetViewportWScalingNV(
+pub unsafe extern "C" fn gfxCmdSetViewportWScalingNV(
     _commandBuffer: VkCommandBuffer,
     _firstViewport: u32,
     _viewportCount: u32,
@@ -4748,14 +4506,14 @@ pub extern "C" fn gfxCmdSetViewportWScalingNV(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxReleaseDisplayEXT(
+pub unsafe extern "C" fn gfxReleaseDisplayEXT(
     _physicalDevice: VkPhysicalDevice,
     _display: VkDisplayKHR,
 ) -> VkResult {
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2EXT(
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2EXT(
     _physicalDevice: VkPhysicalDevice,
     _surface: VkSurfaceKHR,
     _pSurfaceCapabilities: *mut VkSurfaceCapabilities2EXT,
@@ -4763,7 +4521,7 @@ pub extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilities2EXT(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxDisplayPowerControlEXT(
+pub unsafe extern "C" fn gfxDisplayPowerControlEXT(
     _gpu: VkDevice,
     _display: VkDisplayKHR,
     _pDisplayPowerInfo: *const VkDisplayPowerInfoEXT,
@@ -4771,7 +4529,7 @@ pub extern "C" fn gfxDisplayPowerControlEXT(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxRegisterDeviceEventEXT(
+pub unsafe extern "C" fn gfxRegisterDeviceEventEXT(
     _gpu: VkDevice,
     _pDeviceEventInfo: *const VkDeviceEventInfoEXT,
     _pAllocator: *const VkAllocationCallbacks,
@@ -4780,7 +4538,7 @@ pub extern "C" fn gfxRegisterDeviceEventEXT(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxRegisterDisplayEventEXT(
+pub unsafe extern "C" fn gfxRegisterDisplayEventEXT(
     _gpu: VkDevice,
     _display: VkDisplayKHR,
     _pDisplayEventInfo: *const VkDisplayEventInfoEXT,
@@ -4790,7 +4548,7 @@ pub extern "C" fn gfxRegisterDisplayEventEXT(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxGetSwapchainCounterEXT(
+pub unsafe extern "C" fn gfxGetSwapchainCounterEXT(
     _gpu: VkDevice,
     _swapchain: VkSwapchainKHR,
     _counter: VkSurfaceCounterFlagBitsEXT,
@@ -4799,7 +4557,7 @@ pub extern "C" fn gfxGetSwapchainCounterEXT(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCmdSetDiscardRectangleEXT(
+pub unsafe extern "C" fn gfxCmdSetDiscardRectangleEXT(
     _commandBuffer: VkCommandBuffer,
     _firstDiscardRectangle: u32,
     _discardRectangleCount: u32,
@@ -4808,33 +4566,29 @@ pub extern "C" fn gfxCmdSetDiscardRectangleEXT(
     unimplemented!()
 }
 #[inline]
-pub extern "C" fn gfxCreateWin32SurfaceKHR(
+pub unsafe extern "C" fn gfxCreateWin32SurfaceKHR(
     instance: VkInstance,
     pCreateInfo: *const VkWin32SurfaceCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     assert!(pAllocator.is_null());
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     #[cfg(all(feature = "gfx-backend-vulkan", target_os = "windows"))]
     {
-        unsafe {
-            assert_eq!(info.flags, 0);
-            *pSurface = Handle::new(
-                instance
-                    .backend
-                    .create_surface_from_hwnd(info.hinstance, info.hwnd),
-            );
-            VkResult::VK_SUCCESS
-        }
+        assert_eq!(info.flags, 0);
+        *pSurface = Handle::new(
+            instance
+                .backend
+                .create_surface_from_hwnd(info.hinstance, info.hwnd),
+        );
+        VkResult::VK_SUCCESS
     }
     #[cfg(any(feature = "gfx-backend-dx12", feature = "gfx-backend-dx11"))]
     {
-        unsafe {
-            assert_eq!(info.flags, 0);
-            *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
-            VkResult::VK_SUCCESS
-        }
+        assert_eq!(info.flags, 0);
+        *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
+        VkResult::VK_SUCCESS
     }
     #[cfg(not(all(
         target_os = "windows",
@@ -4849,25 +4603,23 @@ pub extern "C" fn gfxCreateWin32SurfaceKHR(
         unreachable!()
     }
 }
-pub extern "C" fn gfxCreateXcbSurfaceKHR(
+pub unsafe extern "C" fn gfxCreateXcbSurfaceKHR(
     instance: VkInstance,
     pCreateInfo: *const VkXcbSurfaceCreateInfoKHR,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     assert!(pAllocator.is_null());
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     #[cfg(all(feature = "gfx-backend-vulkan", target_os = "linux"))]
     {
-        unsafe {
-            assert_eq!(info.flags, 0);
-            *pSurface = Handle::new(
-                instance
-                    .backend
-                    .create_surface_from_xcb(info.connection, info.window),
-            );
-            VkResult::VK_SUCCESS
-        }
+        assert_eq!(info.flags, 0);
+        *pSurface = Handle::new(
+            instance
+                .backend
+                .create_surface_from_xcb(info.connection, info.window),
+        );
+        VkResult::VK_SUCCESS
     }
     #[cfg(not(all(feature = "gfx-backend-vulkan", target_os = "linux")))]
     {
@@ -4876,7 +4628,7 @@ pub extern "C" fn gfxCreateXcbSurfaceKHR(
     }
 }
 #[inline]
-pub extern "C" fn gfxAcquireNextImageKHR(
+pub unsafe extern "C" fn gfxAcquireNextImageKHR(
     _gpu: VkDevice,
     mut swapchain: VkSwapchainKHR,
     timeout: u64,
@@ -4897,13 +4649,11 @@ pub extern "C" fn gfxAcquireNextImageKHR(
             swapchain.current_index
         );
     }
-    match unsafe { swapchain.surface.acquire_image(timeout) } {
+    match swapchain.surface.acquire_image(timeout) {
         Ok((frame, suboptimal)) => {
             swapchain.current_index = (swapchain.current_index + 1) % swapchain.count;
             swapchain.active = Some(frame);
-            unsafe {
-                *pImageIndex = swapchain.current_index as u32;
-            }
+            *pImageIndex = swapchain.current_index as u32;
             match suboptimal {
                 Some(_) => VkResult::VK_SUBOPTIMAL_KHR,
                 None => VkResult::VK_SUCCESS,
@@ -4954,16 +4704,16 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
 }
 
 #[inline]
-pub extern "C" fn gfxCreateMetalSurfaceEXT(
+pub unsafe extern "C" fn gfxCreateMetalSurfaceEXT(
     instance: VkInstance,
     pCreateInfo: *const VkMetalSurfaceCreateInfoEXT,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     assert!(pAllocator.is_null());
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     #[cfg(feature = "gfx-backend-metal")]
-    unsafe {
+    {
         assert_eq!(info.flags, 0);
         *pSurface = Handle::new(
             instance
@@ -4980,16 +4730,16 @@ pub extern "C" fn gfxCreateMetalSurfaceEXT(
 }
 
 #[inline]
-pub extern "C" fn gfxCreateMacOSSurfaceMVK(
+pub unsafe extern "C" fn gfxCreateMacOSSurfaceMVK(
     instance: VkInstance,
     pCreateInfo: *const VkMacOSSurfaceCreateInfoMVK,
     pAllocator: *const VkAllocationCallbacks,
     pSurface: *mut VkSurfaceKHR,
 ) -> VkResult {
     assert!(pAllocator.is_null());
-    let info = unsafe { &*pCreateInfo };
+    let info = &*pCreateInfo;
     #[cfg(all(target_os = "macos", feature = "gfx-backend-metal"))]
-    unsafe {
+    {
         assert_eq!(info.flags, 0);
         *pSurface = Handle::new(instance.backend.create_surface_from_nsview(info.pView));
         VkResult::VK_SUCCESS
