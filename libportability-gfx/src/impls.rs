@@ -2344,7 +2344,7 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
         let layout = &*info.layout;
         let subpass = pass::Subpass {
             index: info.subpass as _,
-            main_pass: &*info.renderPass,
+            main_pass: &info.renderPass.raw,
         };
 
         let flags = {
@@ -2976,7 +2976,7 @@ pub unsafe extern "C" fn gfxCreateFramebuffer(
             .map(|attachment| attachment.as_native().unwrap());
         Framebuffer::Native(
             gpu.device
-                .create_framebuffer(&*info.renderPass, attachments, extent)
+                .create_framebuffer(&info.renderPass.raw, attachments, extent)
                 .unwrap(),
         )
     };
@@ -3008,7 +3008,7 @@ pub unsafe extern "C" fn gfxCreateRenderPass(
 
     // Attachment descriptions
     let raw_attachments = slice::from_raw_parts(info.pAttachments, info.attachmentCount as _);
-    let attachments = raw_attachments.into_iter().map(|attachment| {
+    let attachments = raw_attachments.iter().map(|attachment| {
         assert_eq!(attachment.flags, 0); // TODO
 
         let initial_layout = conv::map_image_layout(attachment.initialLayout);
@@ -3137,11 +3137,24 @@ pub unsafe extern "C" fn gfxCreateRenderPass(
         }
     });
 
+    let clear_attachment_mask = attachments
+        .clone()
+        .enumerate()
+        .filter(|(_, at)| {
+            at.ops.load == hal::pass::AttachmentLoadOp::Clear
+                || (at.format.map_or(false, |f| f.is_stencil())
+                    && at.stencil_ops.load == hal::pass::AttachmentLoadOp::Clear)
+        })
+        .fold(0u64, |mask, (i, _)| mask | (1 << i));
+
     let render_pass = match gpu
         .device
         .create_render_pass(attachments, subpasses, dependencies)
     {
-        Ok(raw) => raw,
+        Ok(raw) => RenderPass {
+            raw,
+            clear_attachment_mask,
+        },
         Err(oom) => return map_oom(oom),
     };
 
@@ -3156,7 +3169,7 @@ pub unsafe extern "C" fn gfxDestroyRenderPass(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(rp) = renderPass.unbox() {
-        gpu.device.destroy_render_pass(rp);
+        gpu.device.destroy_render_pass(rp.raw);
     }
 }
 #[inline]
@@ -3279,7 +3292,7 @@ pub unsafe extern "C" fn gfxBeginCommandBuffer(
     let inheritance = match info.pInheritanceInfo.as_ref() {
         Some(ii) => com::CommandBufferInheritanceInfo {
             subpass: ii.renderPass.as_ref().map(|rp| pass::Subpass {
-                main_pass: &*rp,
+                main_pass: &rp.raw,
                 index: ii.subpass as _,
             }),
             framebuffer: ii
@@ -4075,17 +4088,25 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
         w: info.renderArea.extent.width as _,
         h: info.renderArea.extent.height as _,
     };
+    // gfx-hal expects exactly one clear value for an attachment that needs
+    // to be cleared, while Vulkan has gaps.
     let clear_values = slice::from_raw_parts(info.pClearValues, info.clearValueCount as _)
-        .into_iter()
-        .map(|cv| {
-            // HAL and Vulkan clear value union sharing same memory representation
-            mem::transmute::<_, com::ClearValue>(*cv)
-        });
+        .iter()
+        .enumerate()
+        .filter_map(|(i, cv)| {
+            if info.renderPass.clear_attachment_mask & (1 << i) != 0 {
+                // HAL and Vulkan clear value union sharing same memory representation
+                Some(mem::transmute::<_, com::ClearValue>(*cv))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
     let contents = conv::map_subpass_contents(contents);
     let framebuffer = info.framebuffer.resolve(info.renderPass);
 
     commandBuffer.begin_render_pass(
-        &*info.renderPass,
+        &info.renderPass.raw,
         framebuffer,
         render_area,
         clear_values,
