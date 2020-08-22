@@ -106,8 +106,8 @@ pub enum Pipeline<B: hal::Backend> {
 pub enum Image<B: hal::Backend> {
     Native {
         raw: B::Image,
-        mip_levels: u32,
-        array_layers: u32,
+        //mip_levels: u32,
+        //array_layers: u32,
     },
     SwapchainFrame {
         swapchain: VkSwapchainKHR,
@@ -119,64 +119,10 @@ pub enum Image<B: hal::Backend> {
 struct UnexpectedSwapchainImage;
 
 impl<B: hal::Backend> Image<B> {
-    fn to_native(&self) -> Result<NativeImage<B>, UnexpectedSwapchainImage> {
+    fn as_native(&self) -> Result<&B::Image, UnexpectedSwapchainImage> {
         match *self {
-            Image::Native { ref raw, mip_levels, array_layers } =>
-                Ok(NativeImage { raw, mip_levels, array_layers }),
+            Image::Native { ref raw } => Ok(raw),
             Image::SwapchainFrame { .. } => Err(UnexpectedSwapchainImage),
-        }
-    }
-}
-
-struct NativeImage<'a, B: hal::Backend> {
-    raw: &'a B::Image,
-    mip_levels: u32,
-    array_layers: u32,
-}
-
-impl<B: hal::Backend> NativeImage<'_, B> {
-    fn map_subresource(&self, subresource: VkImageSubresource) -> hal::image::Subresource {
-        hal::image::Subresource {
-            aspects: conv::map_aspect(subresource.aspectMask),
-            level: subresource.mipLevel as _,
-            layer: subresource.arrayLayer as _,
-        }
-    }
-
-    fn map_subresource_layers(
-        &self,
-        subresource: VkImageSubresourceLayers,
-    ) -> hal::image::SubresourceLayers {
-        let layer_end = if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
-            self.array_layers
-        } else {
-            subresource.baseArrayLayer + subresource.layerCount
-        };
-        hal::image::SubresourceLayers {
-            aspects: conv::map_aspect(subresource.aspectMask),
-            level: subresource.mipLevel as _,
-            layers: subresource.baseArrayLayer as _..layer_end as _,
-        }
-    }
-
-    fn map_subresource_range(
-        &self,
-        subresource: VkImageSubresourceRange,
-    ) -> hal::image::SubresourceRange {
-        let level_end = if subresource.levelCount == VK_REMAINING_MIP_LEVELS as _ {
-            self.mip_levels
-        } else {
-            subresource.baseMipLevel + subresource.levelCount
-        };
-        let layer_end = if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
-            self.array_layers
-        } else {
-            subresource.baseArrayLayer + subresource.layerCount
-        };
-        hal::image::SubresourceRange {
-            aspects: conv::map_aspect(subresource.aspectMask),
-            levels: subresource.baseMipLevel as _..level_end as _,
-            layers: subresource.baseArrayLayer as _..layer_end as _,
         }
     }
 }
@@ -190,10 +136,10 @@ pub enum ImageView {
 }
 
 impl ImageView {
-    fn to_native(&self) -> Result<&<B as hal::Backend>::ImageView, UnexpectedSwapchainImage> {
+    fn as_native(&self) -> Result<&<B as hal::Backend>::ImageView, UnexpectedSwapchainImage> {
         match *self {
             ImageView::Native(ref raw) => Ok(raw),
-            ImageView::SwapchainFrame {..} => Err(UnexpectedSwapchainImage),
+            ImageView::SwapchainFrame { .. } => Err(UnexpectedSwapchainImage),
         }
     }
 }
@@ -213,24 +159,28 @@ impl Framebuffer {
             Framebuffer::Native(ref fbo) => fbo,
             Framebuffer::Lazy { extent, ref views } => {
                 for view in views {
-                    if let Some(&mut ImageView::SwapchainFrame { ref swapchain, .. }) = view.as_mut() {
+                    if let Some(&mut ImageView::SwapchainFrame { ref swapchain, .. }) =
+                        view.as_mut()
+                    {
                         assert!(sc.is_none());
                         sc = Some(swapchain.as_mut().unwrap());
                     }
                 }
-                let attachments = views
-                    .iter()
-                    .map(|view| match **view {
-                        ImageView::Native(ref raw) => raw,
-                        ImageView::SwapchainFrame { ref swapchain, frame } => {
-                            use std::borrow::Borrow;
-                            debug_assert_eq!(frame, swapchain.current_index);
-                            swapchain.active
-                                .as_ref()
-                                .expect("Swapchain frame isn't acquired")
-                                .borrow()
-                        },
-                    });
+                let attachments = views.iter().map(|view| match **view {
+                    ImageView::Native(ref raw) => raw,
+                    ImageView::SwapchainFrame {
+                        ref swapchain,
+                        frame,
+                    } => {
+                        use std::borrow::Borrow;
+                        debug_assert_eq!(frame, swapchain.current_index);
+                        swapchain
+                            .active
+                            .as_ref()
+                            .expect("Swapchain frame isn't acquired")
+                            .borrow()
+                    }
+                });
 
                 let sc = sc.expect("No swapchain frames detected");
                 let gpu = sc.gpu;

@@ -1,6 +1,6 @@
 use hal::{
-    buffer, command, device, format, image, memory, pass, pso, query, window,
-    pso::PatchSize, pso::Primitive, Features, IndexType, Limits,
+    buffer, command, device, format, image, memory, pass, pso, pso::PatchSize, pso::Primitive,
+    query, window, Features, IndexType, Limits,
 };
 
 use std::mem;
@@ -29,13 +29,18 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         maxPerStageDescriptorStorageBuffers: limits.max_per_stage_descriptor_storage_buffers as _,
         maxPerStageDescriptorSampledImages: limits.max_per_stage_descriptor_sampled_images as _,
         maxPerStageDescriptorStorageImages: limits.max_per_stage_descriptor_storage_images as _,
-        maxPerStageDescriptorInputAttachments: limits.max_per_stage_descriptor_input_attachments as _,
+        maxPerStageDescriptorInputAttachments: limits.max_per_stage_descriptor_input_attachments
+            as _,
         maxPerStageResources: limits.max_per_stage_resources as _,
         maxDescriptorSetSamplers: limits.max_descriptor_set_samplers as _,
         maxDescriptorSetUniformBuffers: limits.max_descriptor_set_uniform_buffers as _,
-        maxDescriptorSetUniformBuffersDynamic: limits.max_descriptor_set_uniform_buffers_dynamic.max(1) as _,
+        maxDescriptorSetUniformBuffersDynamic: limits
+            .max_descriptor_set_uniform_buffers_dynamic
+            .max(1) as _,
         maxDescriptorSetStorageBuffers: limits.max_descriptor_set_storage_buffers as _,
-        maxDescriptorSetStorageBuffersDynamic: limits.max_descriptor_set_storage_buffers_dynamic.max(1) as _,
+        maxDescriptorSetStorageBuffersDynamic: limits
+            .max_descriptor_set_storage_buffers_dynamic
+            .max(1) as _,
         maxDescriptorSetSampledImages: limits.max_descriptor_set_sampled_images as _,
         maxDescriptorSetStorageImages: limits.max_descriptor_set_storage_images as _,
         maxDescriptorSetInputAttachments: limits.max_descriptor_set_input_attachments as _,
@@ -114,7 +119,11 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         pointSizeGranularity: 0.0,
         lineWidthGranularity: 0.0,
         strictLines: 0,
-        standardSampleLocations: if limits.standard_sample_locations { VK_TRUE } else { VK_FALSE },
+        standardSampleLocations: if limits.standard_sample_locations {
+            VK_TRUE
+        } else {
+            VK_FALSE
+        },
         optimalBufferCopyOffsetAlignment: limits.optimal_buffer_copy_offset_alignment,
         optimalBufferCopyRowPitchAlignment: limits.optimal_buffer_copy_pitch_alignment,
         nonCoherentAtomSize: limits.non_coherent_atom_size as _,
@@ -367,15 +376,10 @@ pub fn map_image_kind(
     debug_assert_ne!(array_layers, 0);
     match ty {
         VkImageType::VK_IMAGE_TYPE_1D => image::Kind::D1(extent.width, array_layers),
-        VkImageType::VK_IMAGE_TYPE_2D => image::Kind::D2(
-            extent.width,
-            extent.height,
-            array_layers,
-            samples as _,
-        ),
-        VkImageType::VK_IMAGE_TYPE_3D => {
-            image::Kind::D3(extent.width, extent.height, extent.depth)
+        VkImageType::VK_IMAGE_TYPE_2D => {
+            image::Kind::D2(extent.width, extent.height, array_layers, samples as _)
         }
+        VkImageType::VK_IMAGE_TYPE_3D => image::Kind::D3(extent.width, extent.height, extent.depth),
         _ => unreachable!(),
     }
 }
@@ -966,4 +970,44 @@ pub fn map_query_result(flags: VkQueryResultFlags) -> query::ResultFlags {
 pub fn map_pipeline_statistics(flags: VkQueryPipelineStatisticFlags) -> query::PipelineStatistic {
     // Vulkan and HAL flags are equal
     query::PipelineStatistic::from_bits_truncate(flags)
+}
+
+#[inline]
+pub fn map_subresource(subresource: VkImageSubresource) -> hal::image::Subresource {
+    hal::image::Subresource {
+        aspects: map_aspect(subresource.aspectMask),
+        level: subresource.mipLevel as _,
+        layer: subresource.arrayLayer as _,
+    }
+}
+
+#[inline]
+pub fn map_subresource_layers(
+    subresource: VkImageSubresourceLayers,
+) -> hal::image::SubresourceLayers {
+    hal::image::SubresourceLayers {
+        aspects: map_aspect(subresource.aspectMask),
+        level: subresource.mipLevel as _,
+        layers: subresource.baseArrayLayer as _
+            ..(subresource.baseArrayLayer + subresource.layerCount) as _,
+    }
+}
+
+#[inline]
+pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> hal::image::SubresourceRange {
+    hal::image::SubresourceRange {
+        aspects: map_aspect(subresource.aspectMask),
+        level_start: subresource.baseMipLevel as _,
+        level_count: if subresource.levelCount == VK_REMAINING_MIP_LEVELS as _ {
+            None
+        } else {
+            Some(subresource.levelCount as _)
+        },
+        layer_start: subresource.baseArrayLayer as _,
+        layer_count: if subresource.layerCount == VK_REMAINING_ARRAY_LAYERS as _ {
+            None
+        } else {
+            Some(subresource.layerCount as _)
+        },
+    }
 }
