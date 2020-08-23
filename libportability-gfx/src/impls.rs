@@ -264,6 +264,9 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 if features.contains(hal::Features::SAMPLER_MIP_LOD_BIAS) {
                     data.samplerMipLodBias = VK_TRUE;
                 }
+                if features.contains(hal::Features::MUTABLE_COMPARISON_SAMPLER) {
+                    data.mutableComparisonSamplers = VK_TRUE;
+                }
                 //TODO: turn these into a feature flags
                 if cfg!(feature = "gfx-backend-metal") {
                     data.constantAlphaColorBlendFactors = VK_TRUE;
@@ -2621,7 +2624,7 @@ pub unsafe extern "C" fn gfxCreateSampler(
         } else {
             None
         },
-        border: [0.0; 4].into(), // TODO
+        border: conv::map_border_color(info.borderColor),
         normalized: info.unnormalizedCoordinates == VK_FALSE,
         anisotropy_clamp: if info.anisotropyEnable == VK_TRUE {
             Some(info.maxAnisotropy as _)
