@@ -23,6 +23,7 @@ copyless = "0.1.1"
 env_logger = { version = "0.7", optional = true }
 lazy_static = "1"
 log = { version = "0.4", features = ["release_max_level_error"] }
+parking_lot = "0.11"
 renderdoc = { version = "0.3", optional = true }
 typed-arena = "2"
 
