@@ -1,3 +1,5 @@
+use super::*;
+
 use hal::{
     adapter::PhysicalDevice,
     buffer::IndexBufferView,
@@ -10,6 +12,9 @@ use hal::{
     {command as com, memory, pass, pso, queue}, {Features, Instance},
 };
 
+use parking_lot::Mutex;
+use typed_arena::Arena;
+
 #[cfg(feature = "gfx-backend-metal")]
 use std::env;
 use std::{
@@ -19,9 +24,6 @@ use std::{
     os::raw::{c_int, c_void},
     ptr, str,
 };
-use typed_arena::Arena;
-
-use super::*;
 
 const VERSION: (u32, u32, u32) = (1, 0, 66);
 const DRIVER_VERSION: u32 = 1;
@@ -3292,16 +3294,20 @@ pub unsafe extern "C" fn gfxBeginCommandBuffer(
     pBeginInfo: *const VkCommandBufferBeginInfo,
 ) -> VkResult {
     let info = &*pBeginInfo;
+    let fb_resolve;
     let inheritance = match info.pInheritanceInfo.as_ref() {
         Some(ii) => com::CommandBufferInheritanceInfo {
             subpass: ii.renderPass.as_ref().map(|rp| pass::Subpass {
                 main_pass: &rp.raw,
                 index: ii.subpass as _,
             }),
-            framebuffer: ii
-                .framebuffer
-                .as_ref()
-                .map(|fbo| fbo.resolve(ii.renderPass)),
+            framebuffer: match ii.framebuffer.as_ref() {
+                Some(fbo) => {
+                    fb_resolve = fbo.resolve(ii.renderPass);
+                    Some(&*fb_resolve)
+                }
+                None => None,
+            },
             occlusion_query_enable: ii.occlusionQueryEnable != VK_FALSE,
             occlusion_query_flags: conv::map_query_control(ii.queryFlags),
             pipeline_statistics: conv::map_pipeline_statistics(ii.pipelineStatistics),
@@ -4110,7 +4116,7 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
 
     commandBuffer.begin_render_pass(
         &info.renderPass.raw,
-        framebuffer,
+        &*framebuffer,
         render_area,
         clear_values,
         contents,
@@ -4375,7 +4381,7 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
                 count: info.minImageCount as u8,
                 current_index: 0,
                 active: None,
-                lazy_framebuffers: Vec::with_capacity(1),
+                lazy_framebuffers: Mutex::new(Vec::with_capacity(1)),
             };
             *pSwapchain = Handle::new(swapchain);
             VkResult::VK_SUCCESS
@@ -4709,7 +4715,7 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
         } else {
             warn!("Swapchain frame {} is stale, can't be presented.", *index);
         }
-        for framebuffer in sc.lazy_framebuffers.drain(..) {
+        for framebuffer in sc.lazy_framebuffers.lock().drain(..) {
             sc.gpu.device.destroy_framebuffer(framebuffer)
         }
     }
