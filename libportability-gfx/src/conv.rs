@@ -881,6 +881,25 @@ pub fn map_wrap_mode(mode: VkSamplerAddressMode) -> image::WrapMode {
     }
 }
 
+pub fn map_border_color(border: VkBorderColor) -> image::BorderColor {
+    use super::VkBorderColor::*;
+    match border {
+        VK_BORDER_COLOR_INT_TRANSPARENT_BLACK | VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK => {
+            image::BorderColor::TransparentBlack
+        }
+        VK_BORDER_COLOR_INT_OPAQUE_BLACK | VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK => {
+            image::BorderColor::OpaqueBlack
+        }
+        VK_BORDER_COLOR_INT_OPAQUE_WHITE | VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE => {
+            image::BorderColor::OpaqueWhite
+        }
+        _ => {
+            warn!("Non-covered border color {:?}", border);
+            image::BorderColor::TransparentBlack
+        }
+    }
+}
+
 pub fn map_offset(extent: VkOffset3D) -> image::Offset {
     image::Offset {
         x: extent.x,
