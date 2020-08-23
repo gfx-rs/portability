@@ -231,7 +231,7 @@ dependencies = [
 [[package]]
 name = "gfx-auxil"
 version = "0.5.0"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "fxhash 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx-hal 0.6.0 (git+https://github.com/gfx-rs/gfx)",
@@ -241,7 +241,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx11"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "gfx-auxil 0.5.0 (git+https://github.com/gfx-rs/gfx)",
@@ -260,7 +260,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx12"
 version = "0.6.2"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "d3d12 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -277,7 +277,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-empty"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "gfx-hal 0.6.0 (git+https://github.com/gfx-rs/gfx)",
  "log 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -287,7 +287,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-metal"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -312,7 +312,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-vulkan"
 version = "0.6.1"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ash 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -333,7 +333,7 @@ dependencies = [
 [[package]]
 name = "gfx-hal"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "raw-window-handle 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -670,7 +670,7 @@ dependencies = [
 [[package]]
 name = "range-alloc"
 version = "0.1.1"
-source = "git+https://github.com/gfx-rs/gfx#b373ebe0f057300fff76534afba25b261527db7a"
+source = "git+https://github.com/gfx-rs/gfx#c6fc5d5e95497fc6f7f51d0419cef59440307d78"
 
 [[package]]
 name = "raw-window-handle"

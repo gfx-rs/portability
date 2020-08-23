@@ -3912,8 +3912,8 @@ fn make_barriers<'a>(
             },
         },
     });
-    let images = raw_images.iter().map(|b| {
-        let target = b.image.as_native().unwrap();
+    let images = raw_images.iter().flat_map(|b| {
+        let target = b.image.as_native().ok()?;
         let from = (
             conv::map_image_access(b.srcAccessMask),
             conv::map_image_layout(b.oldLayout),
@@ -3922,12 +3922,12 @@ fn make_barriers<'a>(
             conv::map_image_access(b.dstAccessMask),
             conv::map_image_layout(b.newLayout),
         );
-        memory::Barrier::Image {
+        Some(memory::Barrier::Image {
             states: from..to,
             target,
             range: conv::map_subresource_range(b.subresourceRange),
             families: None,
-        }
+        })
     });
 
     globals.chain(buffers).chain(images).collect()
