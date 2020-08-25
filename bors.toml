@@ -1,4 +1,5 @@
 status = [
-    "continuous-integration/travis-ci/push",
-    "continuous-integration/appveyor/branch"
+    "Ubuntu Nightly",
+    "MacOS Stable",
+    "Windows Stable",
 ]

@@ -1,0 +1,57 @@
+name: Check
+
+on:
+  push:
+    branches-ignore: [staging.tmp]
+  pull_request:
+    branches-ignore: [staging.tmp]
+
+jobs:
+  ios_build:
+    name: iOS Stable
+    runs-on: macos-10.15
+    env:
+      TARGET: aarch64-apple-ios
+    steps:
+      - uses: actions/checkout@v2
+      - run: rustup target add ${{ env.TARGET }}
+      - run: make check-target
+
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-18.04, macos-10.15, windows-2019]
+        channel: [stable, nightly]
+        exclude:
+          - os: ubuntu-18.04
+            channel: stable
+          - os: macos-10.15
+            channel: nightly
+          - os: windows-2019
+            channel: nightly
+        include:
+          - name: Ubuntu Nightly
+            os: ubuntu-18.04
+            channel: nightly
+          - name: MacOS Stable
+            os: macos-10.15
+            channel: stable
+          - name: Windows Stable
+            os: windows-2019
+            channel: stable
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - if: matrix.channel == 'nightly'
+        name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+      - if: matrix.os == 'windows-2019'
+        name: Install make
+        run: choco install make
+      - run: make all

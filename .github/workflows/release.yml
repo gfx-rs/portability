@@ -1,0 +1,37 @@
+on:
+  release:
+    types: [published]
+
+name: Release
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-10.15, windows-2019]
+        include:
+          - name: MacOS Stable
+            os: macos-10.15
+            key: macos
+          - name: Windows Stable
+            os: windows-2019
+            key: windows
+    steps:
+      - uses: actions/checkout@v2
+      - if: matrix.os == 'windows-2019'
+        name: Install make
+        run: choco install make
+      - run: make gfx-portability.zip
+      - name: Upload builds
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: ./gfx-portability.zip
+          asset_name: gfx-portability-${{ matrix.key }}-${{ github.event.release.tag_name }}.zip
+          asset_content_type: application/zip

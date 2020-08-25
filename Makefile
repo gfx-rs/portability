@@ -1,19 +1,19 @@
-VULKAN_DIR=modules/vulkan-docs/src
 CTS_DIR=../VK-GL-CTS
 CHERRY_DIR=../cherry
 BINDING=target/vulkan.rs
 NATIVE_DIR=target/native
 NATIVE_TARGET=$(NATIVE_DIR)/test
 NATIVE_OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
-LIB_EXTENSION=
+LIB_FILE_NAME=
+LIB_VULKAN_NAME=
 TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
 DEQP=cd $(DEQP_DIR) && RUST_LOG=debug LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) ./deqp-vk
 CLINK_ARGS=
-GIT_TAG=$(shell git describe --abbrev=0 --tags)
 GIT_TAG_FULL=$(shell git describe --tags)
 OS_NAME=
+ZIP_COMMAND=
 
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
@@ -29,38 +29,43 @@ DEBUGGER=rust-gdb --args
 GFX_METAL_RECORDING:=immediate
 
 CC=g++
-CFLAGS=-std=c++11 -ggdb -O0 -I$(VULKAN_DIR)
+CFLAGS=-std=c++11 -ggdb -O0 -Iheaders
 DEPS=
 LDFLAGS=
 
 ifeq ($(OS),Windows_NT)
 	LDFLAGS=
 	BACKEND=dx12
-	LIB_EXTENSION=dll
+	LIB_FILE_NAME=portability.dll
+	LIB_VULKAN_NAME=vulkan.dll
 	OS_NAME=windows
+	ZIP_COMMAND=7z a -tzip
 else
 	UNAME_S:=$(shell uname -s)
+	ZIP_COMMAND=zip
 	ifeq ($(UNAME_S),Linux)
 		LDFLAGS=-lpthread -ldl -lm -lX11 -lxcb
 		BACKEND=vulkan
-		LIB_EXTENSION=so
+		LIB_FILE_NAME=libportability.so
+		LIB_VULKAN_NAME=libvulkan.so
 		OS_NAME=linux
 	endif
 	ifeq ($(UNAME_S),Darwin)
 		LDFLAGS=-lpthread -ldl -lm
 		BACKEND=metal
 		DEBUGGER=rust-lldb --
-		LIB_EXTENSION=dylib
+		LIB_FILE_NAME=libportability.dylib
+		LIB_VULKAN_NAME=libvulkan.dylib
 		CLINK_ARGS=-- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 		OS_NAME=macos
 	endif
 endif
 
 FULL_LIBRARY_PATH=$(CURDIR)/target/debug
-LIBRARY=target/debug/libportability.$(LIB_EXTENSION)
-LIBRARY_FAST=target/release/libportability.$(LIB_EXTENSION)
+LIBRARY=target/debug/$(LIB_FILE_NAME)
+LIBRARY_FAST=target/release/$(LIB_FILE_NAME)
 
-.PHONY: all dummy rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl package memcpy-report
+.PHONY: all dummy check-target rebuild debug release version-debug version-release binding run-native cts clean cherry dota-debug dota-release dota-orig dota-bench-gfx dota-bench-orig dota-bench-gl memcpy-report
 
 all: $(NATIVE_TARGET)
 
@@ -80,6 +85,9 @@ version-debug:
 version-release:
 	cargo rustc --release --manifest-path libportability/Cargo.toml --features $(BACKEND) $(CLINK_ARGS)
 
+check-target:
+	cargo check --manifest-path libportability/Cargo.toml --target $(TARGET) --features $(BACKEND)
+	cargo check --manifest-path libportability-icd/Cargo.toml --target $(TARGET) --features $(BACKEND),portability-gfx/env_logger
 
 dota-debug: version-debug $(DOTA_EXE)
 	DYLD_LIBRARY_PATH=$(CURDIR)/target/debug:$(CURDIR)/$(DOTA_DIR) $(DOTA_EXE) $(DOTA_PARAMS)
@@ -116,8 +124,8 @@ endif
 
 binding: $(BINDING)
 
-$(BINDING): $(VULKAN_DIR)/vulkan/*.h
-	bindgen --no-layout-tests --rustfmt-bindings $(VULKAN_DIR)/vulkan/vulkan.h -o $(BINDING)
+$(BINDING): headers/vulkan/*.h
+	bindgen --no-layout-tests --rustfmt-bindings headers/vulkan/vulkan.h -o $(BINDING)
 
 $(LIBRARY): dummy
 	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
@@ -163,16 +171,16 @@ clean:
 	rm -f $(NATIVE_OBJECTS) $(NATIVE_TARGET) $(BINDING)
 	cargo clean
 
-package: version-debug version-release
+gfx-portability.zip: version-debug version-release
 	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
 	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND) --release
 	echo "$(GIT_TAG_FULL)" > commit-sha
-	zip gfx-portability-$(OS_NAME)-$(GIT_TAG).zip target/*/libportability*.$(LIB_EXTENSION) libportability-icd/portability-$(OS_NAME)-*.json commit-sha
+	$(ZIP_COMMAND) gfx-portability.zip target/*/$(LIB_FILE_NAME) libportability-icd/portability-$(OS_NAME)-*.json commit-sha
 
-target/debug/libvulkan.$(LIB_EXTENSION):
-	cd target/debug && ln -sf libportability.$(LIB_EXTENSION) libvulkan.$(LIB_EXTENSION)
+target/debug/$(LIB_VULKAN_NAME):
+	cd target/debug && ln -sf $(LIB_FILE_NAME) $(LIB_VULKAN_NAME)
 
-cherry: $(LIBRARY) target/debug/libvulkan.$(LIB_EXTENSION)
+cherry: $(LIBRARY) $(LIB_VULKAN_NAME)
 	cd $(CHERRY_DIR) && rm -f Cherry.db && RUST_LOG=warn LD_LIBRARY_PATH=$(FULL_LIBRARY_PATH) go run server.go
 
 memcpy-report:
