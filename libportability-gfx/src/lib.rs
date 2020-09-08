@@ -117,7 +117,7 @@ pub enum Image<B: hal::Backend> {
     },
     SwapchainFrame {
         swapchain: VkSwapchainKHR,
-        frame: u8,
+        frame: hal::window::SwapImageIndex,
     },
 }
 
@@ -137,7 +137,7 @@ pub enum ImageView {
     Native(<B as hal::Backend>::ImageView),
     SwapchainFrame {
         swapchain: VkSwapchainKHR,
-        frame: u8,
+        frame: hal::window::SwapImageIndex,
     },
 }
 
@@ -194,11 +194,12 @@ impl Framebuffer {
                         frame,
                     } => {
                         use std::borrow::Borrow;
-                        debug_assert_eq!(frame, swapchain.current_index);
                         swapchain
                             .active
-                            .as_ref()
+                            .iter()
+                            .find(|&&(index, _)| index == frame)
                             .expect("Swapchain frame isn't acquired")
+                            .1
                             .borrow()
                     }
                 });
@@ -246,9 +247,12 @@ pub type VkSwapchainKHR = Handle<Swapchain<B>>;
 pub struct Swapchain<B: hal::Backend> {
     gpu: VkDevice,
     surface: VkSurfaceKHR,
-    count: u8,
-    current_index: u8,
-    active: Option<<B::Surface as hal::window::PresentationSurface<B>>::SwapchainImage>,
+    count: hal::window::SwapImageIndex,
+    current_index: hal::window::SwapImageIndex,
+    active: Vec<(
+        hal::window::SwapImageIndex,
+        <B::Surface as hal::window::PresentationSurface<B>>::SwapchainImage,
+    )>,
     lazy_framebuffers: parking_lot::Mutex<Vec<<B as hal::Backend>::Framebuffer>>,
 }
 
