@@ -4378,9 +4378,9 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
             let swapchain = Swapchain {
                 gpu,
                 surface: info.surface,
-                count: info.minImageCount as u8,
+                count: info.minImageCount,
                 current_index: 0,
-                active: None,
+                active: Vec::new(),
                 lazy_framebuffers: Mutex::new(Vec::with_capacity(1)),
             };
             *pSwapchain = Handle::new(swapchain);
@@ -4419,7 +4419,7 @@ pub unsafe extern "C" fn gfxGetSwapchainImagesKHR(
     debug_assert!(!pSwapchainImageCount.is_null());
 
     let swapchain_image_count = &mut *pSwapchainImageCount;
-    let available_images = swapchain.count as u32;
+    let available_images = swapchain.count;
 
     if pSwapchainImages.is_null() {
         // If NULL the number of presentable images is returned.
@@ -4427,7 +4427,7 @@ pub unsafe extern "C" fn gfxGetSwapchainImagesKHR(
     } else {
         *swapchain_image_count = available_images.min(*swapchain_image_count);
 
-        for frame in 0..*swapchain_image_count as u8 {
+        for frame in 0..*swapchain_image_count {
             *pSwapchainImages.offset(frame as isize) =
                 Handle::new(Image::SwapchainFrame { swapchain, frame });
         }
@@ -4663,17 +4663,12 @@ pub unsafe extern "C" fn gfxAcquireNextImageKHR(
         sem.is_fake = true;
     }
 
-    if let Some(_old_frame) = swapchain.active.take() {
-        warn!(
-            "Swapchain frame {} was not presented!",
-            swapchain.current_index
-        );
-    }
     match swapchain.surface.acquire_image(timeout) {
         Ok((frame, suboptimal)) => {
-            swapchain.current_index = (swapchain.current_index + 1) % swapchain.count;
-            swapchain.active = Some(frame);
-            *pImageIndex = swapchain.current_index as u32;
+            let index = (swapchain.current_index + 1) % swapchain.count;
+            swapchain.active.push((index, frame));
+            *pImageIndex = index;
+            swapchain.current_index = index;
             match suboptimal {
                 Some(_) => VkResult::VK_SUBOPTIMAL_KHR,
                 None => VkResult::VK_SUCCESS,
@@ -4704,16 +4699,17 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
         );
     }
 
-    for (swapchain, index) in swapchain_slice.iter().zip(index_slice) {
+    for (swapchain, &index) in swapchain_slice.iter().zip(index_slice) {
         let sc = swapchain.as_mut().unwrap();
-        let frame = sc.active.take().expect("Frame was not acquired properly!");
-        if sc.current_index == *index as u8 {
-            let sem = wait_semaphores.first().map(|s| &s.raw);
-            if let Err(_) = queue.present(&mut *sc.surface, frame, sem) {
-                return VkResult::VK_ERROR_SURFACE_LOST_KHR;
-            }
-        } else {
-            warn!("Swapchain frame {} is stale, can't be presented.", *index);
+        let active_pos = sc
+            .active
+            .iter()
+            .position(|&(frame, _)| frame == index)
+            .expect("Frame was not acquired properly!");
+        let frame = sc.active.swap_remove(active_pos).1;
+        let sem = wait_semaphores.first().map(|s| &s.raw);
+        if let Err(_) = queue.present(&mut *sc.surface, frame, sem) {
+            return VkResult::VK_ERROR_SURFACE_LOST_KHR;
         }
         for framebuffer in sc.lazy_framebuffers.lock().drain(..) {
             sc.gpu.device.destroy_framebuffer(framebuffer)
