@@ -1,0 +1,7 @@
+rust:
+  formatter:
+    - name: rustfmt
+  repo_checkers:
+    - name: rust-clippy
+
+c:
