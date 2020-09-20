@@ -1,0 +1,7 @@
+{
+   "file_format_version": "1.0.0",
+   "ICD": {
+      "library_path": "../target/aarch64-apple-ios/release/libportability_icd.dylib",
+      "api_version": "1.0.0"
+   }
+}
