@@ -380,7 +380,7 @@ pub const VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_SPEC_VERSION: ::std::os::raw::c_ui
 pub const VK_KHR_SAMPLER_MIRROR_CLAMP_TO_EDGE_EXTENSION_NAME: &'static [u8; 36usize] =
     b"VK_KHR_sampler_mirror_clamp_to_edge\x00";
 pub const VK_KHR_get_physical_device_properties2: ::std::os::raw::c_uint = 1;
-pub const VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION: ::std::os::raw::c_uint = 1;
+pub const VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION: ::std::os::raw::c_uint = 2;
 pub const VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME: &'static [u8; 39usize] =
     b"VK_KHR_get_physical_device_properties2\x00";
 pub const VK_KHR_get_surface_capabilities2: ::std::os::raw::c_uint = 1;
@@ -860,10 +860,9 @@ pub enum VkStructureType {
     VK_STRUCTURE_TYPE_PIPELINE_DISCARD_RECTANGLE_STATE_CREATE_INFO_EXT = 1000099001,
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK = 1000122000,
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
-    VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000248000,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR = 1000164000,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR = 1000164001,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_VIEW_SUPPORT_EXTX = 100163002,
+    VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000217000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR = 1000163000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR = 1000163001,
     VK_STRUCTURE_TYPE_MAX_ENUM = 2147483647,
 }
 pub const VkSystemAllocationScope_VK_SYSTEM_ALLOCATION_SCOPE_BEGIN_RANGE: VkSystemAllocationScope =
@@ -7597,22 +7596,6 @@ pub struct VkPhysicalDevicePortabilitySubsetPropertiesKHR {
     pub minVertexInputBindingStrideAlignment: u32,
 }
 impl Clone for VkPhysicalDevicePortabilitySubsetPropertiesKHR {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-#[repr(C)]
-#[derive(Debug, Copy)]
-pub struct VkPhysicalDeviceImageViewSupportEXTX {
-    pub sType: VkStructureType,
-    pub pNext: *const ::std::os::raw::c_void,
-    pub flags: VkImageViewCreateFlags,
-    pub viewType: VkImageViewType,
-    pub format: VkFormat,
-    pub components: VkComponentMapping,
-    pub aspectMask: VkImageAspectFlags,
-}
-impl Clone for VkPhysicalDeviceImageViewSupportEXTX {
     fn clone(&self) -> Self {
         *self
     }

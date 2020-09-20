@@ -22,7 +22,14 @@
 
 #ifdef _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
+#define USE_SURFACE 1
+#elif __APPLE__
+#define VK_USE_PLATFORM_METAL_EXT
+#define USE_SURFACE 0
+#else
+#define USE_SURFACE 1
 #endif
+#define VK_ENABLE_BETA_EXTENSIONS
 
 #include <vulkan/vulkan.h>
 #include <assert.h>
@@ -54,15 +61,57 @@ bool memory_type_from_properties(
     return false;
 }
 
+bool has_extension(VkExtensionProperties *props, unsigned count, const char* name, uint32_t version) {
+    //printf("\tLooking for %s ver=%d\n", name, version);
+    for (unsigned i = 0; i < count; i++) {
+        //printf("\t\tFound %s ver=%d\n", props[i].extensionName, props[i].specVersion);
+        if (!strcmp(props[i].extensionName, name) && props[i].specVersion == version) {
+            return true;
+        }
+    }
+    return false;
+}
+
 int main() {
     printf("starting the portability test\n");
 
     VkInstance instance;
     VkResult res = (VkResult)0;
-    unsigned int i;
+    unsigned int i = 0;
+
+    uint32_t instance_extension_count = 10;
+    VkExtensionProperties instance_ext_properties[10] = {};
+    res = vkEnumerateInstanceExtensionProperties(NULL, &instance_extension_count, instance_ext_properties);
+    printf("\tvkEnumerateInstanceExtensionProperties: res=%d count=%d\n", res, instance_extension_count);
+    assert(!res);
+    assert(has_extension(
+        instance_ext_properties, instance_extension_count,
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION
+    ));
 
     VkInstanceCreateInfo inst_info = {};
     inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+#ifdef _WIN32
+    assert(has_extension(
+        instance_ext_properties, instance_extension_count,
+        VK_KHR_WIN32_SURFACE_EXTENSION_NAME, VK_KHR_WIN32_SURFACE_SPEC_VERSION
+    ));
+    const char* window_extension = VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
+#elif __APPLE__
+    assert(has_extension(
+        instance_ext_properties, instance_extension_count,
+        VK_EXT_METAL_SURFACE_EXTENSION_NAME, VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION
+    ));
+    const char* window_extension = VK_EXT_METAL_SURFACE_EXTENSION_NAME;
+#else
+    const char* window_extension = VK_KHR_SURFACE_EXTENSION_NAME;
+#endif
+    const char* enabled_instance_extensions[2] = {
+        window_extension,
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+    };
+    inst_info.ppEnabledExtensionNames = enabled_instance_extensions;
+    inst_info.enabledExtensionCount = 2;
     res = vkCreateInstance(&inst_info, NULL, &instance);
     if (res == VK_ERROR_INCOMPATIBLE_DRIVER) {
         printf("cannot find a compatible Vulkan ICD\n");
@@ -79,6 +128,7 @@ int main() {
     Config config = { 10, 10, width, height };
     Window window = new_window(config);
 
+#if USE_SURFACE
     VkSurfaceKHR surface = 0;
 
 #ifdef _WIN32
@@ -87,26 +137,69 @@ int main() {
     surface_info.hinstance = window.instance;
     surface_info.hwnd = window.window;
     vkCreateWin32SurfaceKHR(instance, &surface_info, NULL, &surface);
+#elif __APPLE__
+    VkMetalSurfaceCreateInfoEXT surface_info = {};
+    surface_info.sType = VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT;
+    surface_info.pLayer = window.layer;
+    vkCreateMetalSurfaceEXT(instance, &surface_info, NULL, &surface);
 #endif
     printf("\tvkCreateSurfaceKHR\n");
+#endif //USE_SURFACE
 
     uint32_t adapter_count = 1;
-    VkPhysicalDevice physical_devices[1] = {};
-    res = vkEnumeratePhysicalDevices(instance, &adapter_count, physical_devices);
+    VkPhysicalDevice physical_device = {};
+    res = vkEnumeratePhysicalDevices(instance, &adapter_count, &physical_device);
     printf("\tvkEnumeratePhysicalDevices: res=%d count=%d\n", res, adapter_count);
     assert(!res && adapter_count);
+
+    uint32_t device_extension_count = 10;
+    VkExtensionProperties device_ext_properties[10] = {};
+    res = vkEnumerateDeviceExtensionProperties(physical_device, NULL, &device_extension_count, device_ext_properties);
+    printf("\tvkEnumerateDeviceExtensionProperties: res=%d count=%d\n", res, device_extension_count);
+    assert(!res);
+    assert(!res && has_extension(
+        device_ext_properties, device_extension_count,
+        VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME, VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION
+    ));
+
+    VkPhysicalDevicePortabilitySubsetPropertiesKHR subset_properties = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_PROPERTIES_KHR,
+    };
+    VkPhysicalDeviceProperties2KHR device_properties = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+        &subset_properties,
+    };
+    vkGetPhysicalDeviceProperties2KHR(physical_device, &device_properties);
+    printf("\tgfxGetPhysicalDeviceProperties2KHR\n");
+    printf("\t\tminVertexInputBindingStrideAlignment = %d\n", subset_properties.minVertexInputBindingStrideAlignment);
+
+    VkPhysicalDevicePortabilitySubsetFeaturesKHR subset_features = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR,
+    };
+    VkPhysicalDeviceFeatures2KHR device_features = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
+        &subset_features,
+    };
+    vkGetPhysicalDeviceFeatures2KHR(physical_device, &device_features);
+    printf("\tgfxGetPhysicalDeviceFeatures2KHR\n");
+    printf("\t\tevents = %d\n", subset_features.events);
+    printf("\t\tpointPolygons = %d\n", subset_features.pointPolygons);
+    printf("\t\tseparateStencilMaskRef = %d\n", subset_features.separateStencilMaskRef);
+    printf("\t\ttriangleFans = %d\n", subset_features.triangleFans);
 
     VkQueueFamilyProperties queue_family_properties[5];
     uint32_t queue_family_count = sizeof(queue_family_properties) / sizeof(VkQueueFamilyProperties);
 
-    vkGetPhysicalDeviceQueueFamilyProperties(physical_devices[0], &queue_family_count, queue_family_properties);
+    vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_family_properties);
     printf("\tvkGetPhysicalDeviceQueueFamilyProperties: count=%d\n", queue_family_count);
     assert(queue_family_count);
 
     int queue_family_index = -1;
     for (i = 0; i < queue_family_count; i++) {
-        VkBool32 supports_present = 0;
-        vkGetPhysicalDeviceSurfaceSupportKHR(physical_devices[0], i, surface, &supports_present);
+        VkBool32 supports_present = !USE_SURFACE;
+        #if USE_SURFACE
+        vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, surface, &supports_present);
+        #endif
         if ((queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) && supports_present) {
             queue_family_index = i;
             break;
@@ -116,7 +209,7 @@ int main() {
     assert(queue_family_index >= 0);
 
     VkPhysicalDeviceMemoryProperties memory_properties = {};
-    vkGetPhysicalDeviceMemoryProperties(physical_devices[0], &memory_properties);
+    vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
     printf("\tvkGetPhysicalDeviceMemoryProperties\n");
 
     VkDeviceQueueCreateInfo queue_info = {};
@@ -125,29 +218,35 @@ int main() {
     queue_info.queueCount = 1;
     queue_info.pQueuePriorities = queue_priorities;
 
+    const char* enabled_device_extensions[1] = {
+        VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
+    };
     VkDeviceCreateInfo device_info = {};
     device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_info.queueCreateInfoCount = 1;
     device_info.pQueueCreateInfos = &queue_info;
+    device_info.enabledExtensionCount = 1;
+    device_info.ppEnabledExtensionNames = enabled_device_extensions;
 
     VkDevice device = 0;
-    res = vkCreateDevice(physical_devices[0], &device_info, NULL, &device);
+    res = vkCreateDevice(physical_device, &device_info, NULL, &device);
     printf("\tvkCreateDevice: res=%d\n", res);
     assert(!res);
 
+#if USE_SURFACE
     VkSurfaceFormatKHR surfFormats[20];
     uint32_t formatCount = sizeof(surfFormats) / sizeof(surfFormats[0]);
-    res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_devices[0], surface, &formatCount, surfFormats);
+    res = vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, surface, &formatCount, surfFormats);
     printf("\tvkGetPhysicalDeviceSurfaceFormatsKHR: res=%d, count=%d\n", res, formatCount);
     assert(!res);
 
     VkSurfaceCapabilitiesKHR surfCapabilities;
-    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_devices[0], surface, &surfCapabilities);
+    res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physical_device, surface, &surfCapabilities);
     assert(!res);
 
     VkPresentModeKHR presentModes[10];
     uint32_t presentModeCount = sizeof(presentModes) / sizeof(presentModes[0]);
-    res = vkGetPhysicalDeviceSurfacePresentModesKHR(physical_devices[0], surface, &presentModeCount, presentModes);
+    res = vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, surface, &presentModeCount, presentModes);
     printf("\tvkGetPhysicalDeviceSurfacePresentModesKHR: res=%d, count=%d\n", res, presentModeCount);
     assert(!res);
 
@@ -225,11 +324,12 @@ int main() {
         printf("\tvkCreateImageView: res=%d\n", res);
         assert(!res);
     }
+#endif //USE_SURFACE
 
     VkImageCreateInfo image_info = {};
     const VkFormat depth_format = VK_FORMAT_D16_UNORM;
     VkFormatProperties props;
-    vkGetPhysicalDeviceFormatProperties(physical_devices[0], depth_format, &props);
+    vkGetPhysicalDeviceFormatProperties(physical_device, depth_format, &props);
     printf("\tvkGetPhysicalDeviceFormatProperties\n");
     printf(
         "\t\tlinear_tiling_features: %x\n"
@@ -416,10 +516,13 @@ int main() {
     printf("\tvkAllocateCommandBuffers: res=%d\n", res);
     assert(!res);
 
+#if USE_SURFACE
+    printf("polling...");
     // Some work...
     while(poll_events()) {
 
     }
+#endif //USE_SURFACE
 
     vkDestroyBuffer(device, uniform_buf, NULL);
     printf("\tvkDestroyBuffer\n");
@@ -433,18 +536,22 @@ int main() {
     vkFreeMemory(device, depth_memory, NULL);
     printf("\tvkFreeMemory\n");
 
+    vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
+    printf("\tvkFreeCommandBuffers\n");
+    vkDestroyCommandPool(device, cmd_pool, NULL);
+    printf("\tvkDestroyCommandPool\n");
+
+#if USE_SURFACE
     for(auto view : swapchain_views) {
         vkDestroyImageView(device, view, NULL);
         printf("\tvkDestroyImageView\n");
     }
     vkDestroySwapchainKHR(device, swapchain, NULL);
     printf("\tvkDestroySwapchainKHR\n");
-    vkFreeCommandBuffers(device, cmd_pool, 1, &cmd_buffer);
-    printf("\tvkFreeCommandBuffers\n");
-    vkDestroyCommandPool(device, cmd_pool, NULL);
-    printf("\tvkDestroyCommandPool\n");
     vkDestroySurfaceKHR(instance, surface, NULL);
     printf("\tvkDestroySurfaceKHR\n");
+#endif
+
     vkDestroyDevice(device, NULL);
     printf("\tvkDestroyDevice\n");
     vkDestroyInstance(instance, NULL);
