@@ -296,6 +296,16 @@ pub unsafe extern "C" fn vkCreateMacOSSurfaceMVK(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn vkCreateMetalSurfaceEXT(
+    instance: VkInstance,
+    pCreateInfos: *const VkMetalSurfaceCreateInfoEXT,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    gfxCreateMetalSurfaceEXT(instance, pCreateInfos, pAllocator, pSurface)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn vkCreateXcbSurfaceKHR(
     instance: VkInstance,
     pCreateInfos: *const VkXcbSurfaceCreateInfoKHR,
@@ -380,6 +390,13 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceFeatures(
     gfxGetPhysicalDeviceFeatures(physicalDevice, pFeatures)
 }
 #[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceFeatures2KHR(
+    physicalDevice: VkPhysicalDevice,
+    pFeatures: *mut VkPhysicalDeviceFeatures2KHR,
+) {
+    gfxGetPhysicalDeviceFeatures2KHR(physicalDevice, pFeatures)
+}
+#[no_mangle]
 pub unsafe extern "C" fn vkGetPhysicalDeviceImageFormatProperties(
     physicalDevice: VkPhysicalDevice,
     format: VkFormat,
@@ -405,6 +422,13 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceProperties(
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
     gfxGetPhysicalDeviceProperties(physicalDevice, pProperties)
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceProperties2KHR(
+    physicalDevice: VkPhysicalDevice,
+    pProperties: *mut VkPhysicalDeviceProperties2KHR,
+) {
+    gfxGetPhysicalDeviceProperties2KHR(physicalDevice, pProperties)
 }
 #[no_mangle]
 pub unsafe extern "C" fn vkEnumerateDeviceExtensionProperties(

@@ -4706,7 +4706,7 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
             .iter()
             .position(|&(frame, _)| frame == index)
             .expect("Frame was not acquired properly!");
-        let frame = sc.active.swap_remove(active_pos).1;
+        let (_, frame) = sc.active.swap_remove(active_pos);
         let sem = wait_semaphores.first().map(|s| &s.raw);
         if let Err(_) = queue.present(&mut *sc.surface, frame, sem) {
             return VkResult::VK_ERROR_SURFACE_LOST_KHR;

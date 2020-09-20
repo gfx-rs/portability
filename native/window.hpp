@@ -17,6 +17,7 @@ struct Window {
     HINSTANCE instance;
     HWND window;
 #elif __APPLE__
+    void *layer;
 #else
     xcb_connection_t *connection;
     xcb_drawable_t window;
