@@ -33,6 +33,12 @@ CFLAGS=-std=c++11 -ggdb -O0 -Iheaders
 DEPS=
 LDFLAGS=
 
+ifeq ($(CARGO_BUILD_TARGET),)
+	JSON_SUFFIX=$(OS_NAME)-*
+else
+	JSON_SUFFIX=$(CARGO_BUILD_TARGET)
+endif
+
 ifeq ($(OS),Windows_NT)
 	LDFLAGS=
 	BACKEND=dx12
@@ -56,6 +62,7 @@ else
 		DEBUGGER=rust-lldb --
 		LIB_FILE_NAME=libportability.dylib
 		LIB_VULKAN_NAME=libvulkan.dylib
+		#TODO: find a more idiomatic way to pass this arguments!
 		CLINK_ARGS=-- -Clink-arg="-current_version 1.0.0" -Clink-arg="-compatibility_version 1.0.0"
 		OS_NAME=macos
 	endif
@@ -175,7 +182,7 @@ gfx-portability.zip: version-debug version-release
 	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
 	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND) --release
 	echo "$(GIT_TAG_FULL)" > commit-sha
-	$(ZIP_COMMAND) gfx-portability.zip target/*/$(LIB_FILE_NAME) libportability-icd/portability-$(OS_NAME)-*.json commit-sha
+	$(ZIP_COMMAND) gfx-portability.zip target/$(CARGO_BUILD_TARGET)/*/$(LIB_FILE_NAME) libportability-icd/portability-$(JSON_SUFFIX).json commit-sha
 
 target/debug/$(LIB_VULKAN_NAME):
 	cd target/debug && ln -sf $(LIB_FILE_NAME) $(LIB_VULKAN_NAME)
