@@ -45,11 +45,30 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceQueueFamilyProperties(
     )
 }
 #[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceQueueFamilyProperties2KHR(
+    adapter: VkPhysicalDevice,
+    pQueueFamilyPropertyCount: *mut u32,
+    pQueueFamilyProperties: *mut VkQueueFamilyProperties2KHR,
+) {
+    gfxGetPhysicalDeviceQueueFamilyProperties2KHR(
+        adapter,
+        pQueueFamilyPropertyCount,
+        pQueueFamilyProperties,
+    )
+}
+#[no_mangle]
 pub unsafe extern "C" fn vkGetPhysicalDeviceMemoryProperties(
     physicalDevice: VkPhysicalDevice,
     pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties,
 ) {
     gfxGetPhysicalDeviceMemoryProperties(physicalDevice, pMemoryProperties)
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceMemoryProperties2KHR(
+    physicalDevice: VkPhysicalDevice,
+    pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties2KHR,
+) {
+    gfxGetPhysicalDeviceMemoryProperties2KHR(physicalDevice, pMemoryProperties)
 }
 #[no_mangle]
 pub unsafe extern "C" fn vkCreateDevice(
@@ -144,6 +163,14 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceFormatProperties(
 ) {
     gfxGetPhysicalDeviceFormatProperties(adapter, format, pFormatProperties)
 }
+#[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceFormatProperties2KHR(
+    adapter: VkPhysicalDevice,
+    format: VkFormat,
+    pFormatProperties: *mut VkFormatProperties2KHR,
+) {
+    gfxGetPhysicalDeviceFormatProperties2KHR(adapter, format, pFormatProperties)
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn vkCreateCommandPool(
@@ -171,6 +198,15 @@ pub unsafe extern "C" fn vkResetCommandPool(
     flags: VkCommandPoolResetFlags,
 ) -> VkResult {
     gfxResetCommandPool(device, commandPool, flags)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn vkTrimCommandPoolKHR(
+    device: VkDevice,
+    commandPool: VkCommandPool,
+    flags: VkCommandPoolTrimFlagsKHR,
+) {
+    gfxTrimCommandPoolKHR(device, commandPool, flags)
 }
 
 #[no_mangle]
@@ -417,6 +453,18 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceImageFormatProperties(
     )
 }
 #[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceImageFormatProperties2KHR(
+    physicalDevice: VkPhysicalDevice,
+    pImageFormatInfo: *const VkPhysicalDeviceImageFormatInfo2KHR,
+    pImageFormatProperties: *mut VkImageFormatProperties2KHR,
+) -> VkResult {
+    gfxGetPhysicalDeviceImageFormatProperties2KHR(
+        physicalDevice,
+        pImageFormatInfo,
+        pImageFormatProperties,
+    )
+}
+#[no_mangle]
 pub unsafe extern "C" fn vkGetPhysicalDeviceProperties(
     physicalDevice: VkPhysicalDevice,
     pProperties: *mut VkPhysicalDeviceProperties,
@@ -536,6 +584,20 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceSparseImageFormatProperties(
         samples,
         usage,
         tiling,
+        pPropertyCount,
+        pProperties,
+    )
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
+    physicalDevice: VkPhysicalDevice,
+    pFormatInfo: *const VkPhysicalDeviceSparseImageFormatInfo2KHR,
+    pPropertyCount: *mut u32,
+    pProperties: *mut VkSparseImageFormatProperties2KHR,
+) {
+    gfxGetPhysicalDeviceSparseImageFormatProperties2KHR(
+        physicalDevice,
+        pFormatInfo,
         pPropertyCount,
         pProperties,
     )

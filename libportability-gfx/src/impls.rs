@@ -13,6 +13,7 @@ use hal::{
 };
 
 use parking_lot::Mutex;
+use smallvec::SmallVec;
 use typed_arena::Arena;
 
 #[cfg(feature = "gfx-backend-metal")]
@@ -229,6 +230,22 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties(
         }
     }
 }
+#[inline]
+pub unsafe extern "C" fn gfxGetPhysicalDeviceQueueFamilyProperties2KHR(
+    adapter: VkPhysicalDevice,
+    pQueueFamilyPropertyCount: *mut u32,
+    pQueueFamilyProperties: *mut VkQueueFamilyProperties2KHR,
+) {
+    gfxGetPhysicalDeviceQueueFamilyProperties(
+        adapter,
+        pQueueFamilyPropertyCount,
+        if pQueueFamilyProperties.is_null() {
+            ptr::null_mut()
+        } else {
+            &mut (*pQueueFamilyProperties).queueFamilyProperties
+        },
+    );
+}
 
 #[inline]
 pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures(
@@ -296,6 +313,19 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceFormatProperties(
         .physical_device
         .format_properties(conv::map_format(format));
     *pFormatProperties = conv::format_properties_from_hal(properties);
+}
+
+#[inline]
+pub unsafe extern "C" fn gfxGetPhysicalDeviceFormatProperties2KHR(
+    adapter: VkPhysicalDevice,
+    format: VkFormat,
+    pFormatProperties: *mut VkFormatProperties2KHR,
+) {
+    gfxGetPhysicalDeviceFormatProperties(
+        adapter,
+        format,
+        &mut (*pFormatProperties).formatProperties,
+    )
 }
 
 fn get_physical_device_image_format_properties(
@@ -477,6 +507,13 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
     }
 }
 #[inline]
+pub unsafe extern "C" fn gfxGetPhysicalDeviceMemoryProperties2KHR(
+    adapter: VkPhysicalDevice,
+    pMemoryProperties: *mut VkPhysicalDeviceMemoryProperties2KHR,
+) {
+    gfxGetPhysicalDeviceMemoryProperties(adapter, &mut (*pMemoryProperties).memoryProperties);
+}
+#[inline]
 pub unsafe extern "C" fn gfxGetInstanceProcAddr(
     _instance: VkInstance,
     pName: *const ::std::os::raw::c_char,
@@ -509,11 +546,15 @@ pub unsafe extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceProperties, PFN_vkGetPhysicalDeviceProperties => gfxGetPhysicalDeviceProperties,
         vkGetPhysicalDeviceProperties2KHR, PFN_vkGetPhysicalDeviceProperties2KHR => gfxGetPhysicalDeviceProperties2KHR,
         vkGetPhysicalDeviceFormatProperties, PFN_vkGetPhysicalDeviceFormatProperties => gfxGetPhysicalDeviceFormatProperties,
+        vkGetPhysicalDeviceFormatProperties2KHR, PFN_vkGetPhysicalDeviceFormatProperties2KHR => gfxGetPhysicalDeviceFormatProperties2KHR,
         vkGetPhysicalDeviceImageFormatProperties, PFN_vkGetPhysicalDeviceImageFormatProperties => gfxGetPhysicalDeviceImageFormatProperties,
         vkGetPhysicalDeviceImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceImageFormatProperties2KHR => gfxGetPhysicalDeviceImageFormatProperties2KHR,
         vkGetPhysicalDeviceMemoryProperties, PFN_vkGetPhysicalDeviceMemoryProperties => gfxGetPhysicalDeviceMemoryProperties,
+        vkGetPhysicalDeviceMemoryProperties2KHR, PFN_vkGetPhysicalDeviceMemoryProperties2KHR => gfxGetPhysicalDeviceMemoryProperties2KHR,
         vkGetPhysicalDeviceQueueFamilyProperties, PFN_vkGetPhysicalDeviceQueueFamilyProperties => gfxGetPhysicalDeviceQueueFamilyProperties,
+        vkGetPhysicalDeviceQueueFamilyProperties2KHR, PFN_vkGetPhysicalDeviceQueueFamilyProperties2KHR => gfxGetPhysicalDeviceQueueFamilyProperties2KHR,
         vkGetPhysicalDeviceSparseImageFormatProperties, PFN_vkGetPhysicalDeviceSparseImageFormatProperties => gfxGetPhysicalDeviceSparseImageFormatProperties,
+        vkGetPhysicalDeviceSparseImageFormatProperties2KHR, PFN_vkGetPhysicalDeviceSparseImageFormatProperties2KHR => gfxGetPhysicalDeviceSparseImageFormatProperties2KHR,
 
         vkGetPhysicalDeviceSurfaceSupportKHR, PFN_vkGetPhysicalDeviceSurfaceSupportKHR => gfxGetPhysicalDeviceSurfaceSupportKHR,
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR, PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR => gfxGetPhysicalDeviceSurfaceCapabilitiesKHR,
@@ -627,6 +668,7 @@ pub unsafe extern "C" fn gfxGetDeviceProcAddr(
         vkCreateCommandPool, PFN_vkCreateCommandPool => gfxCreateCommandPool,
         vkDestroyCommandPool, PFN_vkDestroyCommandPool => gfxDestroyCommandPool,
         vkResetCommandPool, PFN_vkResetCommandPool => gfxResetCommandPool,
+        vkTrimCommandPoolKHR, PFN_vkTrimCommandPoolKHR => gfxTrimCommandPoolKHR,
         vkAllocateCommandBuffers, PFN_vkAllocateCommandBuffers => gfxAllocateCommandBuffers,
         vkFreeCommandBuffers, PFN_vkFreeCommandBuffers => gfxFreeCommandBuffers,
         vkBeginCommandBuffer, PFN_vkBeginCommandBuffer => gfxBeginCommandBuffer,
@@ -1365,8 +1407,8 @@ pub unsafe extern "C" fn gfxGetImageMemoryRequirements(
         memoryTypeBits: req.type_mask,
     };
 }
-/*
-#[inline]
+
+/*#[inline]
 pub unsafe extern "C" fn gfxGetImageMemoryRequirements2KHR(
     gpu: VkDevice,
     image: VkImage,
@@ -1412,6 +1454,15 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties(
     _tiling: VkImageTiling,
     pPropertyCount: *mut u32,
     _pProperties: *mut VkSparseImageFormatProperties,
+) {
+    *pPropertyCount = 0;
+}
+#[inline]
+pub unsafe extern "C" fn gfxGetPhysicalDeviceSparseImageFormatProperties2KHR(
+    _physicalDevice: VkPhysicalDevice,
+    _pFormatInfo: *const VkPhysicalDeviceSparseImageFormatInfo2KHR,
+    pPropertyCount: *mut u32,
+    _pProperties: *mut VkSparseImageFormatProperties2KHR,
 ) {
     *pPropertyCount = 0;
 }
@@ -3251,6 +3302,14 @@ pub unsafe extern "C" fn gfxResetCommandPool(
     VkResult::VK_SUCCESS
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn gfxTrimCommandPoolKHR(
+    _gpu: VkDevice,
+    _commandPool: VkCommandPool,
+    _flags: VkCommandPoolTrimFlagsKHR,
+) {
+}
+
 #[inline]
 pub unsafe extern "C" fn gfxAllocateCommandBuffers(
     _gpu: VkDevice,
@@ -4110,7 +4169,7 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
                 None
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<SmallVec<[_; 5]>>();
     let contents = conv::map_subpass_contents(contents);
     let framebuffer = info.framebuffer.resolve(info.renderPass);
 
