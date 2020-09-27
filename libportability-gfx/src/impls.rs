@@ -29,6 +29,14 @@ use std::{
 const VERSION: (u32, u32, u32) = (1, 0, 66);
 const DRIVER_VERSION: u32 = 1;
 
+unsafe fn make_slice<'a, T: 'a>(pointer: *const T, count: usize) -> &'a [T] {
+    if count == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(pointer, count)
+    }
+}
+
 fn map_oom(oom: hal::device::OutOfMemory) -> VkResult {
     match oom {
         hal::device::OutOfMemory::Host => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
@@ -708,6 +716,9 @@ pub unsafe extern "C" fn gfxGetDeviceProcAddr(
         vkDestroyQueryPool, PFN_vkDestroyQueryPool => gfxDestroyQueryPool,
         vkGetQueryPoolResults, PFN_vkGetQueryPoolResults => gfxGetQueryPoolResults,
 
+        vkDebugMarkerSetObjectTagEXT, PFN_vkDebugMarkerSetObjectTagEXT => gfxDebugMarkerSetObjectTagEXT,
+        vkDebugMarkerSetObjectNameEXT, PFN_vkDebugMarkerSetObjectNameEXT => gfxDebugMarkerSetObjectNameEXT,
+
         vkCmdBindPipeline, PFN_vkCmdBindPipeline => gfxCmdBindPipeline,
         vkCmdSetViewport, PFN_vkCmdSetViewport => gfxCmdSetViewport,
         vkCmdSetScissor, PFN_vkCmdSetScissor => gfxCmdSetScissor,
@@ -752,6 +763,9 @@ pub unsafe extern "C" fn gfxGetDeviceProcAddr(
         vkCmdPipelineBarrier, PFN_vkCmdPipelineBarrier => gfxCmdPipelineBarrier,
         vkCmdBeginRenderPass, PFN_vkCmdBeginRenderPass => gfxCmdBeginRenderPass,
         vkCmdEndRenderPass, PFN_vkCmdEndRenderPass => gfxCmdEndRenderPass,
+        vkCmdDebugMarkerBeginEXT, PFN_vkCmdDebugMarkerBeginEXT => gfxCmdDebugMarkerBeginEXT,
+        vkCmdDebugMarkerEndEXT, PFN_vkCmdDebugMarkerEndEXT => gfxCmdDebugMarkerEndEXT,
+        vkCmdDebugMarkerInsertEXT, PFN_vkCmdDebugMarkerInsertEXT => gfxCmdDebugMarkerInsertEXT,
     }
 }
 
@@ -1025,6 +1039,7 @@ lazy_static! {
         vec![
             VK_KHR_SWAPCHAIN_EXTENSION_NAME,
             VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
             VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
         ]
     };
@@ -1038,6 +1053,10 @@ lazy_static! {
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_MAINTENANCE1_EXTENSION_NAME
                 specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
+            },
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_EXT_DEBUG_MARKER_EXTENSION_NAME
+                specVersion: VK_EXT_DEBUG_MARKER_SPEC_VERSION,
             },
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
@@ -1163,57 +1182,9 @@ pub unsafe extern "C" fn gfxQueueSubmit(
     pSubmits: *const VkSubmitInfo,
     fence: VkFence,
 ) -> VkResult {
-    let submits = slice::from_raw_parts(pSubmits, submitCount as usize);
-    for (i, submission) in submits.iter().enumerate() {
-        let cmd_slice = slice::from_raw_parts(
-            submission.pCommandBuffers,
-            submission.commandBufferCount as _,
-        );
-        let wait_semaphores = {
-            let semaphores = slice::from_raw_parts(
-                submission.pWaitSemaphores,
-                submission.waitSemaphoreCount as _,
-            );
-            let stages = slice::from_raw_parts(
-                submission.pWaitDstStageMask,
-                submission.waitSemaphoreCount as _,
-            );
-
-            stages
-                .into_iter()
-                .zip(semaphores)
-                .filter(|(_, semaphore)| !semaphore.is_fake)
-                .map(|(stage, semaphore)| (&semaphore.raw, conv::map_pipeline_stage_flags(*stage)))
-        };
-        let signal_semaphores = slice::from_raw_parts(
-            submission.pSignalSemaphores,
-            submission.signalSemaphoreCount as _,
-        )
-        .into_iter()
-        .map(|semaphore| {
-            semaphore.as_mut().unwrap().is_fake = false;
-            &semaphore.raw
-        });
-
-        let submission = hal::queue::Submission {
-            command_buffers: cmd_slice.iter(),
-            wait_semaphores,
-            signal_semaphores,
-        };
-
-        // only provide the fence for the last submission
-        //TODO: support multiple submissions at gfx-hal level
-        let fence = if i + 1 == submits.len() {
-            fence.as_ref().map(|f| &f.raw)
-        } else {
-            None
-        };
-        queue.submit(submission, fence);
-    }
-
-    // sometimes, all you need is a fence...
-    if submits.is_empty() {
+    if submitCount == 0 {
         use std::iter::empty;
+        // sometimes, all you need is a fence...
         let submission = hal::queue::Submission {
             command_buffers: empty(),
             wait_semaphores: empty(),
@@ -1224,6 +1195,56 @@ pub unsafe extern "C" fn gfxQueueSubmit(
             submission,
             fence.as_ref().map(|f| &f.raw),
         );
+    } else {
+        let submits = slice::from_raw_parts(pSubmits, submitCount as usize);
+        for (i, submission) in submits.iter().enumerate() {
+            let cmd_slice = make_slice(
+                submission.pCommandBuffers,
+                submission.commandBufferCount as usize,
+            );
+            let wait_semaphores = {
+                let semaphores = make_slice(
+                    submission.pWaitSemaphores,
+                    submission.waitSemaphoreCount as usize,
+                );
+                let stages = make_slice(
+                    submission.pWaitDstStageMask,
+                    submission.waitSemaphoreCount as usize,
+                );
+
+                stages
+                    .into_iter()
+                    .zip(semaphores)
+                    .filter(|(_, semaphore)| !semaphore.is_fake)
+                    .map(|(stage, semaphore)| {
+                        (&semaphore.raw, conv::map_pipeline_stage_flags(*stage))
+                    })
+            };
+            let signal_semaphores = make_slice(
+                submission.pSignalSemaphores,
+                submission.signalSemaphoreCount as usize,
+            )
+            .into_iter()
+            .map(|semaphore| {
+                semaphore.as_mut().unwrap().is_fake = false;
+                &semaphore.raw
+            });
+
+            let submission = hal::queue::Submission {
+                command_buffers: cmd_slice.iter(),
+                wait_semaphores,
+                signal_semaphores,
+            };
+
+            // only provide the fence for the last submission
+            //TODO: support multiple submissions at gfx-hal level
+            let fence = if i + 1 == submits.len() {
+                fence.as_ref().map(|f| &f.raw)
+            } else {
+                None
+            };
+            queue.submit(submission, fence);
+        }
     }
 
     VkResult::VK_SUCCESS
@@ -2710,7 +2731,7 @@ pub unsafe extern "C" fn gfxCreateDescriptorSetLayout(
     pSetLayout: *mut VkDescriptorSetLayout,
 ) -> VkResult {
     let info = &*pCreateInfo;
-    let layout_bindings = slice::from_raw_parts(info.pBindings, info.bindingCount as _);
+    let layout_bindings = make_slice(info.pBindings, info.bindingCount as usize);
 
     let sampler_iter = layout_bindings
         .iter()
@@ -3161,7 +3182,7 @@ pub unsafe extern "C" fn gfxCreateRenderPass(
         });
 
     // Subpass dependencies
-    let dependencies = slice::from_raw_parts(info.pDependencies, info.dependencyCount as _);
+    let dependencies = make_slice(info.pDependencies, info.dependencyCount as usize);
 
     fn map_subpass_ref(subpass: u32) -> Option<pass::SubpassId> {
         if subpass == VK_SUBPASS_EXTERNAL as u32 {
@@ -3498,7 +3519,7 @@ pub unsafe extern "C" fn gfxCmdBindDescriptorSets(
     let descriptor_sets = slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
         .into_iter()
         .map(|set| &**set);
-    let offsets = slice::from_raw_parts(pDynamicOffsets, dynamicOffsetCount as _);
+    let offsets = make_slice(pDynamicOffsets, dynamicOffsetCount as usize);
 
     match pipelineBindPoint {
         VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => commandBuffer
@@ -4012,9 +4033,9 @@ pub unsafe extern "C" fn gfxCmdWaitEvents(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    let raw_globals = slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _);
-    let raw_buffers = slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _);
-    let raw_images = slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _);
+    let raw_globals = make_slice(pMemoryBarriers, memoryBarrierCount as _);
+    let raw_buffers = make_slice(pBufferMemoryBarriers, bufferMemoryBarrierCount as _);
+    let raw_images = make_slice(pImageMemoryBarriers, imageMemoryBarrierCount as _);
 
     let barriers = make_barriers(raw_globals, raw_buffers, raw_images);
 
@@ -4039,9 +4060,9 @@ pub unsafe extern "C" fn gfxCmdPipelineBarrier(
     imageMemoryBarrierCount: u32,
     pImageMemoryBarriers: *const VkImageMemoryBarrier,
 ) {
-    let raw_globals = slice::from_raw_parts(pMemoryBarriers, memoryBarrierCount as _);
-    let raw_buffers = slice::from_raw_parts(pBufferMemoryBarriers, bufferMemoryBarrierCount as _);
-    let raw_images = slice::from_raw_parts(pImageMemoryBarriers, imageMemoryBarrierCount as _);
+    let raw_globals = make_slice(pMemoryBarriers, memoryBarrierCount as _);
+    let raw_buffers = make_slice(pBufferMemoryBarriers, bufferMemoryBarrierCount as _);
+    let raw_images = make_slice(pImageMemoryBarriers, imageMemoryBarrierCount as _);
 
     let barriers = make_barriers(raw_globals, raw_buffers, raw_images);
 
@@ -4158,7 +4179,7 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
     };
     // gfx-hal expects exactly one clear value for an attachment that needs
     // to be cleared, while Vulkan has gaps.
-    let clear_values = slice::from_raw_parts(info.pClearValues, info.clearValueCount as _)
+    let clear_values = make_slice(info.pClearValues, info.clearValueCount as _)
         .iter()
         .enumerate()
         .filter_map(|(i, cv)| {
@@ -4750,7 +4771,7 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
 
     let swapchain_slice = slice::from_raw_parts(info.pSwapchains, info.swapchainCount as _);
     let index_slice = slice::from_raw_parts(info.pImageIndices, info.swapchainCount as _);
-    let wait_semaphores = slice::from_raw_parts(info.pWaitSemaphores, info.waitSemaphoreCount as _);
+    let wait_semaphores = make_slice(info.pWaitSemaphores, info.waitSemaphoreCount as _);
     if wait_semaphores.len() > 1 {
         warn!(
             "Only one semaphore is supported for present, {} are given",
@@ -4824,4 +4845,78 @@ pub unsafe extern "C" fn gfxCreateMacOSSurfaceMVK(
         let _ = (instance, info, pSurface);
         unreachable!()
     }
+}
+
+#[inline]
+pub unsafe extern "C" fn gfxDebugMarkerSetObjectTagEXT(
+    _gpu: VkDevice,
+    _pTagInfo: *mut VkDebugMarkerObjectTagInfoEXT,
+) -> VkResult {
+    VkResult::VK_SUCCESS //TODO
+}
+#[inline]
+pub unsafe extern "C" fn gfxDebugMarkerSetObjectNameEXT(
+    gpu: VkDevice,
+    pNameInfo: *mut VkDebugMarkerObjectNameInfoEXT,
+) -> VkResult {
+    use VkDebugReportObjectTypeEXT::*;
+
+    let info = &*pNameInfo;
+    let name = CStr::from_ptr(info.pObjectName).to_string_lossy();
+    match info.objectType {
+        VK_DEBUG_REPORT_OBJECT_TYPE_BUFFER_EXT => {
+            let mut h = mem::transmute::<_, VkBuffer>(info.object);
+            gpu.device.set_buffer_name(&mut *h, &*name);
+        }
+        VK_DEBUG_REPORT_OBJECT_TYPE_IMAGE_EXT => match *mem::transmute::<_, VkImage>(info.object) {
+            Image::Native { ref mut raw } => gpu.device.set_image_name(raw, &*name),
+            Image::SwapchainFrame { .. } => (),
+        },
+        VK_DEBUG_REPORT_OBJECT_TYPE_COMMAND_BUFFER_EXT => {
+            let mut h = mem::transmute::<_, VkCommandBuffer>(info.object);
+            gpu.device.set_command_buffer_name(&mut *h, &*name);
+        }
+        VK_DEBUG_REPORT_OBJECT_TYPE_FRAMEBUFFER_EXT => {
+            match *mem::transmute::<_, VkFramebuffer>(info.object) {
+                Framebuffer::Native(ref mut raw) => gpu.device.set_framebuffer_name(raw, &*name),
+                Framebuffer::Lazy { .. } => (),
+            }
+        }
+        VK_DEBUG_REPORT_OBJECT_TYPE_RENDER_PASS_EXT => {
+            let mut h = mem::transmute::<_, VkRenderPass>(info.object);
+            gpu.device.set_render_pass_name(&mut h.raw, &*name);
+        }
+        VK_DEBUG_REPORT_OBJECT_TYPE_PIPELINE_EXT => {
+            match *mem::transmute::<_, VkPipeline>(info.object) {
+                Pipeline::Compute(ref mut raw) => gpu.device.set_compute_pipeline_name(raw, &*name),
+                Pipeline::Graphics(ref mut raw) => {
+                    gpu.device.set_graphics_pipeline_name(raw, &*name)
+                }
+            }
+        }
+        _ => {}
+    }
+    VkResult::VK_SUCCESS
+}
+#[inline]
+pub unsafe extern "C" fn gfxCmdDebugMarkerBeginEXT(
+    mut commandBuffer: VkCommandBuffer,
+    pMarkerInfo: *mut VkDebugMarkerMarkerInfoEXT,
+) {
+    let info = &*pMarkerInfo;
+    let name = CStr::from_ptr(info.pMarkerName).to_string_lossy();
+    commandBuffer.begin_debug_marker(&*name, conv::map_marker_color(info.color));
+}
+#[inline]
+pub unsafe extern "C" fn gfxCmdDebugMarkerEndEXT(mut commandBuffer: VkCommandBuffer) {
+    commandBuffer.end_debug_marker();
+}
+#[inline]
+pub unsafe extern "C" fn gfxCmdDebugMarkerInsertEXT(
+    mut commandBuffer: VkCommandBuffer,
+    pMarkerInfo: *mut VkDebugMarkerMarkerInfoEXT,
+) {
+    let info = &*pMarkerInfo;
+    let name = CStr::from_ptr(info.pMarkerName).to_string_lossy();
+    commandBuffer.insert_debug_marker(&*name, conv::map_marker_color(info.color));
 }
