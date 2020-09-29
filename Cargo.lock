@@ -263,7 +263,7 @@ dependencies = [
 [[package]]
 name = "gfx-auxil"
 version = "0.5.0"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "fxhash",
  "gfx-hal",
@@ -273,7 +273,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx11"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "bitflags",
  "gfx-auxil",
@@ -292,7 +292,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx12"
 version = "0.6.2"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "bitflags",
  "d3d12",
@@ -309,7 +309,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-empty"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "gfx-hal",
  "log",
@@ -319,7 +319,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-metal"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -343,7 +343,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-vulkan"
 version = "0.6.1"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "arrayvec",
  "ash",
@@ -364,7 +364,7 @@ dependencies = [
 [[package]]
 name = "gfx-hal"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 dependencies = [
  "bitflags",
  "raw-window-handle",
@@ -687,9 +687,9 @@ checksum = "c36fa947111f5c62a733b652544dd0016a43ce89619538a8ef92724a6f501a20"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.21"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36e28516df94f3dd551a587da5357459d9b36d945a7c37c3557928c1c2ff2a2c"
+checksum = "51ef7cd2518ead700af67bf9d1a658d90b6037d77110fd9c0445429d0ba1c6c9"
 dependencies = [
  "unicode-xid",
 ]
@@ -753,7 +753,7 @@ dependencies = [
 [[package]]
 name = "range-alloc"
 version = "0.1.1"
-source = "git+https://github.com/gfx-rs/gfx#89dc302254ab68adc99a3b661e23c52b4b0d073f"
+source = "git+https://github.com/gfx-rs/gfx#c3df31f6f4ee089d576b52550dfbba11a70c1a68"
 
 [[package]]
 name = "raw-window-handle"
@@ -855,9 +855,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.41"
+version = "1.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6690e3e9f692504b941dc6c3b188fd28df054f7fb8469ab40680df52fdcc842b"
+checksum = "9c51d92969d209b54a98397e1b91c8ae82d8c87a7bb87df0b29aa2ad81454228"
 dependencies = [
  "proc-macro2",
  "quote",
