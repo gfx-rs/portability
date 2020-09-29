@@ -1600,3 +1600,36 @@ pub unsafe extern "C" fn vkGetPhysicalDeviceMetalFeaturesMVK(
     _metal_features: *mut ::std::os::raw::c_void,
 ) {
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn vkDebugMarkerSetObjectTagEXT(
+    gpu: VkDevice,
+    pTagInfo: *mut VkDebugMarkerObjectTagInfoEXT,
+) -> VkResult {
+    gfxDebugMarkerSetObjectTagEXT(gpu, pTagInfo)
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkDebugMarkerSetObjectNameEXT(
+    gpu: VkDevice,
+    pNameInfo: *mut VkDebugMarkerObjectNameInfoEXT,
+) -> VkResult {
+    gfxDebugMarkerSetObjectNameEXT(gpu, pNameInfo)
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkCmdDebugMarkerBeginEXT(
+    commandBuffer: VkCommandBuffer,
+    pMarkerInfo: *mut VkDebugMarkerMarkerInfoEXT,
+) {
+    gfxCmdDebugMarkerBeginEXT(commandBuffer, pMarkerInfo)
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkCmdDebugMarkerEndEXT(commandBuffer: VkCommandBuffer) {
+    gfxCmdDebugMarkerEndEXT(commandBuffer)
+}
+#[no_mangle]
+pub unsafe extern "C" fn vkCmdDebugMarkerInsertEXT(
+    commandBuffer: VkCommandBuffer,
+    pMarkerInfo: *mut VkDebugMarkerMarkerInfoEXT,
+) {
+    gfxCmdDebugMarkerInsertEXT(commandBuffer, pMarkerInfo)
+}

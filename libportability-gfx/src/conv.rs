@@ -1030,3 +1030,9 @@ pub fn map_subresource_range(subresource: VkImageSubresourceRange) -> hal::image
         },
     }
 }
+
+pub fn map_marker_color(color: [f32; 4]) -> u32 {
+    color
+        .iter()
+        .fold(0u32, |u, c| (u << 8) | c.max(0.0).min(255.0) as u32)
+}

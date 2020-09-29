@@ -5,6 +5,7 @@ conformance/*.qpa
 conformance/*.txt
 gfx-portability-*.zip
 commit-sha
+materials
 **/*.rs.bk
 .vscode/
 .lldbinit
