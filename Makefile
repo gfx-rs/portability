@@ -184,6 +184,12 @@ gfx-portability.zip: version-debug version-release
 	echo "$(GIT_TAG_FULL)" > commit-sha
 	$(ZIP_COMMAND) gfx-portability.zip target/$(CARGO_BUILD_TARGET)/*/$(LIB_FILE_NAME) libportability-icd/portability-$(JSON_SUFFIX).json commit-sha
 
+gfx-portability-custom.zip:
+	cargo build -Z build-std --manifest-path libportability/Cargo.toml --features $(BACKEND)
+	cargo build -Z build-std=std,panic_abort --manifest-path libportability/Cargo.toml --features $(BACKEND) --release
+	echo "$(GIT_TAG_FULL)" > commit-sha
+	$(ZIP_COMMAND) gfx-portability-custom.zip target/$(CARGO_BUILD_TARGET)/*/$(LIB_FILE_NAME) commit-sha
+
 target/debug/$(LIB_VULKAN_NAME):
 	cd target/debug && ln -sf $(LIB_FILE_NAME) $(LIB_VULKAN_NAME)
 

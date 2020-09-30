@@ -1,8 +1,16 @@
 ## gfx-portability
-[![Build Status](https://github.com/gfx-rs/portability/workflows/check/badge.svg?branch=master)](https://github.com/gfx-rs/portability/actions)
-[![Matrix](https://img.shields.io/badge/Matrix-%23gfx%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#gfx:matrix.org) 
+[![Build Status](https://github.com/gfx-rs/portability/workflows/Check/badge.svg?branch=master)](https://github.com/gfx-rs/portability/actions)
+[![Matrix](https://img.shields.io/badge/Matrix-%23gfx%3Amatrix.org-blueviolet.svg)](https://matrix.to/#/#gfx:matrix.org)
 
 This is a prototype library implementing [Vulkan Portability Initiative](https://www.khronos.org/blog/khronos-announces-the-vulkan-portability-initiative) using [gfx-hal](http://gfx-rs.github.io/2017/07/24/low-level.html). See gfx-rs [meta issue](https://github.com/gfx-rs/gfx/issues/1354) for backend limitations and further details.
+
+Platform support:
+- macOS/Metal (lib, icd)
+- iOS/Metal (lib, icd)
+- Windows/DX12 (lib, icd)
+- UWP/DX12 (lib)
+
+For those interested in performance, we did a comprehensive benchmarks of Dota2 and Dolphin Emulator on macOS. Results were published to gfx-rs blog [here](https://gfx-rs.github.io/2018/08/10/dota2-macos-performance.html) and [there](https://gfx-rs.github.io/2019/03/22/dolphin-macos-performance.html).
 
 ## Showcase
 

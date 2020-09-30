@@ -17,6 +17,22 @@ jobs:
       - run: rustup target add ${{ env.TARGET }}
       - run: make check-target
 
+  uwp_build:
+    name: UWP Nightly
+    runs-on: windows-2019
+    env:
+      TARGET: x86_64-uwp-windows-msvc
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+      - name: Install latest nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          override: true
+          components: rust-src
+      - run: cargo build -Z build-std --manifest-path libportability/Cargo.toml --features dx12 --target ${{ env.TARGET }}
+
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}

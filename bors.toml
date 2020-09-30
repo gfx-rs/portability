@@ -1,5 +1,7 @@
 status = [
     "Ubuntu Nightly",
     "MacOS Stable",
+    "iOS Stable",
     "Windows Stable",
+    "UWP Nightly",
 ]
