@@ -422,7 +422,7 @@ pub fn map_image_usage(usage: VkImageUsageFlags) -> image::Usage {
     image::Usage::from_bits_truncate(usage)
 }
 
-pub fn _map_image_usage_from_hal(usage: image::Usage) -> VkImageUsageFlags {
+pub fn map_image_usage_from_hal(usage: image::Usage) -> VkImageUsageFlags {
     usage.bits()
 }
 
@@ -563,6 +563,16 @@ pub fn memory_properties_from_hal(properties: memory::Properties) -> VkMemoryPro
     }
     if properties.contains(memory::Properties::LAZILY_ALLOCATED) {
         flags |= VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_LAZILY_ALLOCATED_BIT as u32;
+    }
+
+    flags
+}
+
+pub fn memory_heap_flags_from_hal(hal_flags: memory::HeapFlags) -> VkMemoryHeapFlags {
+    let mut flags = 0;
+
+    if hal_flags.contains(memory::HeapFlags::DEVICE_LOCAL) {
+        flags |= VkMemoryHeapFlagBits::VK_MEMORY_HEAP_DEVICE_LOCAL_BIT as u32;
     }
 
     flags

@@ -381,8 +381,8 @@ int main() {
     vkGetImageMemoryRequirements(device, depth_image, &mem_reqs);
     printf("\tvkGetImageMemoryRequirements\n");
     printf(
-        "\t\tsize: %llx\n"
-        "\t\talignment: %llx\n"
+        "\t\tsize: %zx\n"
+        "\t\talignment: %zx\n"
         "\t\tmemoryTypeBits: %x\n",
             mem_reqs.size,
             mem_reqs.alignment,

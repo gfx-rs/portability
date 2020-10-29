@@ -1,11 +1,11 @@
 CTS_DIR=../VK-GL-CTS
 CHERRY_DIR=../cherry
 BINDING=target/vulkan.rs
+LIB_FILE_NAME=
+LIB_VULKAN_NAME=
 NATIVE_DIR=target/native
 NATIVE_TARGET=$(NATIVE_DIR)/test
 NATIVE_OBJECTS=$(NATIVE_DIR)/test.o $(NATIVE_DIR)/window.o
-LIB_FILE_NAME=
-LIB_VULKAN_NAME=
 TEST_LIST=$(CURDIR)/conformance/deqp.txt
 TEST_LIST_SOURCE=$(CTS_DIR)/external/vulkancts/mustpass/1.0.2/vk-default.txt
 DEQP_DIR=$(CTS_DIR)/build/external/vulkancts/modules/vulkan/
@@ -18,7 +18,7 @@ ZIP_COMMAND=
 DOTA_DIR=../dota2/bin/osx64
 DOTA_EXE=$(DOTA_DIR)/dota2.app/Contents/MacOS/dota2
 #possible command lines are : -vulkan_disable_occlusion_queries -vulkan_scene_system_job_cost 2 +vulkan_batch_submits 1 +vulkan_batch_size 500
-DOTA_PARAMS:=-vulkan_disable_occlusion_queries
+DOTA_PARAMS:=-vulkan -vulkan_disable_occlusion_queries -vulkan_descriptor_sets_per_pool 256
 DOTA_DEMO_PHORONIX= "$(CURDIR)/../dota2/demos/dota2-pts-1971360796.dem"
 DOTA_BENCHMARK=+timedemoquit +timedemo $(DOTA_DEMO_PHORONIX) +timedemo_start 40000 +timedemo_end 50000 +fps_max 0 -novconsole -high -autoconfig_level 3
 DOTA_BENCH_RESULTS=../dota2/dota/Source2Bench.csv
@@ -135,15 +135,15 @@ $(BINDING): headers/vulkan/*.h
 	bindgen --no-layout-tests --rustfmt-bindings headers/vulkan/vulkan.h -o $(BINDING)
 
 $(LIBRARY): dummy
-	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND)
-	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND),portability-gfx/env_logger
-	mkdir -p target/native
+	cargo build --manifest-path libportability/Cargo.toml --features $(BACKEND),debug
+	cargo build --manifest-path libportability-icd/Cargo.toml --features $(BACKEND),debug
 
 $(LIBRARY_FAST): dummy
 	cargo build --release --manifest-path libportability/Cargo.toml --features $(BACKEND)
 	cargo build --release --manifest-path libportability-icd/Cargo.toml --features $(BACKEND)
 
 $(NATIVE_DIR)/%.o: native/%.cpp $(DEPS) Makefile
+	-mkdir $(NATIVE_DIR)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 $(NATIVE_TARGET): $(LIBRARY) $(NATIVE_OBJECTS) Makefile
