@@ -3,5 +3,5 @@ status = [
     "MacOS Stable",
     "iOS Stable",
     "Windows Stable",
-    "UWP Nightly",
+    #"UWP Nightly", #TODO
 ]
