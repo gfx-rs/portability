@@ -19,9 +19,8 @@ pub unsafe extern "C" fn vk_icdGetInstanceProcAddr(
 pub unsafe extern "C" fn vk_icdNegotiateLoaderICDInterfaceVersion(
     pSupportedVersion: *mut ::std::os::raw::c_uint,
 ) -> VkResult {
-    let supported_version = &mut *pSupportedVersion;
-    if *supported_version > ICD_VERSION {
-        *supported_version = ICD_VERSION;
+    if *pSupportedVersion > ICD_VERSION {
+        *pSupportedVersion = ICD_VERSION;
     }
 
     VkResult::VK_SUCCESS

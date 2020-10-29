@@ -498,19 +498,20 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceMemoryProperties(
     let num_types = properties.memory_types.len();
     memory_properties.memoryTypeCount = num_types as _;
     for i in 0..num_types {
-        let flags = conv::memory_properties_from_hal(properties.memory_types[i].properties);
+        let ty = &properties.memory_types[i];
         memory_properties.memoryTypes[i] = VkMemoryType {
-            propertyFlags: flags, // propertyFlags
-            heapIndex: properties.memory_types[i].heap_index as _,
+            propertyFlags: conv::memory_properties_from_hal(ty.properties),
+            heapIndex: ty.heap_index as _,
         };
     }
 
     let num_heaps = properties.memory_heaps.len();
     memory_properties.memoryHeapCount = num_heaps as _;
     for i in 0..num_heaps {
+        let heap = &properties.memory_heaps[i];
         memory_properties.memoryHeaps[i] = VkMemoryHeap {
-            size: properties.memory_heaps[i],
-            flags: 0, // TODO
+            size: heap.size,
+            flags: conv::memory_heap_flags_from_hal(heap.flags),
         };
     }
 }
@@ -1826,7 +1827,7 @@ pub unsafe extern "C" fn gfxCreateImage(
             kind,
             info.mipLevels as _,
             conv::map_format(info.format)
-                .expect(&format!("Unsupported image format: {:?}", info.format)),
+                .unwrap_or_else(|| panic!("Unsupported image format: {:?}", info.format)),
             conv::map_tiling(info.tiling),
             conv::map_image_usage(info.usage),
             conv::map_image_create_flags(info.flags),
@@ -4274,8 +4275,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
             as _,
         currentTransform: VkSurfaceTransformFlagBitsKHR::VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
         supportedCompositeAlpha: caps.composite_alpha_modes.bits(),
-        // Ignoring `caps.usage` since we only work with the new swapchain model here.
-        supportedUsageFlags: VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as _,
+        supportedUsageFlags: conv::map_image_usage_from_hal(caps.usage),
     };
 
     *pSurfaceCapabilities = output;
@@ -4428,15 +4428,13 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
 ) -> VkResult {
     let info = &*pCreateInfo;
     // TODO: more checks
-    assert_eq!(info.clipped, VK_TRUE); // TODO
+    if info.clipped == 0 {
+        warn!("Non-clipped swapchain requested");
+    }
     assert_eq!(
         info.imageSharingMode,
         VkSharingMode::VK_SHARING_MODE_EXCLUSIVE
     ); // TODO
-
-    if info.imageUsage != VkImageUsageFlagBits::VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT as _ {
-        warn!("Unsupported swapchain usage: {:?}", info.imageUsage);
-    }
 
     let config = hal::window::SwapchainConfig {
         present_mode: conv::map_present_mode(info.presentMode),
@@ -4455,12 +4453,13 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
         .configure_swapchain(&gpu.device, config)
     {
         Ok(()) => {
+            let count = info.minImageCount;
             let swapchain = Swapchain {
                 gpu,
                 surface: info.surface,
-                count: info.minImageCount,
+                count,
                 current_index: 0,
-                active: Vec::new(),
+                active: (0 .. count).map(|_| None).collect(),
                 lazy_framebuffers: Mutex::new(Vec::with_capacity(1)),
             };
             *pSwapchain = Handle::new(swapchain);
@@ -4746,7 +4745,7 @@ pub unsafe extern "C" fn gfxAcquireNextImageKHR(
     match swapchain.surface.acquire_image(timeout) {
         Ok((frame, suboptimal)) => {
             let index = (swapchain.current_index + 1) % swapchain.count;
-            swapchain.active.push((index, frame));
+            swapchain.active[index as usize] = Some(frame);
             *pImageIndex = index;
             swapchain.current_index = index;
             match suboptimal {
@@ -4781,12 +4780,9 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
 
     for (swapchain, &index) in swapchain_slice.iter().zip(index_slice) {
         let sc = swapchain.as_mut().unwrap();
-        let active_pos = sc
-            .active
-            .iter()
-            .position(|&(frame, _)| frame == index)
+        let frame = sc.active[index as usize]
+            .take()
             .expect("Frame was not acquired properly!");
-        let (_, frame) = sc.active.swap_remove(active_pos);
         let sem = wait_semaphores.first().map(|s| &s.raw);
         if let Err(_) = queue.present(&mut *sc.surface, frame, sem) {
             return VkResult::VK_ERROR_SURFACE_LOST_KHR;

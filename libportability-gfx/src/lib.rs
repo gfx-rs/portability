@@ -124,11 +124,14 @@ pub enum Image<B: hal::Backend> {
 #[derive(Debug)]
 struct UnexpectedSwapchainImage;
 
-impl<B: hal::Backend> Image<B> {
-    fn as_native(&self) -> Result<&B::Image, UnexpectedSwapchainImage> {
+impl Image<B> {
+    fn as_native(&self) -> Result<&<B as hal::Backend>::Image, UnexpectedSwapchainImage> {
+        //use std::borrow::Borrow;
         match *self {
             Image::Native { ref raw } => Ok(raw),
             Image::SwapchainFrame { .. } => Err(UnexpectedSwapchainImage),
+            //Image::SwapchainFrame { ref swapchain, frame } =>
+            //    Ok(swapchain.active[frame as usize].as_ref().unwrap().borrow()),
         }
     }
 }
@@ -195,11 +198,9 @@ impl Framebuffer {
                     } => {
                         use std::borrow::Borrow;
                         swapchain
-                            .active
-                            .iter()
-                            .find(|&&(index, _)| index == frame)
+                            .active[frame as usize]
+                            .as_ref()
                             .expect("Swapchain frame isn't acquired")
-                            .1
                             .borrow()
                     }
                 });
@@ -249,10 +250,7 @@ pub struct Swapchain<B: hal::Backend> {
     surface: VkSurfaceKHR,
     count: hal::window::SwapImageIndex,
     current_index: hal::window::SwapImageIndex,
-    active: Vec<(
-        hal::window::SwapImageIndex,
-        <B::Surface as hal::window::PresentationSurface<B>>::SwapchainImage,
-    )>,
+    active: Vec<Option<<B::Surface as hal::window::PresentationSurface<B>>::SwapchainImage>>,
     lazy_framebuffers: parking_lot::Mutex<Vec<<B as hal::Backend>::Framebuffer>>,
 }
 
