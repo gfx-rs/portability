@@ -2,7 +2,6 @@ use super::*;
 
 use hal::{
     adapter::PhysicalDevice,
-    buffer::IndexBufferView,
     command::CommandBuffer,
     device::{Device, WaitFor},
     pool::CommandPool as _,
@@ -3537,11 +3536,10 @@ pub unsafe extern "C" fn gfxCmdBindIndexBuffer(
     offset: VkDeviceSize,
     indexType: VkIndexType,
 ) {
-    commandBuffer.bind_index_buffer(IndexBufferView {
-        buffer: &*buffer,
-        range: hal::buffer::SubRange { offset, size: None },
-        index_type: conv::map_index_type(indexType),
-    });
+    commandBuffer.bind_index_buffer(&*buffer,
+        hal::buffer::SubRange { offset, size: None },
+        conv::map_index_type(indexType),
+    );
 }
 
 #[inline]
