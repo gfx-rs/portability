@@ -19,7 +19,7 @@ dx12 = ["portability-gfx/gfx-backend-dx12"]
 dx11 = ["portability-gfx/gfx-backend-dx11"]
 metal = ["portability-gfx/gfx-backend-metal"]
 vulkan = ["portability-gfx/gfx-backend-vulkan"]
-#gl = ["portability-gfx/gfx-backend-gl"]
+gl = ["portability-gfx/gfx-backend-gl"]
 
 [dependencies]
 portability-gfx = { path = "../libportability-gfx", features = ["dispatch"] }

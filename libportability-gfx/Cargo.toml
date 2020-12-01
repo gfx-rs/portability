@@ -57,10 +57,11 @@ git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/metal"
 optional = true
 
-#[dependencies.gfx-backend-gl]
-#git = "https://github.com/gfx-rs/gfx"
+[target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))'.dependencies.gfx-backend-gl]
+git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/gl"
-#optional = true
+features = ["x11"]
+optional = true
 
 [dependencies.gfx-auxil]
 git = "https://github.com/gfx-rs/gfx"
