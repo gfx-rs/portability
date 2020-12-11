@@ -572,6 +572,7 @@ pub unsafe extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
         vkGetPhysicalDeviceWin32PresentationSupportKHR, PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR => gfxGetPhysicalDeviceWin32PresentationSupportKHR,
 
+        vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR => gfxCreateXcbSurfaceKHR,
         vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
         vkCreateMetalSurfaceEXT, PFN_vkCreateMetalSurfaceEXT => gfxCreateMetalSurfaceEXT,
         vkCreateMacOSSurfaceMVK, PFN_vkCreateMacOSSurfaceMVK => gfxCreateMacOSSurfaceMVK,
@@ -982,6 +983,8 @@ lazy_static! {
     static ref INSTANCE_EXTENSION_NAMES: Vec<&'static [u8]> = {
         vec![
             VK_KHR_SURFACE_EXTENSION_NAME,
+            #[cfg(target_os="linux")]
+            VK_KHR_XCB_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="windows")]
             VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
             #[cfg(feature="gfx-backend-metal")]
@@ -998,6 +1001,11 @@ lazy_static! {
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_SURFACE_SPEC_VERSION,
+            },
+            #[cfg(target_os="linux")]
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_XCB_SURFACE_EXTENSION_NAME
+                specVersion: VK_KHR_XCB_SURFACE_SPEC_VERSION,
             },
             #[cfg(target_os="windows")]
             VkExtensionProperties {
