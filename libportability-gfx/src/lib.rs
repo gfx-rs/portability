@@ -357,8 +357,10 @@ pub const VK_MAX_DESCRIPTION_SIZE: ::std::os::raw::c_uint = 256;
 pub const VK_KHR_surface: ::std::os::raw::c_uint = 1;
 pub const VK_KHR_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 25;
 pub const VK_KHR_SURFACE_EXTENSION_NAME: &'static [u8; 15usize] = b"VK_KHR_surface\x00";
+pub const VK_KHR_XCB_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 6;
 pub const VK_KHR_WIN32_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 6;
 pub const VK_MVK_MACOS_SURFACE_SPEC_VERSION: ::std::os::raw::c_uint = 2;
+pub const VK_KHR_XCB_SURFACE_EXTENSION_NAME: &'static [u8; 19usize] = b"VK_KHR_xcb_surface\x00";
 pub const VK_KHR_WIN32_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] = b"VK_KHR_win32_surface\x00";
 pub const VK_MVK_MACOS_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] = b"VK_MVK_macos_surface\x00";
 pub const VK_EXT_METAL_SURFACE_EXTENSION_NAME: &'static [u8; 21usize] = b"VK_EXT_metal_surface\x00";
@@ -7143,6 +7145,15 @@ pub type PFN_vkEnumeratePhysicalDevices = ::std::option::Option<
 
 pub type PFN_vkDestroyInstance = ::std::option::Option<
     unsafe extern "C" fn(instance: VkInstance, pAllocator: *const VkAllocationCallbacks),
+>;
+
+pub type PFN_vkCreateXcbSurfaceKHR = ::std::option::Option<
+    unsafe extern "C" fn(
+        instance: VkInstance,
+        pCreateInfo: *const VkXcbSurfaceCreateInfoKHR,
+        pAllocator: *const VkAllocationCallbacks,
+        pSurface: *mut VkSurfaceKHR,
+    ) -> VkResult,
 >;
 
 pub type PFN_vkCreateWin32SurfaceKHR = ::std::option::Option<
