@@ -4716,17 +4716,33 @@ pub unsafe extern "C" fn gfxCreateXcbSurfaceKHR(
 ) -> VkResult {
     assert!(pAllocator.is_null());
     let info = &*pCreateInfo;
-    #[cfg(all(feature = "gfx-backend-vulkan", target_os = "linux"))]
+
+    #[cfg(target_os = "linux")]
     {
         assert_eq!(info.flags, 0);
+        use raw_window_handle::{unix::XcbHandle, HasRawWindowHandle, RawWindowHandle};
+
+        struct HandleWrapper(XcbHandle);
+        unsafe impl HasRawWindowHandle for HandleWrapper {
+            fn raw_window_handle(&self) -> RawWindowHandle {
+                RawWindowHandle::Xcb(self.0)
+            }
+        }
+
+        let xcb_handle = XcbHandle {
+            window: info.window,
+            connection: info.connection,
+            ..XcbHandle::empty()
+        };
         *pSurface = Handle::new(
             instance
                 .backend
-                .create_surface_from_xcb(info.connection, info.window),
+                .create_surface(&HandleWrapper(xcb_handle))
+                .unwrap(),
         );
         VkResult::VK_SUCCESS
     }
-    #[cfg(not(all(feature = "gfx-backend-vulkan", target_os = "linux")))]
+    #[cfg(not(target_os = "linux"))]
     {
         let _ = (instance, info, pSurface);
         unreachable!()
