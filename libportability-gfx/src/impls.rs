@@ -4247,7 +4247,7 @@ pub unsafe extern "C" fn gfxDestroySurfaceKHR(
     _: *const VkAllocationCallbacks,
 ) {
     if let Some(surface) = surface.unbox() {
-        instance.backend.destroy_surface(surface);
+        instance.backend.destroy_surface(surface.raw);
     }
 }
 
@@ -4259,7 +4259,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceSupportKHR(
     pSupported: *mut VkBool32,
 ) -> VkResult {
     let family = &adapter.queue_families[queueFamilyIndex as usize];
-    let supports = surface.supports_queue_family(family);
+    let supports = surface.raw.supports_queue_family(family);
     *pSupported = supports as _;
     VkResult::VK_SUCCESS
 }
@@ -4270,7 +4270,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceCapabilitiesKHR(
     surface: VkSurfaceKHR,
     pSurfaceCapabilities: *mut VkSurfaceCapabilitiesKHR,
 ) -> VkResult {
-    let caps = surface.capabilities(&adapter.physical_device);
+    let caps = surface.raw.capabilities(&adapter.physical_device);
 
     let output = VkSurfaceCapabilitiesKHR {
         minImageCount: *caps.image_count.start(),
@@ -4332,6 +4332,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceFormatsKHR(
     pSurfaceFormats: *mut VkSurfaceFormatKHR,
 ) -> VkResult {
     let formats = surface
+        .raw
         .supported_formats(&adapter.physical_device)
         .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
         .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
@@ -4364,6 +4365,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfaceFormats2KHR(
 ) -> VkResult {
     let formats = (*pSurfaceInfo)
         .surface
+        .raw
         .supported_formats(&adapter.physical_device)
         .map(|formats| formats.into_iter().map(conv::format_from_hal).collect())
         .unwrap_or(vec![VkFormat::VK_FORMAT_UNDEFINED]);
@@ -4394,7 +4396,10 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceSurfacePresentModesKHR(
     pPresentModeCount: *mut u32,
     pPresentModes: *mut VkPresentModeKHR,
 ) -> VkResult {
-    let present_modes = surface.capabilities(&adapter.physical_device).present_modes;
+    let present_modes = surface
+        .raw
+        .capabilities(&adapter.physical_device)
+        .present_modes;
 
     let num_present_modes = present_modes.bits().count_ones();
 
@@ -4440,7 +4445,7 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
     _pAllocator: *const VkAllocationCallbacks,
     pSwapchain: *mut VkSwapchainKHR,
 ) -> VkResult {
-    let info = &*pCreateInfo;
+    let mut info = *pCreateInfo;
     // TODO: more checks
     if info.clipped == 0 {
         warn!("Non-clipped swapchain requested");
@@ -4464,10 +4469,13 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
         .surface
         .as_mut()
         .unwrap()
+        .raw
         .configure_swapchain(&gpu.device, config)
     {
         Ok(()) => {
             let count = info.minImageCount;
+            let revision = info.surface.swapchain_revision;
+            info.surface.swapchain_revision += 1;
             let swapchain = Swapchain {
                 gpu,
                 surface: info.surface,
@@ -4475,6 +4483,7 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
                 current_index: 0,
                 active: (0 .. count).map(|_| None).collect(),
                 lazy_framebuffers: Mutex::new(Vec::with_capacity(1)),
+                revision,
             };
             *pSwapchain = Handle::new(swapchain);
             VkResult::VK_SUCCESS
@@ -4499,7 +4508,9 @@ pub unsafe extern "C" fn gfxDestroySwapchainKHR(
     _pAllocator: *const VkAllocationCallbacks,
 ) {
     if let Some(mut sc) = swapchain.unbox() {
-        sc.surface.unconfigure_swapchain(&gpu.device);
+        if sc.surface.swapchain_revision == swapchain.revision {
+            sc.surface.raw.unconfigure_swapchain(&gpu.device);
+        }
     }
 }
 #[inline]
@@ -4700,7 +4711,10 @@ pub unsafe extern "C" fn gfxCreateWin32SurfaceKHR(
     #[cfg(any(feature = "gfx-backend-dx12", feature = "gfx-backend-dx11"))]
     {
         assert_eq!(info.flags, 0);
-        *pSurface = Handle::new(instance.backend.create_surface_from_hwnd(info.hwnd));
+        *pSurface = Handle::new(Surface {
+            raw: instance.backend.create_surface_from_hwnd(info.hwnd),
+            swapchain_revision: 0,
+        });
         VkResult::VK_SUCCESS
     }
     #[cfg(not(all(
@@ -4742,12 +4756,16 @@ pub unsafe extern "C" fn gfxCreateXlibSurfaceKHR(
             display: info.dpy,
             ..XlibHandle::empty()
         };
-        *pSurface = Handle::new(
-            instance
-                .backend
-                .create_surface(&HandleWrapper(xlib_handle))
-                .unwrap(),
-        );
+
+        let raw_surface = instance
+            .backend
+            .create_surface(&HandleWrapper(xlib_handle))
+            .unwrap();
+
+        *pSurface = Handle::new(Surface {
+            raw: raw_surface,
+            swapchain_revision: 0,
+        });
         VkResult::VK_SUCCESS
     }
     #[cfg(not(target_os = "linux"))]
@@ -4782,12 +4800,16 @@ pub unsafe extern "C" fn gfxCreateXcbSurfaceKHR(
             connection: info.connection,
             ..XcbHandle::empty()
         };
-        *pSurface = Handle::new(
-            instance
-                .backend
-                .create_surface(&HandleWrapper(xcb_handle))
-                .unwrap(),
-        );
+
+        let raw_surface = instance
+            .backend
+            .create_surface(&HandleWrapper(xcb_handle))
+            .unwrap();
+
+        *pSurface = Handle::new(Surface {
+            raw: raw_surface,
+            swapchain_revision: 0,
+        });
         VkResult::VK_SUCCESS
     }
     #[cfg(not(target_os = "linux"))]
@@ -4812,7 +4834,7 @@ pub unsafe extern "C" fn gfxAcquireNextImageKHR(
         sem.is_fake = true;
     }
 
-    match swapchain.surface.acquire_image(timeout) {
+    match swapchain.surface.raw.acquire_image(timeout) {
         Ok((frame, suboptimal)) => {
             let index = (swapchain.current_index + 1) % swapchain.count;
             swapchain.active[index as usize] = Some(frame);
@@ -4854,7 +4876,7 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
             .take()
             .expect("Frame was not acquired properly!");
         let sem = wait_semaphores.first().map(|s| &s.raw);
-        if let Err(_) = queue.present(&mut *sc.surface, frame, sem) {
+        if let Err(_) = queue.present(&mut sc.surface.raw, frame, sem) {
             return VkResult::VK_ERROR_SURFACE_LOST_KHR;
         }
         for framebuffer in sc.lazy_framebuffers.lock().drain(..) {
@@ -4877,11 +4899,12 @@ pub unsafe extern "C" fn gfxCreateMetalSurfaceEXT(
     #[cfg(feature = "gfx-backend-metal")]
     {
         assert_eq!(info.flags, 0);
-        *pSurface = Handle::new(
-            instance
+        *pSurface = Handle::new(Surface {
+            raw: instance
                 .backend
                 .create_surface_from_layer(mem::transmute(info.pLayer)),
-        );
+            swapchain_revision: 0,
+        });
         VkResult::VK_SUCCESS
     }
     #[cfg(not(feature = "gfx-backend-metal"))]
@@ -4903,7 +4926,10 @@ pub unsafe extern "C" fn gfxCreateMacOSSurfaceMVK(
     #[cfg(all(target_os = "macos", feature = "gfx-backend-metal"))]
     {
         assert_eq!(info.flags, 0);
-        *pSurface = Handle::new(instance.backend.create_surface_from_nsview(info.pView));
+        *pSurface = Handle::new(Surface {
+            raw: instance.backend.create_surface_from_nsview(info.pView),
+            swapchain_revision: 0,
+        });
         VkResult::VK_SUCCESS
     }
     #[cfg(not(all(target_os = "macos", feature = "gfx-backend-metal")))]
