@@ -572,6 +572,7 @@ pub unsafe extern "C" fn gfxGetInstanceProcAddr(
         vkGetPhysicalDeviceSurfacePresentModesKHR, PFN_vkGetPhysicalDeviceSurfacePresentModesKHR => gfxGetPhysicalDeviceSurfacePresentModesKHR,
         vkGetPhysicalDeviceWin32PresentationSupportKHR, PFN_vkGetPhysicalDeviceWin32PresentationSupportKHR => gfxGetPhysicalDeviceWin32PresentationSupportKHR,
 
+        vkCreateXlibSurfaceKHR, PFN_vkCreateXlibSurfaceKHR => gfxCreateXlibSurfaceKHR,
         vkCreateXcbSurfaceKHR, PFN_vkCreateXcbSurfaceKHR => gfxCreateXcbSurfaceKHR,
         vkCreateWin32SurfaceKHR, PFN_vkCreateWin32SurfaceKHR => gfxCreateWin32SurfaceKHR,
         vkCreateMetalSurfaceEXT, PFN_vkCreateMetalSurfaceEXT => gfxCreateMetalSurfaceEXT,
@@ -984,6 +985,8 @@ lazy_static! {
         vec![
             VK_KHR_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="linux")]
+            VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+            #[cfg(target_os="linux")]
             VK_KHR_XCB_SURFACE_EXTENSION_NAME,
             #[cfg(target_os="windows")]
             VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
@@ -1001,6 +1004,11 @@ lazy_static! {
             VkExtensionProperties {
                 extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
                 specVersion: VK_KHR_SURFACE_SPEC_VERSION,
+            },
+            #[cfg(target_os="linux")]
+            VkExtensionProperties {
+                extensionName: [0; 256], // VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+                specVersion: VK_KHR_XLIB_SURFACE_SPEC_VERSION,
             },
             #[cfg(target_os="linux")]
             VkExtensionProperties {
@@ -4703,6 +4711,46 @@ pub unsafe extern "C" fn gfxCreateWin32SurfaceKHR(
             feature = "gfx-backend-dx11"
         )
     )))]
+    {
+        let _ = (instance, info, pSurface);
+        unreachable!()
+    }
+}
+pub unsafe extern "C" fn gfxCreateXlibSurfaceKHR(
+    instance: VkInstance,
+    pCreateInfo: *const VkXlibSurfaceCreateInfoKHR,
+    pAllocator: *const VkAllocationCallbacks,
+    pSurface: *mut VkSurfaceKHR,
+) -> VkResult {
+    assert!(pAllocator.is_null());
+    let info = &*pCreateInfo;
+
+    #[cfg(target_os = "linux")]
+    {
+        assert_eq!(info.flags, 0);
+        use raw_window_handle::{unix::XlibHandle, HasRawWindowHandle, RawWindowHandle};
+
+        struct HandleWrapper(XlibHandle);
+        unsafe impl HasRawWindowHandle for HandleWrapper {
+            fn raw_window_handle(&self) -> RawWindowHandle {
+                RawWindowHandle::Xlib(self.0)
+            }
+        }
+
+        let xlib_handle = XlibHandle {
+            window: info.window as _,
+            display: info.dpy,
+            ..XlibHandle::empty()
+        };
+        *pSurface = Handle::new(
+            instance
+                .backend
+                .create_surface(&HandleWrapper(xlib_handle))
+                .unwrap(),
+        );
+        VkResult::VK_SUCCESS
+    }
+    #[cfg(not(target_os = "linux"))]
     {
         let _ = (instance, info, pSurface);
         unreachable!()
