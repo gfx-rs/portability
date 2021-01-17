@@ -32,7 +32,6 @@ use gfx_backend_metal as back;
 #[cfg(feature = "gfx-backend-vulkan")]
 use gfx_backend_vulkan as back;
 
-use lazy_static::lazy_static;
 use log::{error, warn};
 
 mod conv;

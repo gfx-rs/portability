@@ -136,7 +136,10 @@ pub unsafe extern "C" fn gfxCreateInstance(
             create_info.enabledExtensionCount as _,
         ) {
             let cstr = CStr::from_ptr(*raw);
-            if !INSTANCE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
+            if !INSTANCE_EXTENSIONS
+                .iter()
+                .any(|&(ref name, _)| name == &cstr.to_bytes_with_nul())
+            {
                 return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
             }
             let owned = cstr.to_str().expect("Invalid extension name").to_owned();
@@ -934,7 +937,10 @@ pub unsafe extern "C" fn gfxCreateDevice(
                     dev_info.enabledExtensionCount as _,
                 ) {
                     let cstr = CStr::from_ptr(*raw);
-                    if !DEVICE_EXTENSION_NAMES.contains(&cstr.to_bytes_with_nul()) {
+                    if !DEVICE_EXTENSIONS
+                        .iter()
+                        .any(|&(ref name, _)| name == &cstr.to_bytes_with_nul())
+                    {
                         return VkResult::VK_ERROR_EXTENSION_NOT_PRESENT;
                     }
                     let owned = cstr.to_str().expect("Invalid extension name").to_owned();
@@ -985,116 +991,61 @@ pub unsafe extern "C" fn gfxDestroyDevice(
     }
 }
 
-lazy_static! {
-    // TODO: Request from backend
-    static ref INSTANCE_EXTENSION_NAMES: Vec<&'static [u8]> = {
-        vec![
-            VK_KHR_SURFACE_EXTENSION_NAME,
-            #[cfg(target_os="linux")]
-            VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
-            #[cfg(target_os="linux")]
-            VK_KHR_XCB_SURFACE_EXTENSION_NAME,
-            #[cfg(target_os="windows")]
-            VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-            #[cfg(feature="gfx-backend-metal")]
-            VK_EXT_METAL_SURFACE_EXTENSION_NAME,
-            #[cfg(target_os="macos")]
-            VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
-            VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
-            VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
-        ]
-    };
+const INSTANCE_EXTENSIONS: &[(&'static [u8], u32)] = &[
+    (VK_KHR_SURFACE_EXTENSION_NAME, VK_KHR_SURFACE_SPEC_VERSION),
+    #[cfg(target_os = "linux")]
+    (
+        VK_KHR_XLIB_SURFACE_EXTENSION_NAME,
+        VK_KHR_XLIB_SURFACE_SPEC_VERSION,
+    ),
+    #[cfg(target_os = "linux")]
+    (
+        VK_KHR_XCB_SURFACE_EXTENSION_NAME,
+        VK_KHR_XCB_SURFACE_SPEC_VERSION,
+    ),
+    #[cfg(target_os = "windows")]
+    (
+        VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+        VK_KHR_WIN32_SURFACE_SPEC_VERSION,
+    ),
+    #[cfg(feature = "gfx-backend-metal")]
+    (
+        VK_EXT_METAL_SURFACE_EXTENSION_NAME,
+        VK_EXT_METAL_SURFACE_SPEC_VERSION,
+    ),
+    #[cfg(target_os = "macos")]
+    (
+        VK_MVK_MACOS_SURFACE_EXTENSION_NAME,
+        VK_MVK_MACOS_SURFACE_SPEC_VERSION,
+    ),
+    (
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
+        VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION,
+    ),
+    (
+        VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME,
+        VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION,
+    ),
+];
 
-    static ref INSTANCE_EXTENSIONS: Vec<VkExtensionProperties> = {
-        let mut extensions = vec![
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_SURFACE_EXTENSION_NAME
-                specVersion: VK_KHR_SURFACE_SPEC_VERSION,
-            },
-            #[cfg(target_os="linux")]
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_XLIB_SURFACE_EXTENSION_NAME
-                specVersion: VK_KHR_XLIB_SURFACE_SPEC_VERSION,
-            },
-            #[cfg(target_os="linux")]
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_XCB_SURFACE_EXTENSION_NAME
-                specVersion: VK_KHR_XCB_SURFACE_SPEC_VERSION,
-            },
-            #[cfg(target_os="windows")]
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-                specVersion: VK_KHR_WIN32_SURFACE_SPEC_VERSION,
-            },
-            #[cfg(feature="gfx-backend-metal")]
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_EXT_METAL_SURFACE_EXTENSION_NAME
-                specVersion: VK_EXT_METAL_SURFACE_SPEC_VERSION,
-            },
-            #[cfg(target_os="macos")]
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_MVK_MACOS_SURFACE_EXTENSION_NAME
-                specVersion: VK_MVK_MACOS_SURFACE_SPEC_VERSION,
-            },
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-                specVersion: VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_SPEC_VERSION,
-            },
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_GET_SURFACE_CAPABILITIES_2_EXTENSION_NAME
-                specVersion: VK_KHR_GET_SURFACE_CAPABILITIES_2_SPEC_VERSION,
-            },
-        ];
-
-        for (&name, extension) in INSTANCE_EXTENSION_NAMES.iter().zip(&mut extensions) {
-            extension
-                .extensionName[.. name.len()]
-                .copy_from_slice(unsafe {
-                    mem::transmute(name)
-                });
-        }
-
-        extensions
-    };
-
-    static ref DEVICE_EXTENSION_NAMES: Vec<&'static [u8]> = {
-        vec![
-            VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-            VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-            VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
-            VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
-        ]
-    };
-
-    static ref DEVICE_EXTENSIONS: Vec<VkExtensionProperties> = {
-        let mut extensions = [
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_SWAPCHAIN_EXTENSION_NAME
-                specVersion: VK_KHR_SWAPCHAIN_SPEC_VERSION,
-            },
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_MAINTENANCE1_EXTENSION_NAME
-                specVersion: VK_KHR_MAINTENANCE1_SPEC_VERSION,
-            },
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_EXT_DEBUG_MARKER_EXTENSION_NAME
-                specVersion: VK_EXT_DEBUG_MARKER_SPEC_VERSION,
-            },
-            VkExtensionProperties {
-                extensionName: [0; 256], // VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
-                specVersion: VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION,
-            },
-        ];
-
-        for (&name, extension) in DEVICE_EXTENSION_NAMES.iter().zip(&mut extensions) {
-            extension
-                .extensionName[.. name.len()]
-                .copy_from_slice(unsafe { mem::transmute(name) });
-        }
-
-        extensions.to_vec()
-    };
-}
+const DEVICE_EXTENSIONS: &[(&'static [u8], u32)] = &[
+    (
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_KHR_SWAPCHAIN_SPEC_VERSION,
+    ),
+    (
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE1_SPEC_VERSION,
+    ),
+    (
+        VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
+        VK_EXT_DEBUG_MARKER_SPEC_VERSION,
+    ),
+    (
+        VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
+        VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION,
+    ),
+];
 
 #[inline]
 pub unsafe extern "C" fn gfxEnumerateInstanceExtensionProperties(
@@ -1112,10 +1063,14 @@ pub unsafe extern "C" fn gfxEnumerateInstanceExtensionProperties(
             *property_count = num_extensions;
         }
         let properties = slice::from_raw_parts_mut(pProperties, *property_count as usize);
-        for i in 0..*property_count as usize {
-            properties[i] = INSTANCE_EXTENSIONS[i];
+        for (property, &(name, specVersion)) in properties.iter_mut().zip(INSTANCE_EXTENSIONS) {
+            let mut extensionName = [0i8; 256];
+            extensionName[..name.len()].copy_from_slice(mem::transmute(name));
+            *property = VkExtensionProperties {
+                extensionName,
+                specVersion,
+            };
         }
-
         if *property_count < num_extensions {
             return VkResult::VK_INCOMPLETE;
         }
@@ -1141,8 +1096,13 @@ pub unsafe extern "C" fn gfxEnumerateDeviceExtensionProperties(
             *property_count = num_extensions;
         }
         let properties = slice::from_raw_parts_mut(pProperties, *property_count as usize);
-        for i in 0..*property_count as usize {
-            properties[i] = DEVICE_EXTENSIONS[i];
+        for (property, &(name, specVersion)) in properties.iter_mut().zip(DEVICE_EXTENSIONS) {
+            let mut extensionName = [0i8; 256];
+            extensionName[..name.len()].copy_from_slice(mem::transmute(name));
+            *property = VkExtensionProperties {
+                extensionName,
+                specVersion,
+            };
         }
 
         if *property_count < num_extensions {
