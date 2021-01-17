@@ -69,7 +69,7 @@ pub type VkBuffer = Handle<<B as hal::Backend>::Buffer>;
 pub type VkSemaphore = Handle<Semaphore<B>>;
 pub type VkEvent = Handle<<B as hal::Backend>::Event>;
 pub type VkFence = Handle<Fence<B>>;
-pub type VkRenderPass = Handle<RenderPass<B>>;
+pub type VkRenderPass = Handle<<B as hal::Backend>::RenderPass>;
 pub type VkFramebuffer = Handle<Framebuffer>;
 pub type VkPipeline = Handle<Pipeline<B>>;
 pub type VkPipelineCache = Handle<<B as hal::Backend>::PipelineCache>;
@@ -99,11 +99,6 @@ pub struct DescriptorPool<B: hal::Backend> {
     set_handles: Option<Vec<VkDescriptorSet>>,
 }
 
-pub struct RenderPass<B: hal::Backend> {
-    raw: B::RenderPass,
-    clear_attachment_mask: u64,
-}
-
 pub enum Pipeline<B: hal::Backend> {
     Graphics(B::GraphicsPipeline),
     Compute(B::ComputePipeline),
@@ -114,6 +109,7 @@ pub enum Image<B: hal::Backend> {
         raw: B::Image,
         //mip_levels: u32,
         //array_layers: u32,
+        fb_attachment: hal::image::FramebufferAttachment,
     },
     SwapchainFrame {
         swapchain: VkSwapchainKHR,
@@ -128,7 +124,7 @@ impl Image<B> {
     fn as_native(&self) -> Result<&<B as hal::Backend>::Image, UnexpectedSwapchainImage> {
         //use std::borrow::Borrow;
         match *self {
-            Image::Native { ref raw } => Ok(raw),
+            Image::Native { ref raw, .. } => Ok(raw),
             Image::SwapchainFrame { .. } => Err(UnexpectedSwapchainImage),
             //Image::SwapchainFrame { ref swapchain, frame } =>
             //    Ok(swapchain.active[frame as usize].as_ref().unwrap().borrow()),
@@ -137,7 +133,10 @@ impl Image<B> {
 }
 
 pub enum ImageView {
-    Native(<B as hal::Backend>::ImageView),
+    Native {
+        raw: <B as hal::Backend>::ImageView,
+        fb_attachment: hal::image::FramebufferAttachment,
+    },
     SwapchainFrame {
         swapchain: VkSwapchainKHR,
         frame: hal::window::SwapImageIndex,
@@ -147,82 +146,28 @@ pub enum ImageView {
 impl ImageView {
     fn as_native(&self) -> Result<&<B as hal::Backend>::ImageView, UnexpectedSwapchainImage> {
         match *self {
-            ImageView::Native(ref raw) => Ok(raw),
+            ImageView::Native { ref raw, .. } => Ok(raw),
             ImageView::SwapchainFrame { .. } => Err(UnexpectedSwapchainImage),
         }
     }
-}
 
-pub enum Framebuffer {
-    Native(<B as hal::Backend>::Framebuffer),
-    Lazy {
-        extent: hal::image::Extent,
-        views: Vec<VkImageView>,
-    },
-}
-
-enum FramebufferResolve<'a> {
-    Native(&'a <B as hal::Backend>::Framebuffer),
-    Lazy(parking_lot::MappedMutexGuard<'a, <B as hal::Backend>::Framebuffer>),
-}
-
-impl std::ops::Deref for FramebufferResolve<'_> {
-    type Target = <B as hal::Backend>::Framebuffer;
-    fn deref(&self) -> &Self::Target {
+    fn framebuffer_attachment(&self) -> hal::image::FramebufferAttachment {
         match *self {
-            FramebufferResolve::Native(fb) => fb,
-            FramebufferResolve::Lazy(ref guard) => &*guard,
+            Self::Native {
+                raw: _,
+                ref fb_attachment,
+            } => fb_attachment.clone(),
+            Self::SwapchainFrame {
+                swapchain,
+                frame: _,
+            } => swapchain.framebuffer_attachment.clone(),
         }
     }
 }
 
-impl Framebuffer {
-    fn resolve(&self, render_pass: VkRenderPass) -> FramebufferResolve {
-        let mut sc = None;
-        match *self {
-            Framebuffer::Native(ref fbo) => FramebufferResolve::Native(fbo),
-            Framebuffer::Lazy { extent, ref views } => {
-                for view in views {
-                    if let Some(&mut ImageView::SwapchainFrame { ref swapchain, .. }) =
-                        view.as_mut()
-                    {
-                        assert!(sc.is_none());
-                        sc = Some(swapchain.as_mut().unwrap());
-                    }
-                }
-                let attachments = views.iter().map(|view| match **view {
-                    ImageView::Native(ref raw) => raw,
-                    ImageView::SwapchainFrame {
-                        ref swapchain,
-                        frame,
-                    } => {
-                        use std::borrow::Borrow;
-                        swapchain
-                            .active[frame as usize]
-                            .as_ref()
-                            .expect("Swapchain frame isn't acquired")
-                            .borrow()
-                    }
-                });
-
-                let sc = sc.expect("No swapchain frames detected");
-                let gpu = sc.gpu;
-
-                FramebufferResolve::Lazy(parking_lot::MutexGuard::map(
-                    sc.lazy_framebuffers.lock(),
-                    |lazy_framebuffers| {
-                        lazy_framebuffers.push(unsafe {
-                            use hal::device::Device;
-                            gpu.device
-                                .create_framebuffer(&render_pass.raw, attachments, extent)
-                                .unwrap()
-                        });
-                        lazy_framebuffers.last_mut().unwrap()
-                    },
-                ))
-            }
-        }
-    }
+pub struct Framebuffer {
+    raw: <B as hal::Backend>::Framebuffer,
+    image_views: Vec<VkImageView>,
 }
 
 pub struct Semaphore<B: hal::Backend> {
@@ -251,12 +196,11 @@ pub struct Surface<B: hal::Backend> {
 }
 
 pub struct Swapchain<B: hal::Backend> {
-    gpu: VkDevice,
     surface: VkSurfaceKHR,
-    count: hal::window::SwapImageIndex,
+    framebuffer_attachment: hal::image::FramebufferAttachment,
+    frame_count: hal::window::SwapImageIndex,
     current_index: hal::window::SwapImageIndex,
     active: Vec<Option<<B::Surface as hal::window::PresentationSurface<B>>::SwapchainImage>>,
-    lazy_framebuffers: parking_lot::Mutex<Vec<<B as hal::Backend>::Framebuffer>>,
     revision: u32,
 }
 

@@ -23,8 +23,6 @@ copyless = "0.1.1"
 env_logger = { version = "0.7", optional = true }
 lazy_static = "1"
 log = { version = "0.4", features = ["release_max_level_error"] }
-parking_lot = "0.11"
-smallvec = "1"
 renderdoc = { version = "0.3", optional = true }
 typed-arena = "2"
 raw-window-handle = "0.3"
@@ -61,7 +59,6 @@ optional = true
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))'.dependencies.gfx-backend-gl]
 git = "https://github.com/gfx-rs/gfx"
 #path = "../../gfx/src/backend/gl"
-features = ["x11"]
 optional = true
 
 [dependencies.gfx-auxil]

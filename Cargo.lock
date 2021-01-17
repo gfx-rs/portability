@@ -37,9 +37,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
 dependencies = [
  "hermit-abi",
- "libc 0.2.80",
+ "libc",
  "winapi",
 ]
+
+[[package]]
+name = "autocfg"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "bit-set"
@@ -108,7 +114,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55e7ec0b74fe5897894cbc207092c577e87c52f8a59e8ca8d97ef37551f60a49"
 dependencies = [
  "gleam",
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -129,7 +135,7 @@ dependencies = [
  "bitflags",
  "block",
  "core-graphics",
- "libc 0.2.80",
+ "libc",
  "objc",
 ]
 
@@ -144,7 +150,7 @@ dependencies = [
  "core-foundation 0.9.1",
  "core-graphics-types",
  "foreign-types",
- "libc 0.2.80",
+ "libc",
  "objc",
 ]
 
@@ -161,7 +167,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "286e0b41c3a20da26536c6000a280585d519fd07b3956b43aed8a79e9edce980"
 dependencies = [
  "core-foundation-sys 0.5.1",
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -171,7 +177,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a89e2ae426ea83155dccf10c0fa6b1463ef6d5fcb44cee0b224a408fa640a62"
 dependencies = [
  "core-foundation-sys 0.8.2",
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -180,7 +186,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "716c271e8613ace48344f723b60b900a93150271e5be206212d052bbc0883efa"
 dependencies = [
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -198,7 +204,7 @@ dependencies = [
  "bitflags",
  "core-foundation 0.5.1",
  "foreign-types",
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -210,7 +216,7 @@ dependencies = [
  "bitflags",
  "core-foundation 0.9.1",
  "foreign-types",
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -277,14 +283,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc587bc0ec293155d5bfa6b9891ec18a1e330c234f896ea47fbada4cadbe47e6"
 dependencies = [
  "cfg-if 0.1.10",
- "libc 0.2.80",
+ "libc",
  "wasi",
 ]
 
 [[package]]
 name = "gfx-auxil"
 version = "0.5.0"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "fxhash",
  "gfx-hal",
@@ -294,7 +300,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx11"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -315,7 +321,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-dx12"
 version = "0.6.2"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -335,7 +341,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-empty"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "gfx-hal",
  "log",
@@ -345,7 +351,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-gl"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -354,7 +360,7 @@ dependencies = [
  "glow",
  "js-sys",
  "khronos-egl",
- "lazy_static 1.4.0",
+ "libloading",
  "log",
  "parking_lot",
  "raw-window-handle",
@@ -362,13 +368,12 @@ dependencies = [
  "spirv_cross",
  "wasm-bindgen",
  "web-sys",
- "x11",
 ]
 
 [[package]]
 name = "gfx-backend-metal"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -378,7 +383,6 @@ dependencies = [
  "foreign-types",
  "gfx-auxil",
  "gfx-hal",
- "lazy_static 1.4.0",
  "log",
  "metal",
  "objc",
@@ -392,7 +396,7 @@ dependencies = [
 [[package]]
 name = "gfx-backend-vulkan"
 version = "0.6.5"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "arrayvec",
  "ash",
@@ -400,9 +404,9 @@ dependencies = [
  "core-graphics-types",
  "gfx-hal",
  "inplace_it",
- "lazy_static 1.4.0",
  "log",
  "objc",
+ "parking_lot",
  "raw-window-handle",
  "smallvec",
  "winapi",
@@ -411,10 +415,12 @@ dependencies = [
 [[package]]
 name = "gfx-hal"
 version = "0.6.0"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 dependencies = [
  "bitflags",
+ "naga",
  "raw-window-handle",
+ "thiserror",
 ]
 
 [[package]]
@@ -450,9 +456,9 @@ dependencies = [
 
 [[package]]
 name = "glow"
-version = "0.6.1"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1625b792e2f9267116dd41eb7d325e0ea2572ceba5069451906745e04f852f33"
+checksum = "3eac04632dc8c047fb70d658f8479583e1bb084859f67a150227769a10fc161f"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -473,7 +479,7 @@ dependencies = [
  "core-graphics",
  "gl_generator 0.9.0",
  "lazy_static 1.4.0",
- "libc 0.2.80",
+ "libc",
  "objc",
  "osmesa-sys",
  "shared_library",
@@ -489,7 +495,7 @@ version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5aca5565f760fb5b220e499d72710ed156fdb74e631659e99377d9ebfbd13ae8"
 dependencies = [
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -522,7 +528,7 @@ version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c71313ebb9439f74b00d9d2dcec36440beaf57a6aa0623068441dd7cd81a7f2"
 dependencies = [
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -535,23 +541,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "khronos"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0711aaa80e6ba6eb1fa8978f1f46bfcb38ceb2f3f33f3736efbff39dac89f50"
-dependencies = [
- "libc 0.1.12",
-]
-
-[[package]]
 name = "khronos-egl"
-version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ba35280f59eaad0529951ae6ce84357cc954af38c6c74319884f7bdda4df53d"
+version = "3.0.0-beta"
+source = "git+https://github.com/timothee-haudebourg/khronos-egl?rev=9568b2ee3b02f2c17cc9479f824db16daecf1664#9568b2ee3b02f2c17cc9479f824db16daecf1664"
 dependencies = [
- "khronos",
- "libc 0.2.80",
- "pkg-config",
+ "libc",
+ "libloading",
 ]
 
 [[package]]
@@ -577,12 +572,6 @@ name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
-
-[[package]]
-name = "libc"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e32a70cf75e5846d53a673923498228bbec6a8624708a9ea5645f075d6276122"
 
 [[package]]
 name = "libc"
@@ -624,7 +613,7 @@ version = "0.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62bb907fe88d54d8d9ce32a3cceab4218ed2f6b7d35617cafe9adf84e43919cb"
 dependencies = [
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -645,15 +634,14 @@ version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2ffa2c986de11a9df78620c01eeaaf27d94d3ff02bf81bfcca953102dd0c6ff"
 dependencies = [
- "libc 0.2.80",
+ "libc",
  "winapi",
 ]
 
 [[package]]
 name = "metal"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4e8a431536529327e28c9ba6992f2cb0c15d4222f0602a16e6d7695ff3bccf"
+version = "0.20.1"
+source = "git+https://github.com/gfx-rs/metal-rs?rev=ba08f5f98c70ab941020b8997936c9c75363b9aa#ba08f5f98c70ab941020b8997936c9c75363b9aa"
 dependencies = [
  "bitflags",
  "block",
@@ -661,6 +649,28 @@ dependencies = [
  "foreign-types",
  "log",
  "objc",
+]
+
+[[package]]
+name = "naga"
+version = "0.2.0"
+source = "git+https://github.com/gfx-rs/naga?tag=gfx-6#6f5ff27701112abba35fa61e429e2916a157b0a1"
+dependencies = [
+ "bit-set",
+ "bitflags",
+ "fxhash",
+ "log",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.2.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9a64b1ec5cda2586e284722486d802acf1f7dbdc623e2bfc57e65ca1cd099290"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
@@ -711,7 +721,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "cloudabi",
  "instant",
- "libc 0.2.80",
+ "libc",
  "redox_syscall",
  "smallvec",
  "winapi",
@@ -752,10 +762,8 @@ dependencies = [
  "gfx-hal",
  "lazy_static 1.4.0",
  "log",
- "parking_lot",
  "raw-window-handle",
  "renderdoc",
- "smallvec",
  "typed-arena",
 ]
 
@@ -803,7 +811,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a6b1679d49b24bbfe0c803429aa1874472f50d9b363131f0e89fc356b544d03"
 dependencies = [
  "getrandom",
- "libc 0.2.80",
+ "libc",
  "rand_chacha",
  "rand_core",
  "rand_hc",
@@ -840,7 +848,7 @@ dependencies = [
 [[package]]
 name = "range-alloc"
 version = "0.1.1"
-source = "git+https://github.com/gfx-rs/gfx#7bb4c82a6cdfec15174f31fbb353f1cd9fab6b05"
+source = "git+https://github.com/gfx-rs/gfx#cda1b3dce32b872a33755510ded93bf36965a6ad"
 
 [[package]]
 name = "raw-window-handle"
@@ -848,7 +856,7 @@ version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a441a7a6c80ad6473bd4b74ec1c9a4c951794285bf941c2126f607c72e48211"
 dependencies = [
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -911,7 +919,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a9e7e0f2bfae24d8a5b5a66c5b257a83c7412304311512a0c054cd5e619da11"
 dependencies = [
  "lazy_static 1.4.0",
- "libc 0.2.80",
+ "libc",
 ]
 
 [[package]]
@@ -928,9 +936,9 @@ checksum = "fbee7696b84bbf3d89a1c2eccff0850e3047ed46bfcd2e92c29a2d074d57e252"
 
 [[package]]
 name = "spirv_cross"
-version = "0.22.0"
+version = "0.22.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8221f4aebf53a4447aebd4fe29ebff2c66dd2c2821e63675e09e85bd21c8633"
+checksum = "0ebd49af36be83ecd6290b57147e2a0e26145b832634b17146d934b197ca3713"
 dependencies = [
  "cc",
  "js-sys",
@@ -964,7 +972,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a6e24d9338a0a5be79593e2fa15a648add6138caa803e2d5bc782c371732ca9"
 dependencies = [
  "cfg-if 0.1.10",
- "libc 0.2.80",
+ "libc",
  "rand",
  "redox_syscall",
  "remove_dir_all",
@@ -978,6 +986,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "thiserror"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76cc616c6abf8c8928e2fdcc0dbfab37175edd8fb49a4641066ad1364fdab146"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.23"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9be73a2caec27583d0046ef3796c3794f868a5bc813db689eed00c7631275cd1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -1080,7 +1108,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b90adf943117ee4930d7944fe103dcb6f36ba05421f46521cb5adbf6bf0fbc8"
 dependencies = [
  "bitflags",
- "libc 0.2.80",
+ "libc",
  "token_store",
  "wayland-scanner",
  "wayland-sys",
@@ -1194,7 +1222,7 @@ dependencies = [
  "core-foundation 0.5.1",
  "core-graphics",
  "lazy_static 1.4.0",
- "libc 0.2.80",
+ "libc",
  "objc",
  "percent-encoding",
  "wayland-client",
@@ -1215,23 +1243,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "x11"
-version = "2.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ecd092546cb16f25783a5451538e73afc8d32e242648d54f4ae5459ba1e773"
-dependencies = [
- "libc 0.2.80",
- "pkg-config",
-]
-
-[[package]]
 name = "x11-dl"
 version = "2.18.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bf981e3a5b3301209754218f962052d4d9ee97e478f4d26d4a6eced34c1fef8"
 dependencies = [
  "lazy_static 1.4.0",
- "libc 0.2.80",
+ "libc",
  "maybe-uninit",
  "pkg-config",
 ]
