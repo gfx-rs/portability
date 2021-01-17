@@ -20,8 +20,7 @@ metal-capture = ["gfx-backend-metal/auto-capture"]
 
 [dependencies]
 copyless = "0.1.1"
-env_logger = { version = "0.7", optional = true }
-lazy_static = "1"
+env_logger = { version = "0.8", optional = true }
 log = { version = "0.4", features = ["release_max_level_error"] }
 renderdoc = { version = "0.3", optional = true }
 typed-arena = "2"
