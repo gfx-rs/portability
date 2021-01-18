@@ -8,3 +8,12 @@ members = [
 [profile.release]
 debug = true
 panic = "abort"
+
+[patch."https://github.com/gfx-rs/gfx"]
+#gfx-hal = { path = "../gfx/src/hal" }
+#gfx-backend-empty = { path = "../gfx/src/backend/empty" }
+#gfx-backend-vulkan = { path = "../gfx/src/backend/vulkan" }
+#gfx-backend-gl = { path = "../gfx/src/backend/gl" }
+#gfx-backend-dx12 = { path = "../gfx/src/backend/dx12" }
+#gfx-backend-dx11 = { path = "../gfx/src/backend/dx11" }
+#gfx-backend-metal = { path = "../gfx/src/backend/metal" }

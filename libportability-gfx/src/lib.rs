@@ -43,7 +43,7 @@ use crate::{
     handle::{DispatchHandle, Handle},
 };
 
-use std::{collections::HashMap, slice};
+use std::{cell::Cell, collections::HashMap, slice};
 
 pub use crate::impls::*;
 
@@ -51,7 +51,7 @@ pub use crate::impls::*;
 pub type VkInstance = Handle<RawInstance>;
 pub type VkPhysicalDevice = Handle<hal::adapter::Adapter<B>>;
 pub type VkDevice = DispatchHandle<Gpu<B>>;
-pub type VkQueue = DispatchHandle<<B as hal::Backend>::CommandQueue>;
+pub type VkQueue = DispatchHandle<Queue<B>>;
 pub type VkCommandPool = Handle<CommandPool<B>>;
 pub type VkCommandBuffer = DispatchHandle<<B as hal::Backend>::CommandBuffer>;
 pub type VkDeviceMemory = Handle<<B as hal::Backend>::Memory>;
@@ -90,6 +90,11 @@ pub struct Gpu<B: hal::Backend> {
     renderdoc: renderdoc::RenderDoc<renderdoc::V110>,
     #[cfg(feature = "renderdoc")]
     capturing: *mut (),
+}
+
+pub struct Queue<B: hal::Backend> {
+    raw: B::CommandQueue,
+    temp_semaphores: Vec<(VkPipelineStageFlags, VkSemaphore)>,
 }
 
 pub struct DescriptorPool<B: hal::Backend> {
@@ -171,7 +176,7 @@ pub struct Framebuffer {
 
 pub struct Semaphore<B: hal::Backend> {
     raw: B::Semaphore,
-    is_fake: bool,
+    is_fake: Cell<bool>,
 }
 
 pub struct Fence<B: hal::Backend> {
