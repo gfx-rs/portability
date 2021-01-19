@@ -23,44 +23,35 @@ copyless = "0.1.1"
 env_logger = { version = "0.8", optional = true }
 log = { version = "0.4", features = ["release_max_level_error"] }
 renderdoc = { version = "0.3", optional = true }
-typed-arena = "2"
 raw-window-handle = "0.3"
 
 [dependencies.hal]
 package = "gfx-hal"
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/hal"
 
 [dependencies.gfx-backend-empty]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/backend/empty"
 
 [target.'cfg(not(any(target_os = "macos", target_os = "ios")))'.dependencies.gfx-backend-vulkan]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/backend/vulkan"
 optional = true
 
 [target.'cfg(windows)'.dependencies.gfx-backend-dx12]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/backend/dx12"
 optional = true
 
 [target.'cfg(windows)'.dependencies.gfx-backend-dx11]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/backend/dx11"
 optional = true
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.gfx-backend-metal]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/backend/metal"
 optional = true
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))'.dependencies.gfx-backend-gl]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/backend/gl"
 optional = true
 
 [dependencies.gfx-auxil]
 git = "https://github.com/gfx-rs/gfx"
-#path = "../../gfx/src/auxil/auxil"
 optional = true

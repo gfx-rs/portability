@@ -11,12 +11,11 @@ use hal::{
     {command as com, memory, pass, pso, queue}, {Features, Instance},
 };
 
-use typed_arena::Arena;
-
 #[cfg(feature = "gfx-backend-metal")]
 use std::env;
 use std::{
     borrow::{Borrow, Cow},
+    cell::Cell,
     ffi::{CStr, CString},
     mem,
     os::raw::{c_int, c_void},
@@ -914,7 +913,12 @@ pub unsafe extern "C" fn gfxCreateDevice(
                         .map(|i| gpu.queue_groups.swap_remove(i).queues)
                         .unwrap()
                         .into_iter()
-                        .map(DispatchHandle::new)
+                        .map(|raw| {
+                            DispatchHandle::new(Queue {
+                                raw,
+                                temp_semaphores: Vec::new(),
+                            })
+                        })
                         .collect();
 
                     (info.queueFamilyIndex, queues)
@@ -1146,12 +1150,12 @@ pub unsafe extern "C" fn gfxGetDeviceQueue(
     {
         if let Ok(value) = env::var("GFX_METAL_STITCHING") {
             let mut q = queue;
-            q.stitch_deferred = match value.to_lowercase().as_str() {
+            q.raw.stitch_deferred = match value.to_lowercase().as_str() {
                 "yes" => true,
                 "no" => false,
                 other => panic!("unknown stitching option: {}", other),
             };
-            println!("GFX: stitching override {:?}", q.stitch_deferred);
+            println!("GFX: stitching override {:?}", q.raw.stitch_deferred);
         }
     }
 
@@ -1167,14 +1171,10 @@ pub unsafe extern "C" fn gfxQueueSubmit(
     if submitCount == 0 {
         use std::iter::empty;
         // sometimes, all you need is a fence...
-        let submission = hal::queue::Submission {
-            command_buffers: empty(),
-            wait_semaphores: empty(),
-            signal_semaphores: empty(),
-        };
-        type RawSemaphore = <B as hal::Backend>::Semaphore;
-        queue.submit::<VkCommandBuffer, _, RawSemaphore, _, _>(
-            submission,
+        queue.raw.submit(
+            empty(),
+            empty(),
+            empty(),
             fence.as_mut().map(|f| &mut f.raw),
         );
     } else {
@@ -1184,7 +1184,7 @@ pub unsafe extern "C" fn gfxQueueSubmit(
                 submission.pCommandBuffers,
                 submission.commandBufferCount as usize,
             );
-            let wait_semaphores = {
+            {
                 let semaphores = make_slice(
                     submission.pWaitSemaphores,
                     submission.waitSemaphoreCount as usize,
@@ -1194,13 +1194,11 @@ pub unsafe extern "C" fn gfxQueueSubmit(
                     submission.waitSemaphoreCount as usize,
                 );
 
-                stages
-                    .into_iter()
-                    .zip(semaphores)
-                    .filter(|(_, semaphore)| !semaphore.is_fake)
-                    .map(|(stage, semaphore)| {
-                        (&semaphore.raw, conv::map_pipeline_stage_flags(*stage))
-                    })
+                queue.temp_semaphores.clear();
+                queue
+                    .temp_semaphores
+                    .extend(stages.iter().cloned().zip(semaphores.iter().cloned()));
+                queue.temp_semaphores.retain(|&(_, sem)| !sem.is_fake.get());
             };
             let signal_semaphores = make_slice(
                 submission.pSignalSemaphores,
@@ -1208,24 +1206,28 @@ pub unsafe extern "C" fn gfxQueueSubmit(
             )
             .into_iter()
             .map(|semaphore| {
-                semaphore.as_mut().unwrap().is_fake = false;
+                semaphore.is_fake.set(false);
                 &semaphore.raw
             });
 
-            let submission = hal::queue::Submission {
-                command_buffers: cmd_slice.iter(),
-                wait_semaphores,
-                signal_semaphores,
-            };
-
             // only provide the fence for the last submission
-            //TODO: support multiple submissions at gfx-hal level
             let fence = if i + 1 == submits.len() {
                 fence.as_mut().map(|f| &mut f.raw)
             } else {
                 None
             };
-            queue.submit(submission, fence);
+            let Queue {
+                ref mut raw,
+                ref temp_semaphores,
+            } = *queue;
+            raw.submit(
+                cmd_slice.iter().map(|cmd_buf| &**cmd_buf),
+                temp_semaphores
+                    .iter()
+                    .map(|(stage, sem)| (&sem.raw, conv::map_pipeline_stage_flags(*stage))),
+                signal_semaphores,
+                fence,
+            );
         }
     }
 
@@ -1233,7 +1235,7 @@ pub unsafe extern "C" fn gfxQueueSubmit(
 }
 #[inline]
 pub unsafe extern "C" fn gfxQueueWaitIdle(mut queue: VkQueue) -> VkResult {
-    let _ = queue.wait_idle();
+    let _ = queue.raw.wait_idle();
     VkResult::VK_SUCCESS
 }
 #[inline]
@@ -1516,16 +1518,13 @@ pub unsafe extern "C" fn gfxResetFences(
     fenceCount: u32,
     pFences: *const VkFence,
 ) -> VkResult {
-    let fence_slice = make_slice_mut(pFences as *mut VkFence, fenceCount as usize);
-    let fences = fence_slice.iter_mut().map(|fence| {
+    for fence in make_slice_mut(pFences as *mut VkFence, fenceCount as usize) {
         fence.as_mut().unwrap().is_fake = false;
-        &mut fence.raw
-    });
-
-    match gpu.device.reset_fences(fences) {
-        Ok(()) => VkResult::VK_SUCCESS,
-        Err(oom) => map_oom(oom),
+        if let Err(oom) = gpu.device.reset_fence(&mut fence.raw) {
+            return map_oom(oom);
+        }
     }
+    VkResult::VK_SUCCESS
 }
 #[inline]
 pub unsafe extern "C" fn gfxGetFenceStatus(gpu: VkDevice, fence: VkFence) -> VkResult {
@@ -1587,7 +1586,7 @@ pub unsafe extern "C" fn gfxCreateSemaphore(
     let semaphore = match gpu.device.create_semaphore() {
         Ok(raw) => Semaphore {
             raw,
-            is_fake: false,
+            is_fake: Cell::new(false),
         },
         Err(oom) => return map_oom(oom),
     };
@@ -1982,14 +1981,14 @@ pub unsafe extern "C" fn gfxGetPipelineCacheData(
 #[inline]
 pub unsafe extern "C" fn gfxMergePipelineCaches(
     gpu: VkDevice,
-    dstCache: VkPipelineCache,
+    mut dstCache: VkPipelineCache,
     srcCacheCount: u32,
     pSrcCaches: *const VkPipelineCache,
 ) -> VkResult {
     let caches = slice::from_raw_parts(pSrcCaches, srcCacheCount as usize);
     match gpu
         .device
-        .merge_pipeline_caches(&*dstCache, caches.iter().map(|h| &**h))
+        .merge_pipeline_caches(&mut *dstCache, caches.iter().map(|h| &**h))
     {
         Ok(()) => VkResult::VK_SUCCESS,
         Err(oom) => map_oom(oom),
@@ -2005,7 +2004,7 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
     _pAllocator: *const VkAllocationCallbacks,
     pPipelines: *mut VkPipeline,
 ) -> VkResult {
-    let infos = slice::from_raw_parts(pCreateInfos, createInfoCount as _);
+    let infos = make_slice(pCreateInfos, createInfoCount as _);
 
     let mut spec_constants = Vec::new();
     let mut spec_data = Vec::new();
@@ -2033,10 +2032,12 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
         }
     }
 
+    let out_pipelines = make_slice_mut(pPipelines, infos.len());
     let mut cur_specialization = 0;
-    let vertex_arena = Arena::with_capacity(createInfoCount as _);
+    let mut vertex_buffers = Vec::new();
+    let mut vertex_attributes = Vec::new();
 
-    let descs = infos.into_iter().map(|info| {
+    for (out_pipeline, info) in out_pipelines.iter_mut().zip(infos) {
         let rasterizer_discard = (*info.pRasterizationState).rasterizerDiscardEnable == VK_TRUE;
 
         let empty_dyn_states = [];
@@ -2047,56 +2048,43 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
             _ => &empty_dyn_states,
         };
 
-        let &mut (ref buffers, ref attributes) = {
-            let input_state = &*info.pVertexInputState;
+        let input_state = &*info.pVertexInputState;
+        let bindings_slice = make_slice(
+            input_state.pVertexBindingDescriptions,
+            input_state.vertexBindingDescriptionCount as _,
+        );
+        let attributes_slice = make_slice(
+            input_state.pVertexAttributeDescriptions,
+            input_state.vertexAttributeDescriptionCount as _,
+        );
+        vertex_buffers.clear();
+        vertex_attributes.clear();
 
-            let bindings = slice::from_raw_parts(
-                input_state.pVertexBindingDescriptions,
-                input_state.vertexBindingDescriptionCount as _,
-            );
+        vertex_buffers.extend(bindings_slice.iter().map(|binding| {
+            let rate = match binding.inputRate {
+                VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => pso::VertexInputRate::Vertex,
+                VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => {
+                    pso::VertexInputRate::Instance(1)
+                }
+                rate => panic!("Unexpected input rate: {:?}", rate),
+            };
 
-            let attributes = slice::from_raw_parts(
-                input_state.pVertexAttributeDescriptions,
-                input_state.vertexAttributeDescriptionCount as _,
-            );
-
-            let bindings = bindings
-                .iter()
-                .map(|binding| {
-                    let rate = match binding.inputRate {
-                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX => {
-                            pso::VertexInputRate::Vertex
-                        }
-                        VkVertexInputRate::VK_VERTEX_INPUT_RATE_INSTANCE => {
-                            pso::VertexInputRate::Instance(1)
-                        }
-                        rate => panic!("Unexpected input rate: {:?}", rate),
-                    };
-
-                    pso::VertexBufferDesc {
-                        binding: binding.binding,
-                        stride: binding.stride,
-                        rate,
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            let attributes = attributes
-                .into_iter()
-                .map(|attrib| {
-                    pso::AttributeDesc {
-                        location: attrib.location,
-                        binding: attrib.binding,
-                        element: pso::Element {
-                            format: conv::map_format(attrib.format).unwrap(), // TODO: undefined allowed?
-                            offset: attrib.offset,
-                        },
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            vertex_arena.alloc((bindings, attributes))
-        };
+            pso::VertexBufferDesc {
+                binding: binding.binding,
+                stride: binding.stride,
+                rate,
+            }
+        }));
+        vertex_attributes.extend(attributes_slice.into_iter().map(|attrib| {
+            pso::AttributeDesc {
+                location: attrib.location,
+                binding: attrib.binding,
+                element: pso::Element {
+                    format: conv::map_format(attrib.format).unwrap(), // TODO: undefined allowed?
+                    offset: attrib.offset,
+                },
+            }
+        }));
 
         let mut fragment = None;
         let primitive_assembler = {
@@ -2180,8 +2168,8 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
             };
 
             pso::PrimitiveAssemblerDesc::Vertex {
-                buffers,
-                attributes,
+                buffers: &vertex_buffers,
+                attributes: &vertex_attributes,
                 input_assembler,
                 vertex: vertex.assume_init(),
                 tessellation: hull.and_then(|h| domain.map(|d| (h, d))),
@@ -2460,7 +2448,7 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
             }
         };
 
-        pso::GraphicsPipelineDesc {
+        let desc = pso::GraphicsPipelineDesc {
             label: None,
             primitive_assembler,
             rasterizer,
@@ -2473,28 +2461,22 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
             subpass,
             flags,
             parent,
-        }
-    });
-
-    let pipelines = gpu
-        .device
-        .create_graphics_pipelines(descs, pipelineCache.as_ref());
-    let out_pipelines = slice::from_raw_parts_mut(pPipelines, infos.len());
-
-    if pipelines.iter().any(|p| p.is_err()) {
-        for pipeline in pipelines {
-            if let Err(e) = pipeline {
+        };
+        *out_pipeline = match gpu
+            .device
+            .create_graphics_pipeline(&desc, pipelineCache.as_ref())
+        {
+            Ok(raw) => Handle::new(Pipeline::Graphics(raw)),
+            Err(e) => {
                 error!("{:?}", e);
+                Handle::null()
             }
         }
-        for op in out_pipelines {
-            *op = Handle::null();
-        }
+    }
+
+    if out_pipelines.contains(&Handle::null()) {
         VkResult::VK_ERROR_INCOMPATIBLE_DRIVER
     } else {
-        for (op, raw) in out_pipelines.iter_mut().zip(pipelines) {
-            *op = Handle::new(Pipeline::Graphics(raw.unwrap()));
-        }
         VkResult::VK_SUCCESS
     }
 }
@@ -2534,8 +2516,10 @@ pub unsafe extern "C" fn gfxCreateComputePipelines(
         }
     }
 
+    let out_pipelines = make_slice_mut(pPipelines, infos.len());
     let mut cur_specialization = 0;
-    let descs = infos.iter().map(|info| {
+
+    for (out_pipeline, info) in out_pipelines.iter_mut().zip(infos) {
         let name = CStr::from_ptr(info.stage.pName);
         let spec_count = info
             .stage
@@ -2594,34 +2578,29 @@ pub unsafe extern "C" fn gfxCreateComputePipelines(
             }
         };
 
-        pso::ComputePipelineDesc {
+        let desc = pso::ComputePipelineDesc {
             label: None,
             shader,
             layout,
             flags,
             parent,
-        }
-    });
+        };
 
-    let pipelines = gpu
-        .device
-        .create_compute_pipelines(descs, pipelineCache.as_ref());
-    let out_pipelines = slice::from_raw_parts_mut(pPipelines, infos.len());
-
-    if pipelines.iter().any(|p| p.is_err()) {
-        for pipeline in pipelines {
-            if let Err(e) = pipeline {
+        *out_pipeline = match gpu
+            .device
+            .create_compute_pipeline(&desc, pipelineCache.as_ref())
+        {
+            Ok(raw) => Handle::new(Pipeline::Compute(raw)),
+            Err(e) => {
                 error!("{:?}", e);
+                Handle::null()
             }
         }
-        for op in out_pipelines {
-            *op = Handle::null();
-        }
+    }
+
+    if out_pipelines.contains(&Handle::null()) {
         VkResult::VK_ERROR_INCOMPATIBLE_DRIVER
     } else {
-        for (op, raw) in out_pipelines.iter_mut().zip(pipelines) {
-            *op = Handle::new(Pipeline::Compute(raw.unwrap()));
-        }
         VkResult::VK_SUCCESS
     }
 }
@@ -2736,13 +2715,12 @@ pub unsafe extern "C" fn gfxCreateDescriptorSetLayout(
     let sampler_iter = layout_bindings
         .iter()
         .flat_map(|binding| {
-            if binding.pImmutableSamplers.is_null() {
-                (&[]).into_iter().cloned()
+            let slice = if binding.pImmutableSamplers.is_null() {
+                &[]
             } else {
-                let slice =
-                    slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _);
-                slice.iter().cloned()
-            }
+                slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _)
+            };
+            slice.iter().map(|handle| &**handle)
         })
         .collect::<Vec<_>>();
 
@@ -3504,7 +3482,9 @@ pub unsafe extern "C" fn gfxCmdBindDescriptorSets(
     let descriptor_sets = slice::from_raw_parts(pDescriptorSets, descriptorSetCount as _)
         .into_iter()
         .map(|set| &**set);
-    let offsets = make_slice(pDynamicOffsets, dynamicOffsetCount as usize);
+    let offsets = make_slice(pDynamicOffsets, dynamicOffsetCount as usize)
+        .iter()
+        .cloned();
 
     match pipelineBindPoint {
         VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS => commandBuffer
@@ -3542,7 +3522,7 @@ pub unsafe extern "C" fn gfxCmdBindVertexBuffers(
     let views = buffers
         .into_iter()
         .zip(offsets)
-        .map(|(buffer, &offset)| (*buffer, hal::buffer::SubRange { offset, size: None }));
+        .map(|(buffer, &offset)| (&**buffer, hal::buffer::SubRange { offset, size: None }));
 
     commandBuffer.bind_vertex_buffers(firstBinding, views);
 }
@@ -4215,10 +4195,11 @@ pub unsafe extern "C" fn gfxCmdExecuteCommands(
     commandBufferCount: u32,
     pCommandBuffers: *const VkCommandBuffer,
 ) {
-    commandBuffer.execute_commands(slice::from_raw_parts(
-        pCommandBuffers,
-        commandBufferCount as _,
-    ));
+    commandBuffer.execute_commands(
+        make_slice(pCommandBuffers, commandBufferCount as _)
+            .iter()
+            .map(|handle| &**handle),
+    );
 }
 
 #[inline]
@@ -4809,8 +4790,8 @@ pub unsafe extern "C" fn gfxAcquireNextImageKHR(
     if let Some(fence) = fence.as_mut() {
         fence.is_fake = true;
     }
-    if let Some(sem) = semaphore.as_mut() {
-        sem.is_fake = true;
+    if let Some(sem) = semaphore.as_ref() {
+        sem.is_fake.set(true);
     }
 
     match swapchain.surface.raw.acquire_image(timeout) {
@@ -4858,7 +4839,7 @@ pub unsafe extern "C" fn gfxQueuePresentKHR(
             .take()
             .expect("Frame was not acquired properly!");
         let sem = wait_semaphores.first_mut().map(|s| &mut s.raw);
-        if let Err(_) = queue.present(&mut sc.surface.raw, frame, sem) {
+        if let Err(_) = queue.raw.present(&mut sc.surface.raw, frame, sem) {
             return VkResult::VK_ERROR_SURFACE_LOST_KHR;
         }
     }
