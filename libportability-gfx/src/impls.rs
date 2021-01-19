@@ -19,7 +19,7 @@ use std::{
     ffi::{CStr, CString},
     mem,
     os::raw::{c_int, c_void},
-    ptr, str,
+    ptr,
 };
 
 const VERSION: (u32, u32, u32) = (1, 0, 66);
@@ -311,6 +311,11 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceFeatures2KHR(
                 }
                 data.pNext
             }
+            VkStructureType::VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGELESS_FRAMEBUFFER_FEATURES_KHR => {
+                let data = (ptr as *mut VkPhysicalDeviceImagelessFramebufferFeaturesKHR).as_mut().unwrap();
+                data.imagelessFramebuffer = true;
+                data.pNext
+            }
             other => {
                 warn!("Unrecognized {:?}, skipping", other);
                 (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
@@ -592,7 +597,7 @@ pub unsafe extern "C" fn gfxGetInstanceProcAddr(
 
 #[inline]
 pub unsafe extern "C" fn gfxGetDeviceProcAddr(
-    device: VkDevice,
+    gpu: VkDevice,
     pName: *const ::std::os::raw::c_char,
 ) -> PFN_vkVoidFunction {
     let name = CStr::from_ptr(pName);
@@ -603,22 +608,14 @@ pub unsafe extern "C" fn gfxGetDeviceProcAddr(
 
     // Requesting the function pointer to an extensions which is available but not
     // enabled with an valid device requires returning NULL.
-    if let Some(device) = device.as_ref() {
+    if let Some(gpu) = gpu.as_ref() {
         match name {
             "vkCreateSwapchainKHR"
             | "vkDestroySwapchainKHR"
             | "vkGetSwapchainImagesKHR"
             | "vkAcquireNextImageKHR"
             | "vkQueuePresentKHR" => {
-                let search_name = str::from_utf8(
-                    &VK_KHR_SWAPCHAIN_EXTENSION_NAME[..VK_KHR_SWAPCHAIN_EXTENSION_NAME.len() - 1],
-                )
-                .unwrap();
-                if !device
-                    .enabled_extensions
-                    .iter()
-                    .any(|ext| ext == search_name)
-                {
+                if !gpu.has_extension(VK_KHR_SWAPCHAIN_EXTENSION_NAME) {
                     return None;
                 }
             }
@@ -1044,6 +1041,10 @@ const DEVICE_EXTENSIONS: &[(&'static [u8], u32)] = &[
     (
         VK_EXT_DEBUG_MARKER_EXTENSION_NAME,
         VK_EXT_DEBUG_MARKER_SPEC_VERSION,
+    ),
+    (
+        VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME,
+        VK_KHR_IMAGELESS_FRAMEBUFFER_SPEC_VERSION,
     ),
     (
         VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME,
@@ -3031,19 +3032,68 @@ pub unsafe extern "C" fn gfxCreateFramebuffer(
         depth: info.layers,
     };
 
-    let attachments_slice = make_slice(info.pAttachments, info.attachmentCount as _);
-    let framebuffer = Framebuffer {
-        raw: match gpu.device.create_framebuffer(
-            &*info.renderPass,
-            attachments_slice
-                .iter()
-                .map(|attachment| attachment.framebuffer_attachment()),
-            extent,
-        ) {
-            Ok(fbo) => fbo,
-            Err(oom) => return map_oom(oom),
-        },
-        image_views: attachments_slice.to_vec(),
+    let framebuffer = if info.flags
+        & VkFramebufferCreateFlagBits::VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT_KHR as u32
+        != 0
+    {
+        let mut ptr = pCreateInfo as *const VkStructureType;
+        let mut raw_attachment_infos = &[][..];
+        while !ptr.is_null() {
+            ptr = match *ptr {
+                VkStructureType::VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENTS_CREATE_INFO_KHR => {
+                    let data = (ptr as *const VkFramebufferAttachmentsCreateInfoKHR)
+                        .as_ref()
+                        .unwrap();
+                    raw_attachment_infos = make_slice(
+                        data.pAttachmentImageInfos,
+                        data.attachmentImageInfoCount as usize,
+                    );
+                    data.pNext
+                }
+                other => {
+                    warn!("Unrecognized {:?}, skipping", other);
+                    (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
+                }
+            } as *const VkStructureType;
+        }
+        Framebuffer {
+            raw: match gpu.device.create_framebuffer(
+                &*info.renderPass,
+                raw_attachment_infos
+                    .iter()
+                    .map(|ai| hal::image::FramebufferAttachment {
+                        usage: conv::map_image_usage(ai.usage),
+                        view_caps: conv::map_image_create_flags(ai.flags),
+                        //TODO: properly support view format lists!
+                        format: ai
+                            .pViewFormats
+                            .as_ref()
+                            .cloned()
+                            .and_then(conv::map_format)
+                            .unwrap(),
+                    }),
+                extent,
+            ) {
+                Ok(fbo) => fbo,
+                Err(oom) => return map_oom(oom),
+            },
+            image_views: None,
+        }
+    } else {
+        let attachments_slice = make_slice(info.pAttachments, info.attachmentCount as _);
+        Framebuffer {
+            raw: match gpu.device.create_framebuffer(
+                &*info.renderPass,
+                attachments_slice
+                    .iter()
+                    .map(|attachment| attachment.framebuffer_attachment()),
+                extent,
+            ) {
+                Ok(fbo) => fbo,
+                Err(oom) => return map_oom(oom),
+            },
+            image_views: Some(attachments_slice.to_vec().into_boxed_slice()),
+        }
     };
 
     *pFramebuffer = Handle::new(framebuffer);
@@ -4142,6 +4192,30 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
         w: info.renderArea.extent.width as _,
         h: info.renderArea.extent.height as _,
     };
+    let image_views = match info.framebuffer.image_views {
+        Some(ref image_views) => &image_views[..],
+        None => {
+            let mut image_views = &[][..];
+            let mut ptr = pRenderPassBegin as *const VkStructureType;
+            while !ptr.is_null() {
+                ptr = match *ptr {
+                    VkStructureType::VK_STRUCTURE_TYPE_RENDER_PASS_ATTACHMENT_BEGIN_INFO_KHR => {
+                        let data = (ptr as *const VkRenderPassAttachmentBeginInfoKHR)
+                            .as_ref()
+                            .unwrap();
+                        image_views = make_slice(data.pAttachments, data.attachmentCount as usize);
+                        data.pNext
+                    }
+                    other => {
+                        warn!("Unrecognized {:?}, skipping", other);
+                        (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
+                    }
+                } as *const VkStructureType;
+            }
+            image_views
+        }
+    };
+
     // gfx-hal expects exactly one clear value for an attachment that needs
     // to be cleared, while Vulkan has gaps.
     let clear_values_slice = make_slice(info.pClearValues, info.clearValueCount as _);
@@ -4150,24 +4224,22 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
         // HAL and Vulkan clear value union sharing same memory representation
         .map(|cv| mem::transmute::<_, com::ClearValue>(*cv))
         .chain((info.clearValueCount..).map(|_| hal::command::ClearValue::default()));
-    let attachments =
-        info.framebuffer
-            .image_views
-            .iter()
-            .zip(clear_values)
-            .map(|(view, clear_value)| hal::command::RenderAttachmentInfo {
-                image_view: match **view {
-                    ImageView::Native { ref raw, .. } => raw,
-                    ImageView::SwapchainFrame {
-                        ref swapchain,
-                        frame,
-                    } => swapchain.active[frame as usize]
-                        .as_ref()
-                        .expect("Swapchain frame is not acquired!")
-                        .borrow(),
-                },
-                clear_value,
-            });
+    let attachments = image_views
+        .iter()
+        .zip(clear_values)
+        .map(|(view, clear_value)| hal::command::RenderAttachmentInfo {
+            image_view: match **view {
+                ImageView::Native { ref raw, .. } => raw,
+                ImageView::SwapchainFrame {
+                    ref swapchain,
+                    frame,
+                } => swapchain.active[frame as usize]
+                    .as_ref()
+                    .expect("Swapchain frame is not acquired!")
+                    .borrow(),
+            },
+            clear_value,
+        });
     let contents = conv::map_subpass_contents(contents);
 
     commandBuffer.begin_render_pass(

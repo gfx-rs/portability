@@ -12,6 +12,8 @@ Platform support:
 
 For those interested in performance, we did a comprehensive benchmarks of Dota2 and Dolphin Emulator on macOS. Results were published to gfx-rs blog [here](https://gfx-rs.github.io/2018/08/10/dota2-macos-performance.html) and [there](https://gfx-rs.github.io/2019/03/22/dolphin-macos-performance.html).
 
+For the extension support, see `INSTANCE_EXTENSIONS` and `DEVICE_EXTENSIONS` in the code.
+
 ## Showcase
 
 ### [Dota2](https://github.com/ValveSoftware/Dota-2):
