@@ -3032,14 +3032,22 @@ pub unsafe extern "C" fn gfxCreateFramebuffer(
         depth: info.layers,
     };
 
-    let framebuffer = if info.flags & VkFramebufferCreateFlagBits::VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT_KHR as u32 != 0 {
+    let framebuffer = if info.flags
+        & VkFramebufferCreateFlagBits::VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT_KHR as u32
+        != 0
+    {
         let mut ptr = pCreateInfo as *const VkStructureType;
         let mut raw_attachment_infos = &[][..];
         while !ptr.is_null() {
             ptr = match *ptr {
                 VkStructureType::VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENTS_CREATE_INFO_KHR => {
-                    let data = (ptr as *const VkFramebufferAttachmentsCreateInfoKHR).as_ref().unwrap();
-                    raw_attachment_infos = make_slice(data.pAttachmentImageInfos, data.attachmentImageInfoCount as usize);
+                    let data = (ptr as *const VkFramebufferAttachmentsCreateInfoKHR)
+                        .as_ref()
+                        .unwrap();
+                    raw_attachment_infos = make_slice(
+                        data.pAttachmentImageInfos,
+                        data.attachmentImageInfoCount as usize,
+                    );
                     data.pNext
                 }
                 other => {
@@ -3057,7 +3065,12 @@ pub unsafe extern "C" fn gfxCreateFramebuffer(
                         usage: conv::map_image_usage(ai.usage),
                         view_caps: conv::map_image_create_flags(ai.flags),
                         //TODO: properly support view format lists!
-                        format: ai.pViewFormats.as_ref().cloned().and_then(conv::map_format).unwrap(),
+                        format: ai
+                            .pViewFormats
+                            .as_ref()
+                            .cloned()
+                            .and_then(conv::map_format)
+                            .unwrap(),
                     }),
                 extent,
             ) {
@@ -4187,7 +4200,9 @@ pub unsafe extern "C" fn gfxCmdBeginRenderPass(
             while !ptr.is_null() {
                 ptr = match *ptr {
                     VkStructureType::VK_STRUCTURE_TYPE_RENDER_PASS_ATTACHMENT_BEGIN_INFO_KHR => {
-                        let data = (ptr as *const VkRenderPassAttachmentBeginInfoKHR).as_ref().unwrap();
+                        let data = (ptr as *const VkRenderPassAttachmentBeginInfoKHR)
+                            .as_ref()
+                            .unwrap();
                         image_views = make_slice(data.pAttachments, data.attachmentCount as usize);
                         data.pNext
                     }

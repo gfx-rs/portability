@@ -94,7 +94,9 @@ pub struct Gpu<B: hal::Backend> {
 
 impl<B: hal::Backend> Gpu<B> {
     fn has_extension(&self, extension: &[u8]) -> bool {
-        self.enabled_extensions.iter().any(|ext| ext.as_bytes() == &extension[..extension.len() - 1])
+        self.enabled_extensions
+            .iter()
+            .any(|ext| ext.as_bytes() == &extension[..extension.len() - 1])
     }
 }
 
@@ -520,7 +522,8 @@ pub const VK_KHR_PORTABILITY_SUBSET_SPEC_VERSION: raw::c_uint = 1;
 pub const VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME: &'static [u8; 26usize] =
     b"VK_KHR_portability_subset\x00";
 pub const VK_KHR_IMAGELESS_FRAMEBUFFER_SPEC_VERSION: raw::c_uint = 1;
-pub const VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME: &'static [u8; 29usize] = b"VK_KHR_imageless_framebuffer\x00";
+pub const VK_KHR_IMAGELESS_FRAMEBUFFER_EXTENSION_NAME: &'static [u8; 29usize] =
+    b"VK_KHR_imageless_framebuffer\x00";
 
 pub type wchar_t = raw::c_int;
 #[repr(C)]
@@ -1905,12 +1908,8 @@ pub type PFN_vkReallocationFunction = Option<
         allocationScope: VkSystemAllocationScope,
     ) -> *mut raw::c_void,
 >;
-pub type PFN_vkFreeFunction = Option<
-    unsafe extern "C" fn(
-        pUserData: *mut raw::c_void,
-        pMemory: *mut raw::c_void,
-    ),
->;
+pub type PFN_vkFreeFunction =
+    Option<unsafe extern "C" fn(pUserData: *mut raw::c_void, pMemory: *mut raw::c_void)>;
 pub type PFN_vkInternalAllocationNotification = Option<
     unsafe extern "C" fn(
         pUserData: *mut raw::c_void,
@@ -3697,17 +3696,10 @@ pub type PFN_vkGetPhysicalDeviceMemoryProperties = Option<
     ),
 >;
 pub type PFN_vkGetInstanceProcAddr = Option<
-    unsafe extern "C" fn(
-        instance: VkInstance,
-        pName: *const raw::c_char,
-    ) -> PFN_vkVoidFunction,
+    unsafe extern "C" fn(instance: VkInstance, pName: *const raw::c_char) -> PFN_vkVoidFunction,
 >;
-pub type PFN_vkGetDeviceProcAddr = Option<
-    unsafe extern "C" fn(
-        device: VkDevice,
-        pName: *const raw::c_char,
-    ) -> PFN_vkVoidFunction,
->;
+pub type PFN_vkGetDeviceProcAddr =
+    Option<unsafe extern "C" fn(device: VkDevice, pName: *const raw::c_char) -> PFN_vkVoidFunction>;
 pub type PFN_vkCreateDevice = Option<
     unsafe extern "C" fn(
         physicalDevice: VkPhysicalDevice,
@@ -3716,9 +3708,8 @@ pub type PFN_vkCreateDevice = Option<
         pDevice: *mut VkDevice,
     ) -> VkResult,
 >;
-pub type PFN_vkDestroyDevice = Option<
-    unsafe extern "C" fn(device: VkDevice, pAllocator: *const VkAllocationCallbacks),
->;
+pub type PFN_vkDestroyDevice =
+    Option<unsafe extern "C" fn(device: VkDevice, pAllocator: *const VkAllocationCallbacks)>;
 pub type PFN_vkEnumerateInstanceExtensionProperties = Option<
     unsafe extern "C" fn(
         pLayerName: *const raw::c_char,
@@ -3760,10 +3751,8 @@ pub type PFN_vkQueueSubmit = Option<
         fence: VkFence,
     ) -> VkResult,
 >;
-pub type PFN_vkQueueWaitIdle =
-    Option<unsafe extern "C" fn(queue: VkQueue) -> VkResult>;
-pub type PFN_vkDeviceWaitIdle =
-    Option<unsafe extern "C" fn(device: VkDevice) -> VkResult>;
+pub type PFN_vkQueueWaitIdle = Option<unsafe extern "C" fn(queue: VkQueue) -> VkResult>;
+pub type PFN_vkDeviceWaitIdle = Option<unsafe extern "C" fn(device: VkDevice) -> VkResult>;
 pub type PFN_vkAllocateMemory = Option<
     unsafe extern "C" fn(
         device: VkDevice,
@@ -3789,8 +3778,7 @@ pub type PFN_vkMapMemory = Option<
         ppData: *mut *mut raw::c_void,
     ) -> VkResult,
 >;
-pub type PFN_vkUnmapMemory =
-    Option<unsafe extern "C" fn(device: VkDevice, memory: VkDeviceMemory)>;
+pub type PFN_vkUnmapMemory = Option<unsafe extern "C" fn(device: VkDevice, memory: VkDeviceMemory)>;
 pub type PFN_vkFlushMappedMemoryRanges = Option<
     unsafe extern "C" fn(
         device: VkDevice,
@@ -4311,9 +4299,8 @@ pub type PFN_vkCmdSetDepthBias = Option<
         depthBiasSlopeFactor: f32,
     ),
 >;
-pub type PFN_vkCmdSetBlendConstants = Option<
-    unsafe extern "C" fn(commandBuffer: VkCommandBuffer, blendConstants: *const f32),
->;
+pub type PFN_vkCmdSetBlendConstants =
+    Option<unsafe extern "C" fn(commandBuffer: VkCommandBuffer, blendConstants: *const f32)>;
 pub type PFN_vkCmdSetDepthBounds = Option<
     unsafe extern "C" fn(commandBuffer: VkCommandBuffer, minDepthBounds: f32, maxDepthBounds: f32),
 >;
@@ -4624,11 +4611,9 @@ pub type PFN_vkCmdBeginRenderPass = Option<
         contents: VkSubpassContents,
     ),
 >;
-pub type PFN_vkCmdNextSubpass = Option<
-    unsafe extern "C" fn(commandBuffer: VkCommandBuffer, contents: VkSubpassContents),
->;
-pub type PFN_vkCmdEndRenderPass =
-    Option<unsafe extern "C" fn(commandBuffer: VkCommandBuffer)>;
+pub type PFN_vkCmdNextSubpass =
+    Option<unsafe extern "C" fn(commandBuffer: VkCommandBuffer, contents: VkSubpassContents)>;
+pub type PFN_vkCmdEndRenderPass = Option<unsafe extern "C" fn(commandBuffer: VkCommandBuffer)>;
 pub type PFN_vkCmdExecuteCommands = Option<
     unsafe extern "C" fn(
         commandBuffer: VkCommandBuffer,
@@ -4928,9 +4913,8 @@ pub type PFN_vkAcquireNextImageKHR = Option<
         pImageIndex: *mut u32,
     ) -> VkResult,
 >;
-pub type PFN_vkQueuePresentKHR = Option<
-    unsafe extern "C" fn(queue: VkQueue, pPresentInfo: *const VkPresentInfoKHR) -> VkResult,
->;
+pub type PFN_vkQueuePresentKHR =
+    Option<unsafe extern "C" fn(queue: VkQueue, pPresentInfo: *const VkPresentInfoKHR) -> VkResult>;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VkDisplayKHR_T {
@@ -5683,8 +5667,7 @@ pub type PFN_vkCmdDebugMarkerBeginEXT = Option<
         pMarkerInfo: *mut VkDebugMarkerMarkerInfoEXT,
     ),
 >;
-pub type PFN_vkCmdDebugMarkerEndEXT =
-    Option<unsafe extern "C" fn(commandBuffer: VkCommandBuffer)>;
+pub type PFN_vkCmdDebugMarkerEndEXT = Option<unsafe extern "C" fn(commandBuffer: VkCommandBuffer)>;
 pub type PFN_vkCmdDebugMarkerInsertEXT = Option<
     unsafe extern "C" fn(
         commandBuffer: VkCommandBuffer,
@@ -7132,9 +7115,8 @@ pub type PFN_vkEnumeratePhysicalDevices = Option<
     ) -> VkResult,
 >;
 
-pub type PFN_vkDestroyInstance = Option<
-    unsafe extern "C" fn(instance: VkInstance, pAllocator: *const VkAllocationCallbacks),
->;
+pub type PFN_vkDestroyInstance =
+    Option<unsafe extern "C" fn(instance: VkInstance, pAllocator: *const VkAllocationCallbacks)>;
 
 pub type PFN_vkCreateXlibSurfaceKHR = Option<
     unsafe extern "C" fn(
