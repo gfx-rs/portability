@@ -101,7 +101,7 @@ impl<B: hal::Backend> Gpu<B> {
 }
 
 pub struct Queue<B: hal::Backend> {
-    raw: B::CommandQueue,
+    raw: B::Queue,
     temp_semaphores: Vec<(VkPipelineStageFlags, VkSemaphore)>,
 }
 
