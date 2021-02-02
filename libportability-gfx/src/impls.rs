@@ -6,7 +6,7 @@ use hal::{
     device::{Device, WaitFor},
     pool::CommandPool as _,
     pso::DescriptorPool,
-    queue::{CommandQueue as _, QueueFamily},
+    queue::{Queue as _, QueueFamily},
     window::{PresentMode, PresentationSurface as _, Surface as _},
     {command as com, memory, pass, pso, queue}, {Features, Instance},
 };
@@ -1558,8 +1558,7 @@ pub unsafe extern "C" fn gfxWaitForFences(
             let fences = fence_slice
                 .iter()
                 .filter(|fence| !fence.is_fake)
-                .map(|fence| &fence.raw)
-                .collect::<Vec<_>>();
+                .map(|fence| &fence.raw);
             let wait_for = match waitAll {
                 VK_FALSE => WaitFor::Any,
                 _ => WaitFor::All,
@@ -2713,17 +2712,14 @@ pub unsafe extern "C" fn gfxCreateDescriptorSetLayout(
     let info = &*pCreateInfo;
     let layout_bindings = make_slice(info.pBindings, info.bindingCount as usize);
 
-    let sampler_iter = layout_bindings
-        .iter()
-        .flat_map(|binding| {
-            let slice = if binding.pImmutableSamplers.is_null() {
-                &[]
-            } else {
-                slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _)
-            };
-            slice.iter().map(|handle| &**handle)
-        })
-        .collect::<Vec<_>>();
+    let sampler_iter = layout_bindings.iter().flat_map(|binding| {
+        let slice = if binding.pImmutableSamplers.is_null() {
+            &[]
+        } else {
+            slice::from_raw_parts(binding.pImmutableSamplers, binding.descriptorCount as _)
+        };
+        slice.iter().map(|handle| &**handle)
+    });
 
     let bindings = layout_bindings
         .iter()
@@ -3982,7 +3978,7 @@ fn make_barriers<'a>(
     raw_globals: &'a [VkMemoryBarrier],
     raw_buffers: &'a [VkBufferMemoryBarrier],
     raw_images: &'a [VkImageMemoryBarrier],
-) -> Vec<memory::Barrier<'a, back::Backend>> {
+) -> impl Iterator<Item = memory::Barrier<'a, back::Backend>> {
     let globals = raw_globals.iter().flat_map(|b| {
         let buf =
             conv::map_buffer_access(b.srcAccessMask)..conv::map_buffer_access(b.dstAccessMask);
@@ -4031,7 +4027,7 @@ fn make_barriers<'a>(
         })
     });
 
-    globals.chain(buffers).chain(images).collect()
+    globals.chain(buffers).chain(images)
 }
 
 #[inline]
