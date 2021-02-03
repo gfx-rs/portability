@@ -4491,8 +4491,8 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
         format: conv::map_format(info.imageFormat).unwrap(),
         extent: conv::map_extent2d(info.imageExtent),
         image_count: info.minImageCount,
-        image_layers: 1,
-        image_usage: hal::image::Usage::COLOR_ATTACHMENT,
+        image_layers: info.imageArrayLayers as _,
+        image_usage: conv::map_image_usage(info.imageUsage),
     };
     let framebuffer_attachment = config.framebuffer_attachment();
 
