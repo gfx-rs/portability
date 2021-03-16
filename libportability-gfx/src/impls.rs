@@ -434,7 +434,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceProperties(
     pProperties: *mut VkPhysicalDeviceProperties,
 ) {
     let adapter_info = &adapter.info;
-    let limits = conv::limits_from_hal(adapter.physical_device.limits());
+    let limits = conv::limits_from_hal(adapter.physical_device.properties().limits);
     let sparse_properties = mem::zeroed(); // TODO
     let (major, minor, patch) = VERSION;
 
@@ -487,7 +487,7 @@ pub unsafe extern "C" fn gfxGetPhysicalDeviceProperties2KHR(
                 let data =
                     (ptr as *mut VkPhysicalDevicePortabilitySubsetPropertiesKHR).as_mut().unwrap()
                 ;
-                let limits = adapter.physical_device.limits();
+                let limits = adapter.physical_device.properties().limits;
                 data.minVertexInputBindingStrideAlignment = limits.min_vertex_input_binding_stride_alignment as u32;
                 data.pNext
             }
@@ -1721,11 +1721,11 @@ pub unsafe extern "C" fn gfxCreateBuffer(
 ) -> VkResult {
     let info = &*pCreateInfo;
     assert_eq!(info.sharingMode, VkSharingMode::VK_SHARING_MODE_EXCLUSIVE); // TODO
-    assert_eq!(info.flags, 0); // TODO
 
+    let sparse_flags = hal::memory::SparseFlags::from_bits_truncate(info.flags);
     let buffer = gpu
         .device
-        .create_buffer(info.size, conv::map_buffer_usage(info.usage))
+        .create_buffer(info.size, conv::map_buffer_usage(info.usage), sparse_flags)
         .expect("Error on creating buffer");
     *pBuffer = Handle::new(buffer);
     VkResult::VK_SUCCESS
@@ -1795,6 +1795,7 @@ pub unsafe extern "C" fn gfxCreateImage(
         warn!("unexpected initial layout: {:?}", info.initialLayout);
     }
 
+    let sparse_flags = hal::memory::SparseFlags::from_bits_truncate(info.flags);
     let kind = conv::map_image_kind(
         info.imageType,
         info.extent,
@@ -1819,6 +1820,7 @@ pub unsafe extern "C" fn gfxCreateImage(
             format,
             conv::map_tiling(info.tiling),
             usage,
+            sparse_flags,
             view_caps,
         )
         .expect("Error on creating image");

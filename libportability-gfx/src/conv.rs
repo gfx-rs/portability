@@ -9,6 +9,7 @@ use super::*;
 
 pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
     let viewport_size = limits.max_viewport_dimensions[0].max(limits.max_viewport_dimensions[1]);
+    let dl = limits.descriptor_limits;
     VkPhysicalDeviceLimits {
         maxImageDimension1D: limits.max_image_1d_size,
         maxImageDimension2D: limits.max_image_2d_size,
@@ -24,26 +25,21 @@ pub fn limits_from_hal(limits: Limits) -> VkPhysicalDeviceLimits {
         bufferImageGranularity: limits.buffer_image_granularity,
         sparseAddressSpaceSize: 0,
         maxBoundDescriptorSets: limits.max_bound_descriptor_sets as _,
-        maxPerStageDescriptorSamplers: limits.max_per_stage_descriptor_samplers as _,
-        maxPerStageDescriptorUniformBuffers: limits.max_per_stage_descriptor_uniform_buffers as _,
-        maxPerStageDescriptorStorageBuffers: limits.max_per_stage_descriptor_storage_buffers as _,
-        maxPerStageDescriptorSampledImages: limits.max_per_stage_descriptor_sampled_images as _,
-        maxPerStageDescriptorStorageImages: limits.max_per_stage_descriptor_storage_images as _,
-        maxPerStageDescriptorInputAttachments: limits.max_per_stage_descriptor_input_attachments
-            as _,
-        maxPerStageResources: limits.max_per_stage_resources as _,
-        maxDescriptorSetSamplers: limits.max_descriptor_set_samplers as _,
-        maxDescriptorSetUniformBuffers: limits.max_descriptor_set_uniform_buffers as _,
-        maxDescriptorSetUniformBuffersDynamic: limits
-            .max_descriptor_set_uniform_buffers_dynamic
-            .max(1) as _,
-        maxDescriptorSetStorageBuffers: limits.max_descriptor_set_storage_buffers as _,
-        maxDescriptorSetStorageBuffersDynamic: limits
-            .max_descriptor_set_storage_buffers_dynamic
-            .max(1) as _,
-        maxDescriptorSetSampledImages: limits.max_descriptor_set_sampled_images as _,
-        maxDescriptorSetStorageImages: limits.max_descriptor_set_storage_images as _,
-        maxDescriptorSetInputAttachments: limits.max_descriptor_set_input_attachments as _,
+        maxPerStageDescriptorSamplers: dl.max_per_stage_descriptor_samplers,
+        maxPerStageDescriptorUniformBuffers: dl.max_per_stage_descriptor_uniform_buffers,
+        maxPerStageDescriptorStorageBuffers: dl.max_per_stage_descriptor_storage_buffers,
+        maxPerStageDescriptorSampledImages: dl.max_per_stage_descriptor_sampled_images,
+        maxPerStageDescriptorStorageImages: dl.max_per_stage_descriptor_storage_images,
+        maxPerStageDescriptorInputAttachments: dl.max_per_stage_descriptor_input_attachments,
+        maxPerStageResources: dl.max_per_stage_resources,
+        maxDescriptorSetSamplers: dl.max_descriptor_set_samplers,
+        maxDescriptorSetUniformBuffers: dl.max_descriptor_set_uniform_buffers,
+        maxDescriptorSetUniformBuffersDynamic: dl.max_descriptor_set_uniform_buffers_dynamic.max(1),
+        maxDescriptorSetStorageBuffers: dl.max_descriptor_set_storage_buffers,
+        maxDescriptorSetStorageBuffersDynamic: dl.max_descriptor_set_storage_buffers_dynamic.max(1),
+        maxDescriptorSetSampledImages: dl.max_descriptor_set_sampled_images,
+        maxDescriptorSetStorageImages: dl.max_descriptor_set_storage_images,
+        maxDescriptorSetInputAttachments: dl.max_descriptor_set_input_attachments,
         maxVertexInputAttributes: limits.max_vertex_input_attributes as _,
         maxVertexInputBindings: limits.max_vertex_input_bindings as _,
         maxVertexInputAttributeOffset: limits.max_vertex_input_attribute_offset as _,
@@ -689,7 +685,6 @@ pub fn map_err_device_creation(err: device::CreationError) -> VkResult {
         device::CreationError::OutOfMemory(Host) => VkResult::VK_ERROR_OUT_OF_HOST_MEMORY,
         device::CreationError::OutOfMemory(Device) => VkResult::VK_ERROR_OUT_OF_DEVICE_MEMORY,
         device::CreationError::InitializationFailed => VkResult::VK_ERROR_INITIALIZATION_FAILED,
-        device::CreationError::MissingExtension => VkResult::VK_ERROR_EXTENSION_NOT_PRESENT,
         device::CreationError::MissingFeature => VkResult::VK_ERROR_FEATURE_NOT_PRESENT,
         device::CreationError::TooManyObjects => VkResult::VK_ERROR_TOO_MANY_OBJECTS,
         device::CreationError::DeviceLost => VkResult::VK_ERROR_DEVICE_LOST,
