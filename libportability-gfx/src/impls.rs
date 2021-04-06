@@ -1971,13 +1971,23 @@ pub unsafe extern "C" fn gfxDestroyPipelineCache(
 }
 #[inline]
 pub unsafe extern "C" fn gfxGetPipelineCacheData(
-    _gpu: VkDevice,
-    _pipelineCache: VkPipelineCache,
+    gpu: VkDevice,
+    pipelineCache: VkPipelineCache,
     pDataSize: *mut usize,
-    _pData: *mut c_void,
+    pData: *mut c_void,
 ) -> VkResult {
-    //TODO: save
-    *pDataSize = 0;
+    let data = match gpu.device.get_pipeline_cache_data(&pipelineCache) {
+        Ok(data) => data,
+        Err(oom) => return map_oom(oom)
+    };
+
+    if pData.is_null() {
+        *pDataSize = data.len();
+    } else {
+        let output = slice::from_raw_parts_mut(pData as *mut u8, *pDataSize);
+        output.copy_from_slice(&data);
+    }
+
     VkResult::VK_SUCCESS
 }
 #[inline]
