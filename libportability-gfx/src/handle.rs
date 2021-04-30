@@ -1,10 +1,7 @@
 use crate::VK_NULL_HANDLE;
 #[cfg(feature = "nightly")]
-use std::sync::{Arc, Mutex};
+use std::{collections::HashMap, hash::BuildHasherDefault, sync::{Arc, Mutex}};
 use std::{borrow, fmt, ops};
-
-#[cfg(feature = "nightly")]
-use gfx_auxil::FastHashMap;
 
 use copyless::{BoxAllocation, BoxHelper};
 
@@ -13,8 +10,8 @@ use lazy_static::lazy_static;
 
 #[cfg(feature = "nightly")]
 lazy_static! {
-    static ref REGISTRY: Arc<Mutex<FastHashMap<usize, &'static str>>> =
-        Arc::new(Mutex::new(FastHashMap::default()));
+    static ref REGISTRY: Arc<Mutex<HashMap<usize, &'static str, BuildHasherDefault<fxhash::FxHasher>>>> =
+        Arc::new(Mutex::new(HashMap::default()));
 }
 
 #[repr(C)]

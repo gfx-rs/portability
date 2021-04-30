@@ -15,15 +15,21 @@ name = "portability_gfx"
 [features]
 default = []
 dispatch = []
-nightly = ["gfx-auxil"]
-metal-capture = ["gfx-backend-metal/auto-capture"]
+nightly = ["fxhash", "lazy_static"]
 
 [dependencies]
 copyless = "0.1.1"
 env_logger = { version = "0.8", optional = true }
+fxhash = { version = "0.2", optional = true }
+lazy_static = { version = "1", optional = true }
 log = { version = "0.4", features = ["release_max_level_error"] }
 renderdoc = { version = "0.3", optional = true }
 raw-window-handle = "0.3"
+
+[dependencies.profiling]
+version = "1.0.1"
+default-features = false
+#features = ["profile-with-tracy"]
 
 [dependencies.hal]
 package = "gfx-hal"
@@ -46,12 +52,10 @@ optional = true
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies.gfx-backend-metal]
 git = "https://github.com/gfx-rs/gfx"
+#features = ["cross"]
 optional = true
 
 [target.'cfg(all(unix, not(target_os = "macos"), not(target_os = "ios")))'.dependencies.gfx-backend-gl]
 git = "https://github.com/gfx-rs/gfx"
-optional = true
-
-[dependencies.gfx-auxil]
-git = "https://github.com/gfx-rs/gfx"
+#features = ["cross"]
 optional = true

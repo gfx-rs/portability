@@ -11,11 +11,10 @@ use hal::{
     {command as com, memory, pass, pso, queue}, {Features, Instance},
 };
 
-#[cfg(feature = "gfx-backend-metal")]
-use std::env;
 use std::{
     borrow::{Borrow, Cow},
     cell::Cell,
+    env,
     ffi::{CStr, CString},
     mem,
     os::raw::{c_int, c_void},
@@ -1828,6 +1827,7 @@ pub unsafe extern "C" fn gfxCreateImage(
     *pImage = Handle::new(Image::Native {
         raw: image,
         fb_attachment,
+        usage,
     });
 
     VkResult::VK_SUCCESS
@@ -1871,17 +1871,40 @@ pub unsafe extern "C" fn gfxCreateImageView(
     _pAllocator: *const VkAllocationCallbacks,
     pView: *mut VkImageView,
 ) -> VkResult {
+    let mut view_usage = None;
+    let mut ptr = pCreateInfo as *const VkStructureType;
+    while !ptr.is_null() {
+        ptr = match *ptr {
+            VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO => {
+                (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
+            }
+            VkStructureType::VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO_KHR => {
+                let data = (ptr as *const VkImageViewUsageCreateInfoKHR)
+                    .as_ref()
+                    .unwrap();
+                view_usage = Some(conv::map_image_usage(data.usage));
+                data.pNext
+            }
+            other => {
+                warn!("Unrecognized {:?}, skipping", other);
+                (ptr as *const VkBaseStruct).as_ref().unwrap().pNext
+            }
+        } as *const VkStructureType;
+    }
+
     let info = &*pCreateInfo;
     let view = match *info.image {
         Image::Native {
             ref raw,
             ref fb_attachment,
+            usage,
         } => {
             match gpu.device.create_image_view(
                 raw,
                 conv::map_view_kind(info.viewType),
                 conv::map_format(info.format).unwrap(),
                 conv::map_swizzle(info.components),
+                view_usage.unwrap_or(usage),
                 conv::map_subresource_range(info.subresourceRange),
             ) {
                 Ok(raw) => ImageView::Native {
@@ -1916,6 +1939,22 @@ pub unsafe extern "C" fn gfxCreateShaderModule(
     pShaderModule: *mut VkShaderModule,
 ) -> VkResult {
     let info = &*pCreateInfo;
+    if let Ok(value) = env::var("GFX_SHADER_DUMP") {
+        let base = std::path::PathBuf::from(value.as_str());
+        if base.is_dir() {
+            let code_u8 = slice::from_raw_parts(info.pCode as *const u8, info.codeSize);
+            for i in 1 .. {
+                let full = base.join(format!("{}.spv", i));
+                if !full.exists() {
+                    std::fs::write(full, code_u8).unwrap();
+                    break;
+                }
+            }
+        } else {
+            warn!("Shader dump path {:?} is not accessible", base);
+        }
+    }
+
     let code = slice::from_raw_parts(info.pCode, info.codeSize / 4);
     let shader_module = gpu
         .device
@@ -2348,7 +2387,6 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
                     };
 
                     // TODO: depth bounds
-
                     pso::DepthStencilDesc {
                         depth: depth_test,
                         depth_bounds: state.depthBoundsTestEnable == VK_TRUE,
@@ -2386,7 +2424,7 @@ pub unsafe extern "C" fn gfxCreateGraphicsPipelines(
                     .and_then(|vp| vp.pScissors.as_ref())
                     .map(conv::map_rect)
             },
-            blend_color: if dyn_states
+            blend_constants: if dyn_states
                 .iter()
                 .any(|&ds| ds == VkDynamicState::VK_DYNAMIC_STATE_BLEND_CONSTANTS)
             {
@@ -2667,6 +2705,7 @@ pub unsafe extern "C" fn gfxCreateSampler(
         min_filter: conv::map_filter(info.minFilter),
         mag_filter: conv::map_filter(info.magFilter),
         mip_filter: conv::map_mipmap_filter(info.mipmapMode),
+        reduction_mode: hal::image::ReductionMode::WeightedAverage,
         wrap_mode: (
             conv::map_wrap_mode(info.addressModeU),
             conv::map_wrap_mode(info.addressModeV),
@@ -4527,6 +4566,7 @@ pub unsafe extern "C" fn gfxCreateSwapchainKHR(
                 Se::DeviceLost(hal::device::DeviceLost) => VkResult::VK_ERROR_DEVICE_LOST,
                 Se::SurfaceLost(hal::window::SurfaceLost) => VkResult::VK_ERROR_SURFACE_LOST_KHR,
                 Se::WindowInUse => VkResult::VK_ERROR_NATIVE_WINDOW_IN_USE_KHR,
+                Se::Unknown => VkResult::VK_ERROR_UNKNOWN,
             }
         }
     }
