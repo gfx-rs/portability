@@ -17,3 +17,6 @@ panic = "abort"
 #gfx-backend-dx12 = { path = "../gfx/src/backend/dx12" }
 #gfx-backend-dx11 = { path = "../gfx/src/backend/dx11" }
 #gfx-backend-metal = { path = "../gfx/src/backend/metal" }
+
+[patch.crates-io]
+#naga = { path = "../naga" }

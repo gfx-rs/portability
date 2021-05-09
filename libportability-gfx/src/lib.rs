@@ -122,6 +122,7 @@ pub enum Image<B: hal::Backend> {
         //mip_levels: u32,
         //array_layers: u32,
         fb_attachment: hal::image::FramebufferAttachment,
+        usage: hal::image::Usage,
     },
     SwapchainFrame {
         swapchain: VkSwapchainKHR,
@@ -662,6 +663,7 @@ pub enum VkResult {
     VK_ERROR_TOO_MANY_OBJECTS = -10,
     VK_ERROR_FORMAT_NOT_SUPPORTED = -11,
     VK_ERROR_FRAGMENTED_POOL = -12,
+    VK_ERROR_UNKNOWN = -13,
     VK_ERROR_SURFACE_LOST_KHR = -1000000000,
     VK_ERROR_NATIVE_WINDOW_IN_USE_KHR = -1000000001,
     VK_SUBOPTIMAL_KHR = 1000001003,
@@ -830,6 +832,7 @@ pub enum VkStructureType {
     VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENTS_CREATE_INFO_KHR = 1000108001,
     VK_STRUCTURE_TYPE_FRAMEBUFFER_ATTACHMENT_IMAGE_INFO_KHR = 1000108002,
     VK_STRUCTURE_TYPE_RENDER_PASS_ATTACHMENT_BEGIN_INFO_KHR = 1000108003,
+    VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO_KHR = 1000117002,
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK = 1000122000,
     VK_STRUCTURE_TYPE_MACOS_SURFACE_CREATE_INFO_MVK = 1000123000,
     VK_STRUCTURE_TYPE_METAL_SURFACE_CREATE_INFO_EXT = 1000217000,
@@ -7271,6 +7274,18 @@ pub struct VkRenderPassAttachmentBeginInfoKHR {
     pub pAttachments: *const VkImageView,
 }
 impl Clone for VkRenderPassAttachmentBeginInfoKHR {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+#[repr(C)]
+#[derive(Debug, Copy)]
+pub struct VkImageViewUsageCreateInfoKHR {
+    pub sType: VkStructureType,
+    pub pNext: *const raw::c_void,
+    pub usage: VkImageUsageFlags,
+}
+impl Clone for VkImageViewUsageCreateInfoKHR {
     fn clone(&self) -> Self {
         *self
     }

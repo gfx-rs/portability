@@ -2,7 +2,7 @@ name: Check
 
 on:
   push:
-    branches-ignore: [staging.tmp]
+    branches: [master, staging]
   pull_request:
     branches-ignore: [staging.tmp]
 
@@ -71,3 +71,6 @@ jobs:
         name: Install make
         run: choco install make
       - run: make all
+      - if: matrix.channel == 'nightly'
+        name: Check nightly feature
+        run: cd libportability-gfx && cargo check --features nightly
