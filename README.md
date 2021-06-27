@@ -36,7 +36,7 @@ For the extension support, see `INSTANCE_EXTENSIONS` and `DEVICE_EXTENSIONS` in 
 
 ## Instructions
 
-Despite the fact it's written in Rust, the produced binaries have standard lining interface compatible with any program (written in the language of your choice). There are multiple ways to link to gfx-portability.
+Despite the fact it's written in Rust, the produced binaries have standard linking interface compatible with any program (written in the language of your choice). There are multiple ways to link to gfx-portability.
 
 ### Dynamic linking
 
